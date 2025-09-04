@@ -1,20 +1,20 @@
 // 🛡️ BULLETPROOF Widget configuration for embed code generation
 export const WIDGET_CONFIG = {
   // 🛡️ BULLETPROOF Production domain where widget.js will be hosted
-  PRODUCTION_DOMAIN: 'https://faqify-ai-spark.netlify.app', // Your actual production domain
+  PRODUCTION_DOMAIN: 'https://faqify.app', // Your actual production domain
 
   // 🛡️ BULLETPROOF Alternative domains for different environments
   DOMAINS: {
     development: 'http://localhost:8084',
-    staging: 'https://staging-faqify.netlify.app', // If you have staging
-    production: 'https://faqify-ai-spark.netlify.app' // Your actual production domain
+    staging: 'https://staging-faqify.app', // If you have staging
+    production: 'https://faqify.app' // Your actual production domain
   },
 
   // 🛡️ BULLETPROOF Fallback domains in case primary fails
   FALLBACK_DOMAINS: [
-    'https://faqify-ai-spark.netlify.app',
-    'https://faqify.netlify.app', // Alternative if needed
-    'https://faqify-widget.netlify.app' // Another alternative
+    'https://faqify.app',
+    'https://www.faqify.app', // Alternative if needed
+    'https://faqify-production.vercel.app' // Vercel fallback
   ],
   
   // 🛡️ BULLETPROOF Get the appropriate domain based on current environment

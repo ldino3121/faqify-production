@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Update Domain to faqify.app</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 2px solid #e1e5e9;
+            border-radius: 10px;
+            background: #f8f9fa;
+        }
+        .success { border-color: #28a745; background: #d4edda; }
+        .error { border-color: #dc3545; background: #f8d7da; }
+        .warning { border-color: #ffc107; background: #fff3cd; }
+        .info { border-color: #17a2b8; background: #d1ecf1; }
+        button {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px;
+        }
+        .code-block {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 5px;
+            padding: 15px;
+            font-family: 'Courier New', monospace;
+            margin: 10px 0;
+            white-space: pre-wrap;
+        }
+        .checklist {
+            list-style: none;
+            padding: 0;
+        }
+        .checklist li {
+            padding: 10px;
+            margin: 5px 0;
+            background: #f8f9fa;
+            border-radius: 5px;
+            border-left: 4px solid #007bff;
+        }
+        .checklist li.done {
+            background: #d4edda;
+            border-left-color: #28a745;
+        }
+        .step-number {
+            background: #007bff;
+            color: white;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🌐 Update Domain to faqify.app</h1>
+        
+        <div class="section success">
+            <h3>🎉 Congratulations!</h3>
+            <p><strong>Domain purchased:</strong> faqify.app</p>
+            <p><strong>New URL:</strong> https://faqify.app</p>
+            <p><strong>Professional branding:</strong> ✅ Ready for customers!</p>
+        </div>
+
+        <div class="section info">
+            <h3><span class="step-number">1</span>Vercel Domain Configuration</h3>
+            <p><strong>Add domain in Vercel Dashboard:</strong></p>
+            <ol>
+                <li>Go to: <a href="https://vercel.com/dashboard" target="_blank">Vercel Dashboard</a></li>
+                <li>Select project: faqify-production</li>
+                <li>Settings → Domains</li>
+                <li>Add Domain: <code>faqify.app</code></li>
+                <li>Add Domain: <code>www.faqify.app</code></li>
+            </ol>
+            <button onclick="openVercel()">Open Vercel Dashboard</button>
+        </div>
+
+        <div class="section warning">
+            <h3><span class="step-number">2</span>DNS Configuration</h3>
+            <p><strong>Add these DNS records in your domain registrar:</strong></p>
+            <div class="code-block">Type: A
+Name: @ (or leave blank)
+Value: 76.76.19.61
+TTL: Automatic
+
+Type: CNAME
+Name: www
+Value: cname.vercel-dns.com
+TTL: Automatic</div>
+            <p><strong>⏰ DNS propagation takes 10-30 minutes</strong></p>
+        </div>
+
+        <div class="section">
+            <h3><span class="step-number">3</span>Supabase Configuration Updates</h3>
+            <p><strong>Update these settings in Supabase Dashboard:</strong></p>
+            
+            <h4>🔗 URL Configuration:</h4>
+            <div class="code-block">Site URL:
+https://faqify.app
+
+Redirect URLs:
+https://faqify.app/auth/callback
+https://faqify.app/dashboard
+https://faqify.app/
+https://faqify.app/**
+https://www.faqify.app/auth/callback
+https://www.faqify.app/dashboard
+https://www.faqify.app/
+https://www.faqify.app/**</div>
+            
+            <button onclick="openSupabase()">Open Supabase Dashboard</button>
+        </div>
+
+        <div class="section">
+            <h3><span class="step-number">4</span>Google OAuth Configuration</h3>
+            <p><strong>Update Google Cloud Console:</strong></p>
+            
+            <h4>🔐 OAuth Consent Screen:</h4>
+            <div class="code-block">Application name: FAQify
+Application home page: https://faqify.app
+Application privacy policy: https://faqify.app/privacy
+Application terms of service: https://faqify.app/terms
+
+Authorized domains:
+faqify.app
+dlzshcshqjdghmtzlbma.supabase.co</div>
+
+            <h4>🔑 OAuth 2.0 Client:</h4>
+            <div class="code-block">Authorized JavaScript origins:
+https://faqify.app
+https://www.faqify.app
+https://dlzshcshqjdghmtzlbma.supabase.co
+
+Authorized redirect URIs:
+https://dlzshcshqjdghmtzlbma.supabase.co/auth/v1/callback</div>
+            
+            <button onclick="openGoogleConsole()">Open Google Console</button>
+        </div>
+
+        <div class="section">
+            <h3><span class="step-number">5</span>GitHub OAuth Configuration</h3>
+            <p><strong>Update GitHub OAuth App:</strong></p>
+            <div class="code-block">Application name: FAQify
+Homepage URL: https://faqify.app
+Authorization callback URL: https://dlzshcshqjdghmtzlbma.supabase.co/auth/v1/callback</div>
+            
+            <button onclick="openGitHub()">Open GitHub Settings</button>
+        </div>
+
+        <div class="section">
+            <h3><span class="step-number">6</span>Environment Variables (if any)</h3>
+            <p><strong>Check if you have any hardcoded URLs in your code:</strong></p>
+            <div class="code-block">// Look for these in your codebase:
+- faqify-production.vercel.app
+- Any hardcoded production URLs
+- API endpoints with old domain
+
+// Replace with:
+- faqify.app
+- New domain references</div>
+        </div>
+
+        <div class="section">
+            <h3><span class="step-number">7</span>Testing Checklist</h3>
+            <ul class="checklist">
+                <li>✅ Domain resolves to https://faqify.app</li>
+                <li>✅ www.faqify.app redirects to faqify.app</li>
+                <li>✅ Google OAuth login works</li>
+                <li>✅ GitHub OAuth login works</li>
+                <li>✅ Dashboard loads correctly</li>
+                <li>✅ FAQ generation works</li>
+                <li>✅ All features functional</li>
+            </ul>
+        </div>
+
+        <div class="section success">
+            <h3>🎯 Final Result</h3>
+            <p><strong>Your FAQify tool will be live at:</strong></p>
+            <ul>
+                <li>🌐 <strong>Main URL:</strong> https://faqify.app</li>
+                <li>🔗 <strong>Dashboard:</strong> https://faqify.app/dashboard</li>
+                <li>🔐 <strong>Login:</strong> https://faqify.app/login</li>
+                <li>📝 <strong>Signup:</strong> https://faqify.app/signup</li>
+            </ul>
+            <p><strong>Professional domain ready for customers! 🚀</strong></p>
+        </div>
+
+        <div class="section info">
+            <h3>⏰ Timeline</h3>
+            <ul>
+                <li><strong>DNS Propagation:</strong> 10-30 minutes</li>
+                <li><strong>SSL Certificate:</strong> 5-10 minutes (automatic)</li>
+                <li><strong>OAuth Updates:</strong> 5-10 minutes</li>
+                <li><strong>Total Time:</strong> ~30-60 minutes</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        function openVercel() {
+            window.open('https://vercel.com/dashboard', '_blank');
+        }
+
+        function openSupabase() {
+            window.open('https://supabase.com/dashboard/project/dlzshcshqjdghmtzlbma/auth/url-configuration', '_blank');
+        }
+
+        function openGoogleConsole() {
+            window.open('https://console.cloud.google.com/apis/credentials', '_blank');
+        }
+
+        function openGitHub() {
+            window.open('https://github.com/settings/applications', '_blank');
+        }
+
+        // Auto-update checklist as user completes steps
+        document.addEventListener('DOMContentLoaded', function() {
+            const checklistItems = document.querySelectorAll('.checklist li');
+            checklistItems.forEach((item, index) => {
+                item.addEventListener('click', function() {
+                    this.classList.toggle('done');
+                });
+            });
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fix OAuth for Production</title>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 2px solid #e1e5e9;
+            border-radius: 10px;
+            background: #f8f9fa;
+        }
+        .success { border-color: #28a745; background: #d4edda; }
+        .error { border-color: #dc3545; background: #f8d7da; }
+        .warning { border-color: #ffc107; background: #fff3cd; }
+        .info { border-color: #17a2b8; background: #d1ecf1; }
+        button {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px;
+        }
+        .log {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+            margin: 10px 0;
+        }
+        .code-block {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 5px;
+            padding: 15px;
+            font-family: 'Courier New', monospace;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Fix OAuth for Production</h1>
+        
+        <div class="section error">
+            <h3>❌ Current Issues:</h3>
+            <p><strong>1. OAuth Redirect Error:</strong> Trying to redirect to localhost instead of production URL</p>
+            <p><strong>2. Branding Issue:</strong> Shows "dlzshcshqjdghmtzlbma.supabase.co" instead of "FAQify"</p>
+        </div>
+
+        <div class="section info">
+            <h3>🎯 Production URL:</h3>
+            <p><strong>Your live app:</strong> https://faqify-production.vercel.app</p>
+        </div>
+
+        <div class="section">
+            <h3>🔧 Fix 1: Update Supabase Auth Settings</h3>
+            <p>You need to update these settings in your Supabase dashboard:</p>
+            
+            <h4>📝 Steps to Fix:</h4>
+            <ol>
+                <li><strong>Go to Supabase Dashboard:</strong> https://supabase.com/dashboard</li>
+                <li><strong>Select your project:</strong> dlzshcshqjdghmtzlbma</li>
+                <li><strong>Go to Authentication → Settings</strong></li>
+                <li><strong>Update these fields:</strong></li>
+            </ol>
+
+            <div class="code-block">
+<strong>Site URL:</strong>
+https://faqify-production.vercel.app
+
+<strong>Redirect URLs (add these):</strong>
+https://faqify-production.vercel.app/auth/callback
+https://faqify-production.vercel.app/dashboard
+https://faqify-production.vercel.app/
+
+<strong>Additional Redirect URLs:</strong>
+https://faqify-production.vercel.app/**
+            </div>
+
+            <button onclick="openSupabaseDashboard()">Open Supabase Dashboard</button>
+        </div>
+
+        <div class="section">
+            <h3>🏷️ Fix 2: Update App Branding</h3>
+            <p>To change "dlzshcshqjdghmtzlbma.supabase.co" to "FAQify":</p>
+            
+            <h4>📝 In Supabase Dashboard:</h4>
+            <ol>
+                <li><strong>Go to Authentication → Settings</strong></li>
+                <li><strong>Scroll to "Email Templates"</strong></li>
+                <li><strong>Update these templates:</strong></li>
+            </ol>
+
+            <div class="code-block">
+<strong>Confirm Signup Template:</strong>
+Replace: "dlzshcshqjdghmtzlbma.supabase.co"
+With: "FAQify"
+
+<strong>Magic Link Template:</strong>
+Replace: "dlzshcshqjdghmtzlbma.supabase.co" 
+With: "FAQify"
+
+<strong>Change Email Template:</strong>
+Replace: "dlzshcshqjdghmtzlbma.supabase.co"
+With: "FAQify"
+            </div>
+
+            <button onclick="testOAuth()">Test OAuth After Fix</button>
+        </div>
+
+        <div class="section">
+            <h3>🧪 Test OAuth Configuration</h3>
+            <button onclick="checkCurrentConfig()">Check Current Config</button>
+            <button onclick="testProductionAuth()">Test Production Auth</button>
+            <div id="results" class="log">Click buttons to test OAuth configuration...</div>
+        </div>
+
+        <div class="section success">
+            <h3>✅ Expected Result After Fix:</h3>
+            <p><strong>OAuth should redirect to:</strong> https://faqify-production.vercel.app/dashboard</p>
+            <p><strong>Branding should show:</strong> "You're signing back in to FAQify"</p>
+            <p><strong>Login should work:</strong> Successfully redirect to dashboard</p>
+        </div>
+    </div>
+
+    <script>
+        const SUPABASE_URL = 'https://dlzshcshqjdghmtzlbma.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRsenNoY3NocWpkZ2htdHpsYm1hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTExODUzODgsImV4cCI6MjA2Njc2MTM4OH0.EL4By0nom419JiorSHKiFckLqnh1sqmFvYnWTylB9Gk';
+
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        function updateResults(message) {
+            const results = document.getElementById('results');
+            const timestamp = new Date().toLocaleTimeString();
+            results.textContent += `[${timestamp}] ${message}\n`;
+            results.scrollTop = results.scrollHeight;
+        }
+
+        function openSupabaseDashboard() {
+            updateResults('🌐 Opening Supabase dashboard...');
+            window.open('https://supabase.com/dashboard/project/dlzshcshqjdghmtzlbma/auth/users', '_blank');
+            updateResults('📝 Go to Authentication → Settings to update URLs');
+        }
+
+        async function checkCurrentConfig() {
+            updateResults('🔍 Checking current OAuth configuration...');
+            
+            try {
+                // Try to get current user
+                const { data: { user }, error } = await supabase.auth.getUser();
+                
+                if (error) {
+                    updateResults(`❌ Auth error: ${error.message}`);
+                } else if (user) {
+                    updateResults(`✅ User logged in: ${user.email}`);
+                } else {
+                    updateResults('ℹ️ No user currently logged in');
+                }
+
+                // Check current session
+                const { data: { session } } = await supabase.auth.getSession();
+                if (session) {
+                    updateResults('✅ Active session found');
+                } else {
+                    updateResults('ℹ️ No active session');
+                }
+
+            } catch (error) {
+                updateResults(`❌ Error checking config: ${error.message}`);
+            }
+        }
+
+        async function testProductionAuth() {
+            updateResults('🧪 Testing production authentication...');
+            
+            try {
+                const { data, error } = await supabase.auth.signInWithOAuth({
+                    provider: 'google',
+                    options: {
+                        redirectTo: 'https://faqify-production.vercel.app/dashboard'
+                    }
+                });
+
+                if (error) {
+                    updateResults(`❌ OAuth test failed: ${error.message}`);
+                } else {
+                    updateResults('✅ OAuth test initiated - check redirect');
+                }
+
+            } catch (error) {
+                updateResults(`❌ Test error: ${error.message}`);
+            }
+        }
+
+        function testOAuth() {
+            updateResults('🧪 Testing OAuth after configuration fix...');
+            window.open('https://faqify-production.vercel.app', '_blank');
+            updateResults('📝 Try logging in on the production site');
+        }
+
+        // Auto-load
+        window.addEventListener('load', () => {
+            updateResults('🌟 OAuth Fix Tool Ready');
+            updateResults('📝 Follow the steps above to fix OAuth redirect issues');
+        });
+    </script>
+</body>
+</html>
