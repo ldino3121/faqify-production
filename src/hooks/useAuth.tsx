@@ -11,7 +11,6 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   signInWithGoogle: () => Promise<void>;
-  signInWithGitHub: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -155,11 +154,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signInWithGoogle = async () => {
     console.log('Attempting Google OAuth sign in...');
+    console.log('Current origin:', window.location.origin);
+
+    // Determine the correct redirect URL based on environment
+    const isProduction = window.location.hostname === 'faqify.app' || window.location.hostname === 'www.faqify.app';
+    const redirectUrl = isProduction ? 'https://faqify.app/dashboard' : `${window.location.origin}/dashboard`;
+
+    console.log('Redirect URL:', redirectUrl);
+    console.log('Is production:', isProduction);
 
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/dashboard`,
+        redirectTo: redirectUrl,
         queryParams: {
           access_type: 'offline',
           prompt: 'consent',
@@ -175,24 +182,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const signInWithGitHub = async () => {
-    console.log('Attempting GitHub OAuth sign in...');
 
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: 'github',
-      options: {
-        redirectTo: `${window.location.origin}/dashboard`,
-        scopes: 'user:email',
-      },
-    });
-
-    console.log('GitHub OAuth response:', { data, error });
-
-    if (error) {
-      console.error('GitHub OAuth error:', error);
-      throw new Error(error.message);
-    }
-  };
 
   const value = {
     user,
@@ -202,7 +192,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     signIn,
     signOut,
     signInWithGoogle,
-    signInWithGitHub,
   };
 
   return (

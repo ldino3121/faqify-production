@@ -1,8 +1,9 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Menu, X, Zap } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import { Link } from "react-router-dom";
+import { FAQifyIconSimple } from "@/components/ui/faqify-icon";
 
 export const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -26,8 +27,8 @@ export const Header = () => {
     <header className="fixed top-0 w-full bg-black/90 backdrop-blur-sm border-b border-gray-800 z-50">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center py-4">
-          <Link to="/" className="flex items-center space-x-2">
-            <Zap className="h-8 w-8 text-blue-500" />
+          <Link to="/" className="flex items-center space-x-3">
+            <FAQifyIconSimple className="h-10 w-10 text-blue-500" />
             <span className="text-2xl font-bold text-white">FAQify</span>
           </Link>
 

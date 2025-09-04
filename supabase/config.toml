@@ -39,8 +39,10 @@ file_size_limit = "50MiB"
 
 [auth]
 enabled = true
-site_url = "http://localhost:8082"
+site_url = "https://faqify.app"
 additional_redirect_urls = [
+  "https://faqify.app/dashboard",
+  "https://faqify.app/",
   "http://localhost:8082/dashboard",
   "http://localhost:8082/",
   "http://localhost:8082/validate-oauth.html"

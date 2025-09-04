@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { Link } from "react-router-dom";
 
 export const FAQ = () => {
   const [openItems, setOpenItems] = useState<number[]>([0]);
@@ -98,9 +99,9 @@ export const FAQ = () => {
           <p className="text-gray-400 mb-4">
             Still have questions? We're here to help!
           </p>
-          <button className="text-blue-400 hover:text-blue-300 underline">
-            Contact Support
-          </button>
+          <Link to="/contact" className="text-blue-400 hover:text-blue-300 underline">
+            Contact Us
+          </Link>
         </div>
       </div>
     </section>

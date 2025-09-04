@@ -2,7 +2,8 @@
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Menu, Bell, Zap, LogOut } from "lucide-react";
+import { Menu, LogOut } from "lucide-react";
+import { FAQifyIconSimple } from "@/components/ui/faqify-icon";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useSubscription } from "@/hooks/useSubscription";
@@ -49,18 +50,13 @@ export const DashboardHeader = ({ sidebarOpen, setSidebarOpen }: DashboardHeader
             <Menu className="h-5 w-5" />
           </Button>
           
-          <Link to="/" className="flex items-center space-x-2">
-            <Zap className="h-6 w-6 text-blue-500" />
+          <Link to="/" className="flex items-center space-x-3">
+            <FAQifyIconSimple className="h-8 w-8 text-blue-500" />
             <span className="text-xl font-bold text-white">FAQify</span>
           </Link>
         </div>
 
         <div className="flex items-center space-x-4">
-          {/* Notifications */}
-          <Button variant="ghost" size="sm" className="text-white hover:bg-gray-800">
-            <Bell className="h-5 w-5" />
-          </Button>
-
           {/* User Menu */}
           <div className="flex items-center space-x-3">
             <Avatar>

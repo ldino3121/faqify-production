@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>FAQify Favicon Generator</title>
+</head>
+<body>
+    <h1>FAQify Favicon Generator</h1>
+    <p>Use this canvas to generate favicon files:</p>
+    
+    <canvas id="favicon" width="32" height="32" style="border: 1px solid #ccc; image-rendering: pixelated; width: 128px; height: 128px;"></canvas>
+    
+    <br><br>
+    <button onclick="downloadFavicon()">Download as ICO</button>
+    <button onclick="downloadPNG()">Download as PNG</button>
+    
+    <script>
+        const canvas = document.getElementById('favicon');
+        const ctx = canvas.getContext('2d');
+        
+        // Draw FAQify favicon
+        function drawFavicon() {
+            // Clear canvas
+            ctx.clearRect(0, 0, 32, 32);
+            
+            // Background
+            ctx.fillStyle = '#1e293b';
+            ctx.fillRect(0, 0, 32, 32);
+            
+            // Monitor outline
+            ctx.fillStyle = '#374151';
+            ctx.fillRect(4, 6, 24, 16);
+            
+            // Screen
+            ctx.fillStyle = '#f8fafc';
+            ctx.fillRect(5, 7, 22, 14);
+            
+            // AI box
+            ctx.fillStyle = '#3b82f6';
+            ctx.fillRect(6, 8, 8, 8);
+            
+            // FAQ bubble
+            ctx.fillStyle = '#10b981';
+            ctx.fillRect(16, 8, 10, 6);
+            
+            // Content lines
+            ctx.fillStyle = '#d1d5db';
+            ctx.fillRect(6, 18, 12, 1);
+            ctx.fillRect(6, 20, 16, 1);
+            
+            // Stand
+            ctx.fillStyle = '#374151';
+            ctx.fillRect(12, 24, 8, 2);
+            ctx.fillRect(8, 26, 16, 2);
+        }
+        
+        function downloadFavicon() {
+            const link = document.createElement('a');
+            link.download = 'favicon.ico';
+            link.href = canvas.toDataURL('image/x-icon');
+            link.click();
+        }
+        
+        function downloadPNG() {
+            const link = document.createElement('a');
+            link.download = 'favicon-32x32.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        }
+        
+        // Draw the favicon
+        drawFavicon();
+    </script>
+</body>
+</html>

@@ -2,10 +2,11 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Zap, Eye, EyeOff, Mail, Lock, Loader2 } from "lucide-react";
+import { Eye, EyeOff, Mail, Lock, Loader2 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { FAQifyIconSimple } from "@/components/ui/faqify-icon";
 
 const Login = () => {
   const [email, setEmail] = useState("");
@@ -76,8 +77,8 @@ const Login = () => {
       <div className="w-full max-w-md">
         {/* Header */}
         <div className="text-center mb-8">
-          <Link to="/" className="flex items-center justify-center space-x-2 mb-4">
-            <Zap className="h-8 w-8 text-blue-500" />
+          <Link to="/" className="flex items-center justify-center space-x-3 mb-4">
+            <FAQifyIconSimple className="h-12 w-12 text-blue-500" />
             <span className="text-2xl font-bold text-white">FAQify</span>
           </Link>
           <h1 className="text-2xl font-bold text-white mb-2">Welcome Back</h1>

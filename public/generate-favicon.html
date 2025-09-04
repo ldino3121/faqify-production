@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Generate FAQify Favicon</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background: #1e293b; color: white; }
+        canvas { border: 2px solid #3b82f6; margin: 20px 0; }
+        button { background: #3b82f6; color: white; border: none; padding: 10px 20px; margin: 10px; border-radius: 5px; cursor: pointer; }
+        button:hover { background: #2563eb; }
+        .preview { display: flex; gap: 20px; align-items: center; }
+        .size-label { font-weight: bold; margin-bottom: 5px; }
+    </style>
+</head>
+<body>
+    <h1>🎨 FAQify Favicon Generator</h1>
+    <p>Generate favicon files for FAQify:</p>
+    
+    <div class="preview">
+        <div>
+            <div class="size-label">16x16 (Favicon)</div>
+            <canvas id="favicon16" width="16" height="16" style="width: 64px; height: 64px; image-rendering: pixelated;"></canvas>
+            <br>
+            <button onclick="download('favicon16', 'favicon-16x16.png')">Download 16x16</button>
+        </div>
+        
+        <div>
+            <div class="size-label">32x32 (Standard)</div>
+            <canvas id="favicon32" width="32" height="32" style="width: 128px; height: 128px; image-rendering: pixelated;"></canvas>
+            <br>
+            <button onclick="download('favicon32', 'favicon-32x32.png')">Download 32x32</button>
+        </div>
+        
+        <div>
+            <div class="size-label">180x180 (Apple Touch)</div>
+            <canvas id="favicon180" width="180" height="180" style="width: 180px; height: 180px;"></canvas>
+            <br>
+            <button onclick="download('favicon180', 'apple-touch-icon.png')">Download 180x180</button>
+        </div>
+    </div>
+    
+    <h3>Instructions:</h3>
+    <ol>
+        <li>Click the download buttons above to get the favicon files</li>
+        <li>Replace the existing favicon files in the /public folder</li>
+        <li>The favicons will show the FAQify AI+FAQ icon design</li>
+    </ol>
+    
+    <script>
+        function drawFavicon(canvasId, size) {
+            const canvas = document.getElementById(canvasId);
+            const ctx = canvas.getContext('2d');
+
+            // Clear canvas
+            ctx.clearRect(0, 0, size, size);
+
+            const center = size / 2;
+            const radius = Math.floor(size * 0.4);
+            const innerRadius = Math.floor(size * 0.32);
+
+            // Outer Circle
+            ctx.fillStyle = '#1e293b';
+            ctx.beginPath();
+            ctx.arc(center, center, radius, 0, 2 * Math.PI);
+            ctx.fill();
+
+            // Inner Circle (Background)
+            ctx.fillStyle = 'white';
+            ctx.beginPath();
+            ctx.arc(center, center, innerRadius, 0, 2 * Math.PI);
+            ctx.fill();
+
+            // Wave Pattern
+            ctx.strokeStyle = '#1e293b';
+            ctx.lineWidth = Math.max(2, Math.floor(size * 0.08));
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+
+            if (size >= 32) {
+                // Detailed wave for larger sizes
+                const waveStart = center - innerRadius * 0.7;
+                const waveEnd = center + innerRadius * 0.7;
+                const waveHeight = innerRadius * 0.3;
+
+                ctx.moveTo(waveStart, center);
+                ctx.quadraticCurveTo(waveStart + (waveEnd - waveStart) * 0.25, center - waveHeight,
+                                   waveStart + (waveEnd - waveStart) * 0.5, center);
+                ctx.quadraticCurveTo(waveStart + (waveEnd - waveStart) * 0.75, center + waveHeight,
+                                   waveEnd, center);
+            } else {
+                // Simplified wave for 16x16
+                const waveStart = center - innerRadius * 0.6;
+                const waveEnd = center + innerRadius * 0.6;
+                const waveHeight = innerRadius * 0.4;
+
+                ctx.moveTo(waveStart, center);
+                ctx.quadraticCurveTo(center, center - waveHeight, waveEnd, center);
+            }
+
+            ctx.stroke();
+
+            // Side connectors
+            const connectorWidth = Math.max(2, Math.floor(size * 0.08));
+            const connectorHeight = Math.max(4, Math.floor(size * 0.15));
+            const connectorY = center - connectorHeight / 2;
+
+            ctx.fillStyle = '#1e293b';
+            // Left connector
+            ctx.fillRect(center - radius - connectorWidth, connectorY, connectorWidth, connectorHeight);
+            // Right connector
+            ctx.fillRect(center + radius, connectorY, connectorWidth, connectorHeight);
+        }
+        
+        function download(canvasId, filename) {
+            const canvas = document.getElementById(canvasId);
+            const link = document.createElement('a');
+            link.download = filename;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        }
+        
+        // Generate all favicons
+        drawFavicon('favicon16', 16);
+        drawFavicon('favicon32', 32);
+        drawFavicon('favicon180', 180);
+    </script>
+</body>
+</html>
