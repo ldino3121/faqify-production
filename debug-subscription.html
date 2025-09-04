@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Subscription - FAQify</title>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f8fafc;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        .status {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            font-weight: 500;
+        }
+        .status.success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+        .status.error { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+        .status.warning { background: #fefce8; color: #ca8a04; border: 1px solid #fef08a; }
+        .status.info { background: #eff6ff; color: #2563eb; border: 1px solid #dbeafe; }
+        .btn {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px;
+            transition: background 0.2s;
+        }
+        .btn:hover { background: #2563eb; }
+        .data-table {
+            background: #f9fafb;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 12px;
+            overflow-x: auto;
+        }
+        .highlight { background: #fef3c7; padding: 2px 4px; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Subscription Debug Tool</h1>
+        <p>This tool helps diagnose subscription and FAQ generation issues.</p>
+        
+        <button class="btn" onclick="debugSubscription()">🔍 Debug Current State</button>
+        <button class="btn" onclick="testFAQGeneration()">🧪 Test FAQ Generation</button>
+        <button class="btn" onclick="checkDatabaseFunctions()">⚙️ Check DB Functions</button>
+        
+        <div id="debug-results"></div>
+    </div>
+
+    <script>
+        const supabaseUrl = 'https://dlzshcshqjdghmtzlbma.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRsenNoY3NocWpkZ2htdHpsYm1hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTExODUzODgsImV4cCI6MjA2Njc2MTM4OH0.EL4By0nom419JiorSHKiFckLqnh1sqmFvYnWTylB9Gk';
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+        async function debugSubscription() {
+            const resultsDiv = document.getElementById('debug-results');
+            resultsDiv.innerHTML = '<div class="status info">🔍 Analyzing subscription state...</div>';
+
+            try {
+                // Get current user
+                const { data: { user }, error: userError } = await supabase.auth.getUser();
+                if (userError || !user) {
+                    resultsDiv.innerHTML = '<div class="status error">❌ Please sign in first</div>';
+                    return;
+                }
+
+                // Get user subscription
+                const { data: subscription, error: subError } = await supabase
+                    .from('user_subscriptions')
+                    .select('*')
+                    .eq('user_id', user.id)
+                    .single();
+
+                // Get subscription plans
+                const { data: plans, error: plansError } = await supabase
+                    .from('subscription_plans')
+                    .select('*')
+                    .order('faq_limit');
+
+                // Test can_generate_faqs function
+                const { data: canGenerate, error: canGenError } = await supabase.rpc('can_generate_faqs', {
+                    user_uuid: user.id,
+                    faq_count: 1
+                });
+
+                // Calculate remaining usage
+                const remainingUsage = subscription ? subscription.faq_usage_limit - subscription.faq_usage_current : 0;
+                const shouldShowUpgrade = remainingUsage <= 2;
+
+                let html = `
+                    <div class="container">
+                        <h2>📊 Current State Analysis</h2>
+                        
+                        <h3>👤 User Info</h3>
+                        <div class="data-table">
+                            User ID: ${user.id}<br>
+                            Email: ${user.email}
+                        </div>
+
+                        <h3>📋 Subscription Details</h3>
+                        <div class="data-table">
+                            ${subscription ? `
+                                Plan: <span class="highlight">${subscription.plan_tier}</span><br>
+                                Status: <span class="highlight">${subscription.status}</span><br>
+                                Current Usage: <span class="highlight">${subscription.faq_usage_current}</span><br>
+                                Usage Limit: <span class="highlight">${subscription.faq_usage_limit}</span><br>
+                                Remaining: <span class="highlight">${remainingUsage}</span><br>
+                                Show Upgrade? <span class="highlight">${shouldShowUpgrade ? 'YES' : 'NO'}</span> (triggers when ≤ 2)<br>
+                                Created: ${subscription.created_at}<br>
+                                Updated: ${subscription.updated_at}
+                            ` : 'No subscription found'}
+                        </div>
+
+                        <h3>💰 Available Plans</h3>
+                        <div class="data-table">
+                            ${plans ? plans.map(plan => `
+                                ${plan.name}: ${plan.faq_limit} FAQs - $${plan.price_monthly}/month
+                            `).join('<br>') : 'No plans found'}
+                        </div>
+
+                        <h3>🔧 Function Test Results</h3>
+                        <div class="data-table">
+                            ${canGenerate ? `
+                                Can Generate: <span class="highlight">${canGenerate.can_generate ? 'YES' : 'NO'}</span><br>
+                                Reason: <span class="highlight">${canGenerate.reason || 'N/A'}</span><br>
+                                Current Usage: ${canGenerate.current_usage}<br>
+                                Usage Limit: ${canGenerate.usage_limit}<br>
+                                Remaining FAQs: ${canGenerate.remaining_faqs}<br>
+                                Plan Tier: ${canGenerate.plan_tier}
+                            ` : `Error: ${canGenError?.message || 'Unknown error'}`}
+                        </div>
+
+                        <h3>🚨 Issue Analysis</h3>
+                        <div class="status ${shouldShowUpgrade ? 'warning' : 'success'}">
+                            ${shouldShowUpgrade ? `
+                                ⚠️ <strong>UPGRADE PROMPT SHOWING</strong><br>
+                                • You have ${remainingUsage} FAQs remaining<br>
+                                • System shows upgrade when ≤ 2 remaining<br>
+                                • This is likely blocking FAQ generation UI
+                            ` : `
+                                ✅ <strong>NO UPGRADE PROMPT</strong><br>
+                                • You have ${remainingUsage} FAQs remaining<br>
+                                • Upgrade prompt only shows when ≤ 2 remaining
+                            `}
+                        </div>
+                    </div>
+                `;
+
+                resultsDiv.innerHTML = html;
+
+            } catch (error) {
+                console.error('Debug error:', error);
+                resultsDiv.innerHTML = `<div class="status error">❌ Debug failed: ${error.message}</div>`;
+            }
+        }
+
+        async function testFAQGeneration() {
+            const resultsDiv = document.getElementById('debug-results');
+            resultsDiv.innerHTML = '<div class="status info">🧪 Testing FAQ generation flow...</div>';
+
+            try {
+                const { data: { user }, error: userError } = await supabase.auth.getUser();
+                if (userError || !user) {
+                    resultsDiv.innerHTML = '<div class="status error">❌ Please sign in first</div>';
+                    return;
+                }
+
+                // Test the complete flow
+                const tests = [];
+
+                // Test 1: Check if user can generate 1 FAQ
+                const { data: test1, error: error1 } = await supabase.rpc('can_generate_faqs', {
+                    user_uuid: user.id,
+                    faq_count: 1
+                });
+                tests.push({
+                    name: 'Can Generate 1 FAQ',
+                    result: test1?.can_generate || false,
+                    details: test1?.reason || error1?.message || 'Unknown'
+                });
+
+                // Test 2: Check if user can generate 5 FAQs
+                const { data: test2, error: error2 } = await supabase.rpc('can_generate_faqs', {
+                    user_uuid: user.id,
+                    faq_count: 5
+                });
+                tests.push({
+                    name: 'Can Generate 5 FAQs',
+                    result: test2?.can_generate || false,
+                    details: test2?.reason || error2?.message || 'Unknown'
+                });
+
+                let html = `
+                    <div class="container">
+                        <h2>🧪 FAQ Generation Tests</h2>
+                        ${tests.map(test => `
+                            <div class="status ${test.result ? 'success' : 'error'}">
+                                <strong>${test.name}:</strong> ${test.result ? '✅ PASS' : '❌ FAIL'}<br>
+                                Details: ${test.details}
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+
+                resultsDiv.innerHTML = html;
+
+            } catch (error) {
+                console.error('Test error:', error);
+                resultsDiv.innerHTML = `<div class="status error">❌ Test failed: ${error.message}</div>`;
+            }
+        }
+
+        async function checkDatabaseFunctions() {
+            const resultsDiv = document.getElementById('debug-results');
+            resultsDiv.innerHTML = '<div class="status info">⚙️ Checking database functions...</div>';
+
+            try {
+                const { data: { user }, error: userError } = await supabase.auth.getUser();
+                if (userError || !user) {
+                    resultsDiv.innerHTML = '<div class="status error">❌ Please sign in first</div>';
+                    return;
+                }
+
+                const functions = [
+                    'can_generate_faqs',
+                    'increment_faq_usage_by_count',
+                    'check_and_reset_user_usage',
+                    'get_subscription_status'
+                ];
+
+                let html = '<div class="container"><h2>⚙️ Database Functions Status</h2>';
+
+                for (const funcName of functions) {
+                    try {
+                        const { data, error } = await supabase.rpc(funcName, {
+                            user_uuid: user.id,
+                            faq_count: 1
+                        });
+                        
+                        html += `
+                            <div class="status ${error ? 'error' : 'success'}">
+                                <strong>${funcName}:</strong> ${error ? '❌ ERROR' : '✅ WORKING'}<br>
+                                ${error ? `Error: ${error.message}` : `Result: ${JSON.stringify(data).substring(0, 100)}...`}
+                            </div>
+                        `;
+                    } catch (err) {
+                        html += `
+                            <div class="status error">
+                                <strong>${funcName}:</strong> ❌ EXCEPTION<br>
+                                Error: ${err.message}
+                            </div>
+                        `;
+                    }
+                }
+
+                html += '</div>';
+                resultsDiv.innerHTML = html;
+
+            } catch (error) {
+                console.error('Function check error:', error);
+                resultsDiv.innerHTML = `<div class="status error">❌ Function check failed: ${error.message}</div>`;
+            }
+        }
+
+        // Auto-run debug on page load
+        window.addEventListener('load', () => {
+            setTimeout(debugSubscription, 1000);
+        });
+    </script>
+</body>
+</html>

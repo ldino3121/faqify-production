@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Apply Database Fix - FAQify</title>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f8fafc;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        .status {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            font-weight: 500;
+        }
+        .status.success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+        .status.error { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+        .status.warning { background: #fefce8; color: #ca8a04; border: 1px solid #fef08a; }
+        .status.info { background: #eff6ff; color: #2563eb; border: 1px solid #dbeafe; }
+        .btn {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px;
+            transition: background 0.2s;
+        }
+        .btn:hover { background: #2563eb; }
+        .btn.danger { background: #dc2626; }
+        .btn.danger:hover { background: #b91c1c; }
+        .btn.success { background: #16a34a; }
+        .btn.success:hover { background: #15803d; }
+        .data-table {
+            background: #f9fafb;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 12px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .step {
+            border-left: 4px solid #3b82f6;
+            padding-left: 15px;
+            margin: 20px 0;
+        }
+        .progress {
+            width: 100%;
+            height: 20px;
+            background: #e5e7eb;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        .progress-bar {
+            height: 100%;
+            background: #3b82f6;
+            transition: width 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Apply Database Migration Fix</h1>
+        <p>This tool will apply the comprehensive database fix to resolve all migration conflicts and ensure consistent pricing structure.</p>
+        
+        <div class="status warning">
+            <strong>⚠️ Important:</strong> This will update your database to fix pricing conflicts and ensure all users have correct FAQ limits.
+        </div>
+        
+        <button class="btn success" onclick="applyDatabaseFix()">🚀 Apply Database Fix</button>
+        <button class="btn" onclick="checkCurrentState()">📊 Check Current State</button>
+        <button class="btn" onclick="verifyFix()">✅ Verify Fix</button>
+        
+        <div id="progress-container" style="display: none;">
+            <div class="progress">
+                <div class="progress-bar" id="progress-bar"></div>
+            </div>
+            <div id="progress-text">Starting...</div>
+        </div>
+        
+        <div id="results"></div>
+    </div>
+
+    <script>
+        const supabaseUrl = 'https://dlzshcshqjdghmtzlbma.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRsenNoY3NocWpkZ2htdHpsYm1hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTExODUzODgsImV4cCI6MjA2Njc2MTM4OH0.EL4By0nom419JiorSHKiFckLqnh1sqmFvYnWTylB9Gk';
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+        function updateResults(html) {
+            document.getElementById('results').innerHTML = html;
+        }
+
+        function updateProgress(percent, text) {
+            const progressContainer = document.getElementById('progress-container');
+            const progressBar = document.getElementById('progress-bar');
+            const progressText = document.getElementById('progress-text');
+            
+            progressContainer.style.display = 'block';
+            progressBar.style.width = percent + '%';
+            progressText.textContent = text;
+            
+            if (percent >= 100) {
+                setTimeout(() => {
+                    progressContainer.style.display = 'none';
+                }, 2000);
+            }
+        }
+
+        async function checkCurrentState() {
+            updateResults('<div class="status info">📊 Checking current database state...</div>');
+
+            try {
+                const { data: { user }, error: userError } = await supabase.auth.getUser();
+                if (userError || !user) {
+                    updateResults('<div class="status error">❌ Please sign in first</div>');
+                    return;
+                }
+
+                // Check subscription plans
+                const { data: plans, error: plansError } = await supabase
+                    .from('subscription_plans')
+                    .select('*')
+                    .order('faq_limit');
+
+                // Check user subscriptions
+                const { data: userSubs, error: userSubsError } = await supabase
+                    .from('user_subscriptions')
+                    .select('plan_tier, faq_usage_limit, faq_usage_current');
+
+                let html = `
+                    <div class="container">
+                        <h3>📊 Current Database State</h3>
+                `;
+
+                if (plansError) {
+                    html += `<div class="status error">❌ Error checking plans: ${plansError.message}</div>`;
+                } else {
+                    html += `
+                        <h4>Subscription Plans:</h4>
+                        <div class="data-table">
+${plans.map(p => `${p.name}: ${p.faq_limit} FAQs, $${p.price_monthly/100}/month`).join('\n')}
+                        </div>
+                    `;
+                }
+
+                if (userSubsError) {
+                    html += `<div class="status error">❌ Error checking user subscriptions: ${userSubsError.message}</div>`;
+                } else {
+                    // Group user subscriptions by plan tier for display
+                    const planCounts = {};
+                    userSubs.forEach(sub => {
+                        const key = `${sub.plan_tier} (Limit: ${sub.faq_usage_limit})`;
+                        planCounts[key] = (planCounts[key] || 0) + 1;
+                    });
+
+                    html += `
+                        <h4>User Subscriptions Distribution:</h4>
+                        <div class="data-table">
+Total Users: ${userSubs.length}
+${Object.entries(planCounts).map(([plan, count]) => `${plan}: ${count} users`).join('\n')}
+                        </div>
+                    `;
+                }
+
+                // Check for conflicts
+                const freePlan = plans?.find(p => p.name === 'Free');
+                const conflicts = [];
+                
+                if (freePlan && freePlan.faq_limit !== 5) {
+                    conflicts.push(`Free plan has ${freePlan.faq_limit} FAQs instead of 5`);
+                }
+
+                if (conflicts.length > 0) {
+                    html += `
+                        <div class="status error">
+                            <strong>❌ Conflicts Found:</strong><br>
+                            ${conflicts.join('<br>')}
+                        </div>
+                    `;
+                } else {
+                    html += `<div class="status success">✅ No conflicts detected</div>`;
+                }
+
+                html += '</div>';
+                updateResults(html);
+
+            } catch (error) {
+                updateResults(`<div class="status error">❌ Exception: ${error.message}</div>`);
+            }
+        }
+
+        async function applyDatabaseFix() {
+            updateResults('<div class="status info">🔧 Starting database migration fix...</div>');
+            updateProgress(0, 'Starting database fix...');
+
+            try {
+                const { data: { user }, error: userError } = await supabase.auth.getUser();
+                if (userError || !user) {
+                    updateResults('<div class="status error">❌ Please sign in first</div>');
+                    return;
+                }
+
+                let html = `
+                    <div class="container">
+                        <h3>🔧 Database Migration Fix Progress</h3>
+                `;
+
+                // Step 1: Update subscription plans
+                updateProgress(20, 'Updating subscription plans...');
+                html += '<div class="step"><h4>Step 1: Updating Subscription Plans</h4>';
+
+                const planUpdates = [
+                    { name: 'Free', price_monthly: 0, price_yearly: 0, faq_limit: 5 },
+                    { name: 'Pro', price_monthly: 900, price_yearly: 9700, faq_limit: 100 },
+                    { name: 'Business', price_monthly: 2900, price_yearly: 31300, faq_limit: 500 }
+                ];
+
+                for (const plan of planUpdates) {
+                    const { error: planError } = await supabase
+                        .from('subscription_plans')
+                        .upsert(plan, { onConflict: 'name' });
+
+                    if (planError) {
+                        html += `<div class="status error">❌ Failed to update ${plan.name} plan: ${planError.message}</div>`;
+                    } else {
+                        html += `<div class="status success">✅ Updated ${plan.name} plan: ${plan.faq_limit} FAQs</div>`;
+                    }
+                }
+                html += '</div>';
+
+                // Step 2: Update user subscriptions
+                updateProgress(50, 'Updating user subscriptions...');
+                html += '<div class="step"><h4>Step 2: Updating User Subscriptions</h4>';
+
+                const userUpdates = [
+                    { plan_tier: 'Free', faq_usage_limit: 5 },
+                    { plan_tier: 'Pro', faq_usage_limit: 100 },
+                    { plan_tier: 'Business', faq_usage_limit: 500 }
+                ];
+
+                for (const update of userUpdates) {
+                    const { data: updateResult, error: updateError } = await supabase
+                        .from('user_subscriptions')
+                        .update({ 
+                            faq_usage_limit: update.faq_usage_limit,
+                            updated_at: new Date().toISOString()
+                        })
+                        .eq('plan_tier', update.plan_tier)
+                        .select('id');
+
+                    if (updateError) {
+                        html += `<div class="status error">❌ Failed to update ${update.plan_tier} users: ${updateError.message}</div>`;
+                    } else {
+                        html += `<div class="status success">✅ Updated ${updateResult?.length || 0} ${update.plan_tier} users to ${update.faq_usage_limit} FAQs</div>`;
+                    }
+                }
+                html += '</div>';
+
+                // Step 3: Reset excessive usage
+                updateProgress(70, 'Resetting excessive usage...');
+                html += '<div class="step"><h4>Step 3: Resetting Excessive Usage</h4>';
+
+                // First, get all user subscriptions to check for excessive usage
+                const { data: allUsers, error: allUsersError } = await supabase
+                    .from('user_subscriptions')
+                    .select('id, plan_tier, faq_usage_current, faq_usage_limit');
+
+                if (allUsersError) {
+                    html += `<div class="status error">❌ Failed to check user subscriptions: ${allUsersError.message}</div>`;
+                } else {
+                    // Filter users with excessive usage
+                    const excessiveUsers = allUsers.filter(user => user.faq_usage_current > user.faq_usage_limit);
+
+                    if (excessiveUsers.length > 0) {
+                        // Reset each user individually
+                        let resetCount = 0;
+                        for (const user of excessiveUsers) {
+                            const { error: resetError } = await supabase
+                                .from('user_subscriptions')
+                                .update({
+                                    faq_usage_current: user.faq_usage_limit,
+                                    updated_at: new Date().toISOString()
+                                })
+                                .eq('id', user.id);
+
+                            if (!resetError) {
+                                resetCount++;
+                            }
+                        }
+                        html += `<div class="status success">✅ Reset usage for ${resetCount}/${excessiveUsers.length} users who exceeded limits</div>`;
+                    } else {
+                        html += `<div class="status success">✅ No users with excessive usage found</div>`;
+                    }
+                }
+                html += '</div>';
+
+                // Step 4: Verify fix
+                updateProgress(90, 'Verifying fix...');
+                html += '<div class="step"><h4>Step 4: Verification</h4>';
+
+                const { data: verifyPlans, error: verifyError } = await supabase
+                    .from('subscription_plans')
+                    .select('name, faq_limit')
+                    .order('faq_limit');
+
+                if (verifyError) {
+                    html += `<div class="status error">❌ Verification failed: ${verifyError.message}</div>`;
+                } else {
+                    const isCorrect = verifyPlans.find(p => p.name === 'Free')?.faq_limit === 5 &&
+                                     verifyPlans.find(p => p.name === 'Pro')?.faq_limit === 100 &&
+                                     verifyPlans.find(p => p.name === 'Business')?.faq_limit === 500;
+
+                    if (isCorrect) {
+                        html += `<div class="status success">✅ Database fix completed successfully!</div>`;
+                        html += `<div class="data-table">Final Plan Structure:
+${verifyPlans.map(p => `${p.name}: ${p.faq_limit} FAQs`).join('\n')}</div>`;
+                    } else {
+                        html += `<div class="status error">❌ Fix verification failed - plans not updated correctly</div>`;
+                    }
+                }
+                html += '</div>';
+
+                updateProgress(100, 'Database fix completed!');
+                html += '</div>';
+                updateResults(html);
+
+            } catch (error) {
+                updateResults(`<div class="status error">❌ Exception during fix: ${error.message}</div>`);
+                updateProgress(0, 'Fix failed');
+            }
+        }
+
+        async function verifyFix() {
+            updateResults('<div class="status info">✅ Verifying database fix...</div>');
+
+            try {
+                const { data: { user }, error: userError } = await supabase.auth.getUser();
+                if (userError || !user) {
+                    updateResults('<div class="status error">❌ Please sign in first</div>');
+                    return;
+                }
+
+                // Check plans
+                const { data: plans, error: plansError } = await supabase
+                    .from('subscription_plans')
+                    .select('*')
+                    .order('faq_limit');
+
+                // Check user subscription
+                const { data: userSub, error: userSubError } = await supabase
+                    .from('user_subscriptions')
+                    .select('*')
+                    .eq('user_id', user.id)
+                    .single();
+
+                let html = `
+                    <div class="container">
+                        <h3>✅ Verification Results</h3>
+                `;
+
+                if (plansError) {
+                    html += `<div class="status error">❌ Error checking plans: ${plansError.message}</div>`;
+                } else {
+                    const expectedLimits = { Free: 5, Pro: 100, Business: 500 };
+                    let allCorrect = true;
+
+                    html += '<h4>Plan Verification:</h4>';
+                    for (const plan of plans) {
+                        const expected = expectedLimits[plan.name];
+                        const isCorrect = plan.faq_limit === expected;
+                        allCorrect = allCorrect && isCorrect;
+
+                        html += `<div class="status ${isCorrect ? 'success' : 'error'}">
+                            ${isCorrect ? '✅' : '❌'} ${plan.name}: ${plan.faq_limit} FAQs ${isCorrect ? '(Correct)' : `(Expected: ${expected})`}
+                        </div>`;
+                    }
+
+                    if (allCorrect) {
+                        html += '<div class="status success"><strong>✅ All plans have correct limits!</strong></div>';
+                    }
+                }
+
+                if (userSubError) {
+                    html += `<div class="status error">❌ Error checking your subscription: ${userSubError.message}</div>`;
+                } else if (userSub) {
+                    const expectedLimit = userSub.plan_tier === 'Free' ? 5 : 
+                                         userSub.plan_tier === 'Pro' ? 100 : 500;
+                    const isCorrect = userSub.faq_usage_limit === expectedLimit;
+
+                    html += `<h4>Your Subscription:</h4>`;
+                    html += `<div class="status ${isCorrect ? 'success' : 'error'}">
+                        ${isCorrect ? '✅' : '❌'} Plan: ${userSub.plan_tier}, Limit: ${userSub.faq_usage_limit} FAQs, Current: ${userSub.faq_usage_current}
+                        ${isCorrect ? '(Correct)' : `(Expected limit: ${expectedLimit})`}
+                    </div>`;
+                }
+
+                html += '</div>';
+                updateResults(html);
+
+            } catch (error) {
+                updateResults(`<div class="status error">❌ Exception: ${error.message}</div>`);
+            }
+        }
+    </script>
+</body>
+</html>

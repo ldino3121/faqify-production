@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Widget Issue</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .warning { background-color: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        .info { background-color: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        button:hover { background-color: #0056b3; }
+        .fix-button { background-color: #28a745; }
+        .fix-button:hover { background-color: #218838; }
+        pre {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            border: 1px solid #e9ecef;
+            max-height: 300px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Widget Issue Debugger</h1>
+        <p>This tool will find why your embed widget isn't working.</p>
+        
+        <button onclick="debugWidgetIssue()">🔍 Debug Widget Issue</button>
+        <button onclick="fixCollectionStatus()" id="fixButton" style="display: none;" class="fix-button">🔧 Fix Collection Status</button>
+        
+        <div id="results"></div>
+    </div>
+
+    <script>
+        const supabaseUrl = 'https://dlzahcahqjdqhmtzbma.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRsemFoY2FocWpkcWhtdHpibWEiLCJyb2xlIjoiYW5vbiIsImlhdCI6MTczNTQ3NzI5NCwiZXhwIjoyMDUxMDUzMjk0fQ.Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8';
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+        let foundCollections = [];
+
+        function updateResults(html) {
+            document.getElementById('results').innerHTML = html;
+        }
+
+        async function debugWidgetIssue() {
+            updateResults('<div class="info">🔍 Debugging widget issue...</div>');
+            
+            try {
+                // Step 1: Check if user is logged in
+                const { data: { user }, error: userError } = await supabase.auth.getUser();
+                
+                if (userError || !user) {
+                    updateResults('<div class="error">❌ User not logged in. Please log in to your dashboard first.</div>');
+                    return;
+                }
+
+                let html = `<div class="success">✅ User logged in: ${user.email}</div>`;
+
+                // Step 2: Check all FAQ collections for this user
+                const { data: collections, error: collectionsError } = await supabase
+                    .from('faq_collections')
+                    .select(`
+                        id,
+                        title,
+                        status,
+                        created_at,
+                        faqs (
+                            id,
+                            question,
+                            answer,
+                            is_published
+                        )
+                    `)
+                    .eq('user_id', user.id)
+                    .order('created_at', { ascending: false });
+
+                if (collectionsError) {
+                    html += `<div class="error">❌ Failed to fetch collections: ${collectionsError.message}</div>`;
+                    updateResults(html);
+                    return;
+                }
+
+                if (!collections || collections.length === 0) {
+                    html += '<div class="error">❌ No FAQ collections found! FAQs are not being saved to database.</div>';
+                    html += '<div class="warning">⚠️ This means the FAQ generation is not saving properly.</div>';
+                    updateResults(html);
+                    return;
+                }
+
+                foundCollections = collections;
+                html += `<div class="success">✅ Found ${collections.length} FAQ collections</div>`;
+
+                // Step 3: Check collection statuses
+                const publishedCollections = collections.filter(c => c.status === 'published');
+                const draftCollections = collections.filter(c => c.status === 'draft');
+                const otherCollections = collections.filter(c => c.status !== 'published' && c.status !== 'draft');
+
+                html += `<div class="info">📊 Collection Status Breakdown:</div>`;
+                html += `<div class="info">• Published: ${publishedCollections.length}</div>`;
+                html += `<div class="info">• Draft: ${draftCollections.length}</div>`;
+                html += `<div class="info">• Other: ${otherCollections.length}</div>`;
+
+                if (draftCollections.length > 0) {
+                    html += '<div class="error">❌ Found collections with "draft" status!</div>';
+                    html += '<div class="warning">⚠️ Widget API only shows "published" collections. This is the problem!</div>';
+                    document.getElementById('fixButton').style.display = 'inline-block';
+                }
+
+                // Step 4: Show collection details
+                html += '<div class="info">📋 Collection Details:</div>';
+                collections.forEach((collection, index) => {
+                    const statusClass = collection.status === 'published' ? 'success' : 'error';
+                    const faqCount = collection.faqs?.length || 0;
+                    const publishedFAQs = collection.faqs?.filter(f => f.is_published)?.length || 0;
+                    
+                    html += `<div class="${statusClass}">
+                        <strong>Collection ${index + 1}:</strong> ${collection.title}<br>
+                        <strong>ID:</strong> ${collection.id}<br>
+                        <strong>Status:</strong> ${collection.status} ${collection.status === 'published' ? '✅' : '❌'}<br>
+                        <strong>FAQs:</strong> ${faqCount} total, ${publishedFAQs} published<br>
+                        <strong>Created:</strong> ${new Date(collection.created_at).toLocaleString()}
+                    </div>`;
+                });
+
+                // Step 5: Test widget API for latest collection
+                if (collections.length > 0) {
+                    const latestCollection = collections[0];
+                    html += '<div class="info">🧪 Testing Widget API for latest collection...</div>';
+                    
+                    try {
+                        const response = await fetch(`https://dlzahcahqjdqhmtzbma.supabase.co/functions/v1/get-faq-widget?collection_id=${latestCollection.id}`);
+                        const responseText = await response.text();
+                        
+                        if (response.ok) {
+                            html += '<div class="success">✅ Widget API works for this collection</div>';
+                            html += `<pre>API Response: ${responseText}</pre>`;
+                        } else {
+                            html += '<div class="error">❌ Widget API failed</div>';
+                            html += `<div class="error">Status: ${response.status}</div>`;
+                            html += `<pre>Error Response: ${responseText}</pre>`;
+                        }
+                    } catch (apiError) {
+                        html += `<div class="error">❌ Widget API test failed: ${apiError.message}</div>`;
+                    }
+                }
+
+                updateResults(html);
+
+            } catch (error) {
+                updateResults(`<div class="error">❌ Debug failed: ${error.message}</div>`);
+                console.error('Debug failed:', error);
+            }
+        }
+
+        async function fixCollectionStatus() {
+            updateResults('<div class="info">🔧 Fixing collection status...</div>');
+            
+            try {
+                const { data: { user } } = await supabase.auth.getUser();
+                
+                if (!user) {
+                    updateResults('<div class="error">❌ User not logged in</div>');
+                    return;
+                }
+
+                // Update all draft collections to published
+                const { data: updatedCollections, error: updateError } = await supabase
+                    .from('faq_collections')
+                    .update({ status: 'published' })
+                    .eq('user_id', user.id)
+                    .eq('status', 'draft')
+                    .select();
+
+                if (updateError) {
+                    updateResults(`<div class="error">❌ Failed to update collections: ${updateError.message}</div>`);
+                    return;
+                }
+
+                updateResults(`
+                    <div class="success">✅ Fixed ${updatedCollections?.length || 0} collections!</div>
+                    <div class="info">All your FAQ collections are now published and should work in widgets.</div>
+                    <div class="success">🎉 Try your embed code again - it should work now!</div>
+                `);
+
+                // Hide fix button
+                document.getElementById('fixButton').style.display = 'none';
+
+            } catch (error) {
+                updateResults(`<div class="error">❌ Fix failed: ${error.message}</div>`);
+                console.error('Fix failed:', error);
+            }
+        }
+
+        // Auto-run on page load
+        window.addEventListener('load', () => {
+            setTimeout(debugWidgetIssue, 1000);
+        });
+    </script>
+</body>
+</html>

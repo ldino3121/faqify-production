@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Razorpay Integration Test</title>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .warning { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        .info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #6c757d; cursor: not-allowed; }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .test-results {
+            margin-top: 20px;
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 10px;
+            background: #f8f9fa;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Razorpay Integration Test Suite</h1>
+        <p>This tool helps you test the Razorpay integration and verify all components are working correctly.</p>
+
+        <!-- Configuration Section -->
+        <div class="test-section">
+            <h3>📋 Configuration</h3>
+            <div>
+                <label>Supabase URL:</label>
+                <input type="text" id="supabaseUrl" placeholder="https://your-project.supabase.co" style="width: 300px; margin: 5px;">
+            </div>
+            <div>
+                <label>Supabase Anon Key:</label>
+                <input type="text" id="supabaseKey" placeholder="Your anon key" style="width: 300px; margin: 5px;">
+            </div>
+            <button onclick="initializeSupabase()">Initialize Connection</button>
+        </div>
+
+        <!-- Database Tests -->
+        <div class="test-section">
+            <h3>🗄️ Database Tests</h3>
+            <button onclick="testDatabaseSchema()">Test Database Schema</button>
+            <button onclick="testPaymentGatewayConfig()">Test Payment Gateway Config</button>
+            <button onclick="testCurrencyFunctions()">Test Currency Functions</button>
+        </div>
+
+        <!-- Edge Function Tests -->
+        <div class="test-section">
+            <h3>⚡ Edge Function Tests</h3>
+            <button onclick="testCreateOrder()">Test Create Order Function</button>
+            <button onclick="testVerifyPayment()">Test Verify Payment Function</button>
+            <button onclick="testWebhookEndpoint()">Test Webhook Endpoint</button>
+        </div>
+
+        <!-- Frontend Tests -->
+        <div class="test-section">
+            <h3>🎨 Frontend Tests</h3>
+            <button onclick="testRazorpayScript()">Test Razorpay Script Loading</button>
+            <button onclick="testCurrencyDetection()">Test Currency Detection</button>
+            <button onclick="testPriceCalculation()">Test Price Calculation</button>
+        </div>
+
+        <!-- Real-time Tests -->
+        <div class="test-section">
+            <h3>🔄 Real-time Tests</h3>
+            <button onclick="testRealtimeSubscription()">Test Real-time Subscription</button>
+            <button onclick="testTransactionUpdates()">Test Transaction Updates</button>
+        </div>
+
+        <!-- Results -->
+        <div class="test-results" id="results">
+            <div class="info">Test results will appear here...</div>
+        </div>
+    </div>
+
+    <script>
+        let supabase = null;
+        let testResults = [];
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            testResults.push({ timestamp, message, type });
+            updateResults();
+        }
+
+        function updateResults() {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = testResults.map(result => 
+                `<div class="${result.type}">[${result.timestamp}] ${result.message}</div>`
+            ).join('');
+            resultsDiv.scrollTop = resultsDiv.scrollHeight;
+        }
+
+        function initializeSupabase() {
+            const url = document.getElementById('supabaseUrl').value;
+            const key = document.getElementById('supabaseKey').value;
+
+            if (!url || !key) {
+                log('Please enter both Supabase URL and Anon Key', 'error');
+                return;
+            }
+
+            try {
+                supabase = window.supabase.createClient(url, key);
+                log('✅ Supabase client initialized successfully', 'success');
+            } catch (error) {
+                log(`❌ Failed to initialize Supabase: ${error.message}`, 'error');
+            }
+        }
+
+        async function testDatabaseSchema() {
+            if (!supabase) {
+                log('❌ Please initialize Supabase connection first', 'error');
+                return;
+            }
+
+            log('🔍 Testing database schema...', 'info');
+
+            try {
+                // Test user_subscriptions table with Razorpay columns
+                const { data, error } = await supabase
+                    .from('user_subscriptions')
+                    .select('id, razorpay_customer_id, razorpay_subscription_id, payment_gateway, currency')
+                    .limit(1);
+
+                if (error) {
+                    log(`❌ user_subscriptions table test failed: ${error.message}`, 'error');
+                } else {
+                    log('✅ user_subscriptions table with Razorpay columns exists', 'success');
+                }
+
+                // Test payment_transactions table
+                const { data: transactions, error: transError } = await supabase
+                    .from('payment_transactions')
+                    .select('id, payment_gateway, razorpay_payment_id, razorpay_order_id')
+                    .limit(1);
+
+                if (transError) {
+                    log(`❌ payment_transactions table test failed: ${transError.message}`, 'error');
+                } else {
+                    log('✅ payment_transactions table exists', 'success');
+                }
+
+                // Test subscription_plans with multi-currency
+                const { data: plans, error: plansError } = await supabase
+                    .from('subscription_plans')
+                    .select('name, price_monthly, price_inr, price_eur, price_gbp')
+                    .limit(1);
+
+                if (plansError) {
+                    log(`❌ subscription_plans multi-currency test failed: ${plansError.message}`, 'error');
+                } else {
+                    log('✅ subscription_plans table with multi-currency support exists', 'success');
+                }
+
+            } catch (error) {
+                log(`❌ Database schema test failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testPaymentGatewayConfig() {
+            if (!supabase) {
+                log('❌ Please initialize Supabase connection first', 'error');
+                return;
+            }
+
+            log('🔍 Testing payment gateway configuration...', 'info');
+
+            try {
+                const { data, error } = await supabase
+                    .from('payment_gateway_config')
+                    .select('*');
+
+                if (error) {
+                    log(`❌ Payment gateway config test failed: ${error.message}`, 'error');
+                } else {
+                    log(`✅ Found ${data.length} payment gateway configurations`, 'success');
+                    data.forEach(config => {
+                        log(`   - ${config.gateway_name}: ${config.is_enabled ? 'Enabled' : 'Disabled'}`, 'info');
+                    });
+                }
+            } catch (error) {
+                log(`❌ Payment gateway config test failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testCurrencyFunctions() {
+            if (!supabase) {
+                log('❌ Please initialize Supabase connection first', 'error');
+                return;
+            }
+
+            log('🔍 Testing currency functions...', 'info');
+
+            try {
+                // Test get_currency_for_country function
+                const { data: currency, error: currencyError } = await supabase
+                    .rpc('get_currency_for_country', { country_code: 'IN' });
+
+                if (currencyError) {
+                    log(`❌ Currency function test failed: ${currencyError.message}`, 'error');
+                } else {
+                    log(`✅ Currency function works: IN -> ${currency}`, 'success');
+                }
+
+                // Test get_plan_price function
+                const { data: price, error: priceError } = await supabase
+                    .rpc('get_plan_price', { plan_name: 'Pro', target_currency: 'inr' });
+
+                if (priceError) {
+                    log(`❌ Price function test failed: ${priceError.message}`, 'error');
+                } else {
+                    log(`✅ Price function works: Pro plan in INR = ${price}`, 'success');
+                }
+
+            } catch (error) {
+                log(`❌ Currency functions test failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testCreateOrder() {
+            if (!supabase) {
+                log('❌ Please initialize Supabase connection first', 'error');
+                return;
+            }
+
+            log('🔍 Testing create-razorpay-order function...', 'info');
+
+            try {
+                const { data, error } = await supabase.functions.invoke('create-razorpay-order', {
+                    body: {
+                        planId: 'pro',
+                        currency: 'inr',
+                        userCountry: 'IN'
+                    }
+                });
+
+                if (error) {
+                    log(`❌ Create order function failed: ${error.message}`, 'error');
+                } else if (data.success) {
+                    log('✅ Create order function works', 'success');
+                    log(`   Order ID: ${data.order.id}`, 'info');
+                    log(`   Amount: ${data.order.amount} ${data.order.currency}`, 'info');
+                } else {
+                    log(`❌ Create order function returned error: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ Create order function test failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testRazorpayScript() {
+            log('🔍 Testing Razorpay script loading...', 'info');
+
+            try {
+                if (window.Razorpay) {
+                    log('✅ Razorpay script already loaded', 'success');
+                    return;
+                }
+
+                const script = document.createElement('script');
+                script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+                
+                script.onload = () => {
+                    log('✅ Razorpay script loaded successfully', 'success');
+                };
+                
+                script.onerror = () => {
+                    log('❌ Failed to load Razorpay script', 'error');
+                };
+
+                document.head.appendChild(script);
+            } catch (error) {
+                log(`❌ Razorpay script test failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testCurrencyDetection() {
+            log('🔍 Testing currency detection...', 'info');
+
+            try {
+                const response = await fetch('https://ipapi.co/json/');
+                const data = await response.json();
+                
+                log(`✅ Location detected: ${data.country_name} (${data.country_code})`, 'success');
+                log(`   Currency: ${data.currency}`, 'info');
+                log(`   IP: ${data.ip}`, 'info');
+            } catch (error) {
+                log(`❌ Currency detection failed: ${error.message}`, 'error');
+            }
+        }
+
+        function testPriceCalculation() {
+            log('🔍 Testing price calculation...', 'info');
+
+            const rates = {
+                'usd': { rate: 1, symbol: '$' },
+                'inr': { rate: 83, symbol: '₹' },
+                'eur': { rate: 0.85, symbol: '€' },
+                'gbp': { rate: 0.75, symbol: '£' }
+            };
+
+            const usdPrice = 9; // Pro plan price
+
+            Object.entries(rates).forEach(([currency, config]) => {
+                const convertedPrice = Math.round(usdPrice * config.rate);
+                log(`   ${currency.toUpperCase()}: ${config.symbol}${convertedPrice}`, 'info');
+            });
+
+            log('✅ Price calculation test completed', 'success');
+        }
+
+        // Clear results
+        function clearResults() {
+            testResults = [];
+            updateResults();
+        }
+
+        // Add clear button
+        document.addEventListener('DOMContentLoaded', function() {
+            const container = document.querySelector('.container');
+            const clearButton = document.createElement('button');
+            clearButton.textContent = 'Clear Results';
+            clearButton.onclick = clearResults;
+            clearButton.style.background = '#6c757d';
+            container.appendChild(clearButton);
+        });
+    </script>
+</body>
+</html>

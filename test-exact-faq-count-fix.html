@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Exact FAQ Count Fix - 8 FAQs</title>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .warning { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        .info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px 5px;
+            font-size: 16px;
+        }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #6c757d; cursor: not-allowed; }
+        input, textarea {
+            width: 100%;
+            padding: 10px;
+            margin: 8px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: #f8f9fa;
+        }
+        .results {
+            margin-top: 20px;
+            max-height: 600px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 5px;
+        }
+        .faq-result {
+            background: #e9ecef;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border-left: 4px solid #007bff;
+        }
+        .faq-question {
+            font-weight: bold;
+            color: #495057;
+            margin-bottom: 8px;
+        }
+        .faq-answer {
+            color: #6c757d;
+            line-height: 1.5;
+        }
+        .test-result {
+            font-size: 18px;
+            font-weight: bold;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .pass { background: #d4edda; color: #155724; border: 2px solid #c3e6cb; }
+        .fail { background: #f8d7da; color: #721c24; border: 2px solid #f5c6cb; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Test Exact FAQ Count Fix - 8 FAQs Issue</h1>
+        <p>This tool tests the permanent fix for exact FAQ count generation. You requested 8 FAQs but got only 5.</p>
+
+        <!-- Configuration Section -->
+        <div class="test-section">
+            <h3>📋 Configuration</h3>
+            <div>
+                <label>Supabase URL:</label>
+                <input type="text" id="supabaseUrl" value="https://dlzshcshqjdghmtzlbma.supabase.co">
+            </div>
+            <div>
+                <label>Supabase Anon Key:</label>
+                <input type="text" id="supabaseKey" placeholder="Your anon key">
+            </div>
+            <div>
+                <label>User Email:</label>
+                <input type="email" id="userEmail" value="faqify18@gmail.com">
+            </div>
+            <div>
+                <label>User Password:</label>
+                <input type="password" id="userPassword" placeholder="your-password">
+            </div>
+            <button onclick="initializeAndLogin()">Initialize & Login</button>
+        </div>
+
+        <!-- Test Section -->
+        <div class="test-section">
+            <h3>🎯 8 FAQ Generation Test</h3>
+            <div>
+                <label>Test Content (Rich content for 8 FAQs):</label>
+                <textarea id="testContent" rows="6">
+FAQify is a comprehensive AI-powered FAQ generation platform that revolutionizes how businesses create and manage their customer support content. The platform leverages advanced natural language processing technology powered by Google's Gemini AI to analyze content from multiple sources including URLs, text documents, and uploaded files. 
+
+The system automatically generates relevant questions and answers that address common customer inquiries, significantly reducing support ticket volume and improving customer satisfaction. FAQify supports multiple subscription plans with different FAQ generation limits to accommodate businesses of all sizes, from startups to enterprise organizations.
+
+The platform provides embeddable widgets that can be seamlessly integrated into any website, allowing for dynamic customer support that updates in real-time. Users can customize the appearance, behavior, and styling of their FAQ widgets to match their brand identity perfectly.
+
+Advanced analytics features track FAQ performance, user engagement, and identify trending questions to help businesses optimize their content strategy. The system includes robust content analysis capabilities that can extract meaningful information from complex documents, web pages, and multimedia content.
+
+FAQify is designed to scale with business needs, offering enterprise-level features including API access, bulk processing, custom integrations, and dedicated support for larger organizations. The platform ensures data security and privacy compliance while maintaining high performance and reliability standards.
+                </textarea>
+            </div>
+            <button onclick="testExact8FAQs()">🚀 Test 8 FAQ Generation</button>
+            <button onclick="testMultipleCounts()">🔄 Test Multiple Counts (6,7,8,9,10)</button>
+            <button onclick="clearResults()">🗑️ Clear Results</button>
+        </div>
+
+        <!-- Results -->
+        <div class="results" id="results">
+            <div class="info">Test results will appear here...</div>
+        </div>
+    </div>
+
+    <script>
+        let supabase = null;
+        let testResults = [];
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            testResults.push({ timestamp, message, type });
+            updateResults();
+        }
+
+        function updateResults() {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = testResults.map(result => 
+                `<div class="${result.type}">[${result.timestamp}] ${result.message}</div>`
+            ).join('');
+            resultsDiv.scrollTop = resultsDiv.scrollHeight;
+        }
+
+        function clearResults() {
+            testResults = [];
+            updateResults();
+        }
+
+        async function initializeAndLogin() {
+            const url = document.getElementById('supabaseUrl').value;
+            const key = document.getElementById('supabaseKey').value;
+            const email = document.getElementById('userEmail').value;
+            const password = document.getElementById('userPassword').value;
+
+            if (!url || !key || !email || !password) {
+                log('Please fill in all configuration fields', 'error');
+                return;
+            }
+
+            try {
+                supabase = window.supabase.createClient(url, key);
+                log('✅ Supabase client initialized', 'success');
+
+                const { data, error } = await supabase.auth.signInWithPassword({
+                    email: email,
+                    password: password
+                });
+
+                if (error) {
+                    log(`❌ Login failed: ${error.message}`, 'error');
+                    return;
+                }
+
+                log(`✅ Logged in successfully as ${data.user.email}`, 'success');
+
+                // Check subscription status
+                const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('id')
+                    .eq('email', email)
+                    .single();
+
+                if (profile) {
+                    const { data: subscription } = await supabase
+                        .from('user_subscriptions')
+                        .select('plan_tier, faq_usage_current, faq_usage_limit')
+                        .eq('user_id', profile.id)
+                        .single();
+
+                    if (subscription) {
+                        log(`📊 Plan: ${subscription.plan_tier} (${subscription.faq_usage_current}/${subscription.faq_usage_limit} FAQs used)`, 'info');
+                    }
+                }
+
+            } catch (error) {
+                log(`❌ Initialization failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testExact8FAQs() {
+            if (!supabase) {
+                log('❌ Please initialize and login first', 'error');
+                return;
+            }
+
+            const testContent = document.getElementById('testContent').value.trim();
+            
+            log('🧪 Testing EXACT 8 FAQ generation with permanent fix...', 'info');
+            log('🎯 Expected Result: EXACTLY 8 FAQs (no more, no less)', 'info');
+
+            try {
+                const startTime = Date.now();
+                
+                const { data, error } = await supabase.functions.invoke('analyze-content', {
+                    body: {
+                        type: 'text',
+                        text: testContent,
+                        faqCount: 8
+                    }
+                });
+
+                const endTime = Date.now();
+                const duration = ((endTime - startTime) / 1000).toFixed(2);
+
+                if (error) {
+                    log(`❌ Generation failed: ${error.message}`, 'error');
+                    return;
+                }
+
+                if (data.error) {
+                    log(`❌ API error: ${data.message}`, 'error');
+                    return;
+                }
+
+                if (data.faqs && data.faqs.length > 0) {
+                    const actualCount = data.faqs.length;
+                    const requestedCount = 8;
+                    const isExact = actualCount === requestedCount;
+                    
+                    // Display test result prominently
+                    const resultDiv = document.createElement('div');
+                    resultDiv.className = `test-result ${isExact ? 'pass' : 'fail'}`;
+                    resultDiv.innerHTML = isExact 
+                        ? `🎉 TEST PASSED: Generated EXACTLY ${actualCount} FAQs as requested!`
+                        : `❌ TEST FAILED: Generated ${actualCount} FAQs, but ${requestedCount} were requested`;
+                    
+                    document.getElementById('results').appendChild(resultDiv);
+                    
+                    log(`${isExact ? '✅' : '❌'} Result: Generated ${actualCount} FAQs in ${duration}s (requested: ${requestedCount})`, isExact ? 'success' : 'error');
+                    
+                    if (data.requestedFaqCount && data.actualFaqCount) {
+                        log(`📊 API Response: Requested=${data.requestedFaqCount}, Actual=${data.actualFaqCount}`, 'info');
+                    }
+                    
+                    if (isExact) {
+                        log('🎉 PERMANENT FIX SUCCESSFUL: The exact count issue has been RESOLVED!', 'success');
+                    } else {
+                        log('🐛 ISSUE PERSISTS: The fix needs further refinement', 'error');
+                    }
+                    
+                    // Display all FAQs
+                    data.faqs.forEach((faq, index) => {
+                        const faqHtml = `
+                            <div class="faq-result">
+                                <div class="faq-question">Q${index + 1}: ${faq.question}</div>
+                                <div class="faq-answer">A: ${faq.answer}</div>
+                            </div>
+                        `;
+                        document.getElementById('results').innerHTML += faqHtml;
+                    });
+
+                } else {
+                    log('❌ No FAQs generated', 'error');
+                }
+
+            } catch (error) {
+                log(`❌ Test failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testMultipleCounts() {
+            if (!supabase) {
+                log('❌ Please initialize and login first', 'error');
+                return;
+            }
+
+            log('🧪 Testing multiple FAQ counts to verify permanent fix...', 'info');
+
+            const testContent = document.getElementById('testContent').value.trim();
+            const countsToTest = [6, 7, 8, 9, 10];
+            let allPassed = true;
+
+            for (const count of countsToTest) {
+                log(`\n📍 Testing ${count} FAQs...`, 'info');
+
+                try {
+                    const { data, error } = await supabase.functions.invoke('analyze-content', {
+                        body: {
+                            type: 'text',
+                            text: testContent,
+                            faqCount: count
+                        }
+                    });
+
+                    if (error) {
+                        log(`❌ ${count} FAQs failed: ${error.message}`, 'error');
+                        allPassed = false;
+                        continue;
+                    }
+
+                    if (data.faqs && data.faqs.length > 0) {
+                        const isExact = data.faqs.length === count;
+                        log(`${isExact ? '✅' : '❌'} ${count} FAQs: Generated ${data.faqs.length} (${isExact ? 'PERFECT!' : 'MISMATCH'})`, isExact ? 'success' : 'error');
+                        
+                        if (!isExact) {
+                            allPassed = false;
+                        }
+                    } else {
+                        log(`❌ ${count} FAQs: No FAQs generated`, 'error');
+                        allPassed = false;
+                    }
+
+                } catch (error) {
+                    log(`❌ ${count} FAQs: ${error.message}`, 'error');
+                    allPassed = false;
+                }
+
+                // Wait between requests
+                await new Promise(resolve => setTimeout(resolve, 2000));
+            }
+
+            // Final result
+            const finalResultDiv = document.createElement('div');
+            finalResultDiv.className = `test-result ${allPassed ? 'pass' : 'fail'}`;
+            finalResultDiv.innerHTML = allPassed 
+                ? '🎉 ALL TESTS PASSED: Exact FAQ count fix is working perfectly!'
+                : '❌ SOME TESTS FAILED: Fix needs additional refinement';
+            
+            document.getElementById('results').appendChild(finalResultDiv);
+            
+            log(`\n🎯 Final Result: ${allPassed ? 'ALL TESTS PASSED' : 'SOME TESTS FAILED'}`, allPassed ? 'success' : 'error');
+        }
+    </script>
+</body>
+</html>

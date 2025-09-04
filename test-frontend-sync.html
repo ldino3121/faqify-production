@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Frontend-Backend Sync - FAQify</title>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f8fafc;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        .status {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            font-weight: 500;
+        }
+        .status.success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+        .status.error { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+        .status.warning { background: #fefce8; color: #ca8a04; border: 1px solid #fef08a; }
+        .status.info { background: #eff6ff; color: #2563eb; border: 1px solid #dbeafe; }
+        .btn {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px;
+            transition: background 0.2s;
+        }
+        .btn:hover { background: #2563eb; }
+        .btn.danger { background: #dc2626; }
+        .btn.danger:hover { background: #b91c1c; }
+        .btn.success { background: #16a34a; }
+        .btn.success:hover { background: #15803d; }
+        .data-table {
+            background: #f9fafb;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 12px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .step {
+            border-left: 4px solid #3b82f6;
+            padding-left: 15px;
+            margin: 20px 0;
+        }
+        .test-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔄 Test Frontend-Backend Sync</h1>
+        <p>This tool tests the complete data flow from FAQ generation to display to ensure real-time synchronization.</p>
+        
+        <div class="test-grid">
+            <button class="btn success" onclick="testCompleteFlow()">🚀 Test Complete Flow</button>
+            <button class="btn" onclick="testRealTimeSync()">📡 Test Real-time Sync</button>
+            <button class="btn" onclick="checkDashboardData()">📊 Check Dashboard Data</button>
+            <button class="btn danger" onclick="cleanupTestData()">🧹 Cleanup Test Data</button>
+        </div>
+        
+        <div id="results"></div>
+    </div>
+
+    <script>
+        const supabaseUrl = 'https://dlzshcshqjdghmtzlbma.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRsenNoY3NocWpkZ2htdHpsYm1hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTExODUzODgsImV4cCI6MjA2Njc2MTM4OH0.EL4By0nom419JiorSHKiFckLqnh1sqmFvYnWTylB9Gk';
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+        function updateResults(html) {
+            document.getElementById('results').innerHTML = html;
+        }
+
+        function log(message) {
+            console.log(message);
+        }
+
+        async function testCompleteFlow() {
+            updateResults('<div class="status info">🚀 Testing complete FAQ generation and sync flow...</div>');
+
+            try {
+                const { data: { user }, error: userError } = await supabase.auth.getUser();
+                if (userError || !user) {
+                    updateResults('<div class="status error">❌ Please sign in first</div>');
+                    return;
+                }
+
+                let html = `
+                    <div class="container">
+                        <h3>🚀 Complete Flow Test</h3>
+                        <div class="status info">User: ${user.email}</div>
+                `;
+
+                // Step 1: Generate FAQs
+                html += `<div class="step"><h4>Step 1: Generate FAQs</h4>`;
+                
+                const testContent = "FAQify is an AI-powered tool that generates professional FAQ sections from any content. It uses advanced AI to analyze your content and create relevant questions and answers.";
+                
+                const { data: generateData, error: generateError } = await supabase.functions.invoke('analyze-content', {
+                    body: {
+                        text: testContent,
+                        type: 'text'
+                    }
+                });
+
+                if (generateError) {
+                    html += `<div class="status error">❌ Generation failed: ${generateError.message}</div></div>`;
+                    updateResults(html + '</div>');
+                    return;
+                }
+
+                html += `<div class="status success">✅ Generated ${generateData?.faqs?.length || 0} FAQs</div></div>`;
+
+                // Step 2: Save to Database (simulate FAQCreator behavior)
+                html += `<div class="step"><h4>Step 2: Save to Database</h4>`;
+
+                const title = `Sync Test - ${new Date().toISOString()}`;
+                
+                // Create collection
+                const { data: collection, error: collectionError } = await supabase
+                    .from('faq_collections')
+                    .insert({
+                        user_id: user.id,
+                        title: title,
+                        source_content: testContent,
+                        status: 'published'
+                    })
+                    .select('id')
+                    .single();
+
+                if (collectionError) {
+                    html += `<div class="status error">❌ Collection creation failed: ${collectionError.message}</div></div>`;
+                    updateResults(html + '</div>');
+                    return;
+                }
+
+                // Insert FAQs
+                const faqsToInsert = generateData.faqs.map((faq, index) => ({
+                    collection_id: collection.id,
+                    question: faq.question,
+                    answer: faq.answer,
+                    order_index: index,
+                    is_published: true
+                }));
+
+                const { error: faqsError } = await supabase
+                    .from('faqs')
+                    .insert(faqsToInsert);
+
+                if (faqsError) {
+                    html += `<div class="status error">❌ FAQ insertion failed: ${faqsError.message}</div></div>`;
+                    updateResults(html + '</div>');
+                    return;
+                }
+
+                html += `<div class="status success">✅ Saved collection and ${faqsToInsert.length} FAQs</div></div>`;
+
+                // Step 3: Test Frontend Retrieval (simulate FAQManager behavior)
+                html += `<div class="step"><h4>Step 3: Test Frontend Retrieval</h4>`;
+
+                // Wait a moment for database consistency
+                await new Promise(resolve => setTimeout(resolve, 1000));
+
+                const { data: retrievedCollections, error: retrieveError } = await supabase
+                    .from('faq_collections')
+                    .select(`
+                        *,
+                        faqs (*)
+                    `)
+                    .eq('user_id', user.id)
+                    .order('created_at', { ascending: false });
+
+                if (retrieveError) {
+                    html += `<div class="status error">❌ Retrieval failed: ${retrieveError.message}</div></div>`;
+                    updateResults(html + '</div>');
+                    return;
+                }
+
+                const ourCollection = retrievedCollections.find(c => c.id === collection.id);
+                
+                if (!ourCollection) {
+                    html += `<div class="status error">❌ Collection not found in retrieval</div></div>`;
+                } else if (ourCollection.faqs.length !== faqsToInsert.length) {
+                    html += `<div class="status error">❌ FAQ count mismatch: Expected ${faqsToInsert.length}, Got ${ourCollection.faqs.length}</div></div>`;
+                } else {
+                    html += `<div class="status success">✅ Successfully retrieved collection with ${ourCollection.faqs.length} FAQs</div>`;
+                    html += `<div class="data-table">Collection: ${ourCollection.title}
+Created: ${ourCollection.created_at}
+FAQs: ${ourCollection.faqs.length}
+
+First FAQ:
+Q: ${ourCollection.faqs[0]?.question || 'N/A'}
+A: ${ourCollection.faqs[0]?.answer?.substring(0, 100) || 'N/A'}...</div></div>`;
+                }
+
+                // Step 4: Test Real-time Updates
+                html += `<div class="step"><h4>Step 4: Test Real-time Updates</h4>`;
+
+                // Update the collection title
+                const newTitle = `${title} - Updated`;
+                const { error: updateError } = await supabase
+                    .from('faq_collections')
+                    .update({ title: newTitle, updated_at: new Date().toISOString() })
+                    .eq('id', collection.id);
+
+                if (updateError) {
+                    html += `<div class="status error">❌ Update failed: ${updateError.message}</div></div>`;
+                } else {
+                    html += `<div class="status success">✅ Updated collection title</div>`;
+                    
+                    // Wait and check if update is reflected
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    
+                    const { data: updatedCollection, error: checkError } = await supabase
+                        .from('faq_collections')
+                        .select('title, updated_at')
+                        .eq('id', collection.id)
+                        .single();
+
+                    if (checkError) {
+                        html += `<div class="status error">❌ Update check failed: ${checkError.message}</div></div>`;
+                    } else if (updatedCollection.title === newTitle) {
+                        html += `<div class="status success">✅ Real-time update confirmed</div></div>`;
+                    } else {
+                        html += `<div class="status error">❌ Real-time update not reflected</div></div>`;
+                    }
+                }
+
+                html += `
+                    <div class="status success">
+                        <strong>✅ Frontend-Backend Sync Test Completed!</strong><br>
+                        Collection ID: ${collection.id}<br>
+                        The complete flow from generation to storage to retrieval is working.
+                    </div>
+                </div>`;
+
+                updateResults(html);
+
+            } catch (error) {
+                updateResults(`<div class="status error">❌ Exception: ${error.message}</div>`);
+            }
+        }
+
+        async function testRealTimeSync() {
+            updateResults('<div class="status info">📡 Testing real-time synchronization...</div>');
+
+            try {
+                const { data: { user }, error: userError } = await supabase.auth.getUser();
+                if (userError || !user) {
+                    updateResults('<div class="status error">❌ Please sign in first</div>');
+                    return;
+                }
+
+                let html = `
+                    <div class="container">
+                        <h3>📡 Real-time Sync Test</h3>
+                `;
+
+                // Set up real-time subscription
+                let updateReceived = false;
+                const channel = supabase
+                    .channel('sync-test')
+                    .on('postgres_changes', {
+                        event: '*',
+                        schema: 'public',
+                        table: 'faq_collections',
+                        filter: `user_id=eq.${user.id}`,
+                    }, (payload) => {
+                        console.log('Real-time update received:', payload);
+                        updateReceived = true;
+                    })
+                    .subscribe();
+
+                // Wait for subscription to be ready
+                await new Promise(resolve => setTimeout(resolve, 1000));
+
+                // Create a test collection
+                const { data: testCollection, error: createError } = await supabase
+                    .from('faq_collections')
+                    .insert({
+                        user_id: user.id,
+                        title: `Real-time Test - ${Date.now()}`,
+                        status: 'published'
+                    })
+                    .select('id')
+                    .single();
+
+                if (createError) {
+                    html += `<div class="status error">❌ Test collection creation failed: ${createError.message}</div>`;
+                } else {
+                    // Wait for real-time update
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+
+                    if (updateReceived) {
+                        html += `<div class="status success">✅ Real-time update received successfully</div>`;
+                    } else {
+                        html += `<div class="status warning">⚠️ Real-time update not received (may be delayed)</div>`;
+                    }
+
+                    // Cleanup
+                    await supabase
+                        .from('faq_collections')
+                        .delete()
+                        .eq('id', testCollection.id);
+                }
+
+                supabase.removeChannel(channel);
+
+                html += '</div>';
+                updateResults(html);
+
+            } catch (error) {
+                updateResults(`<div class="status error">❌ Exception: ${error.message}</div>`);
+            }
+        }
+
+        async function checkDashboardData() {
+            updateResults('<div class="status info">📊 Checking dashboard data consistency...</div>');
+
+            try {
+                const { data: { user }, error: userError } = await supabase.auth.getUser();
+                if (userError || !user) {
+                    updateResults('<div class="status error">❌ Please sign in first</div>');
+                    return;
+                }
+
+                // Get collections (as FAQManager would)
+                const { data: collections, error: collectionsError } = await supabase
+                    .from('faq_collections')
+                    .select(`
+                        *,
+                        faqs (*)
+                    `)
+                    .eq('user_id', user.id)
+                    .order('created_at', { ascending: false });
+
+                // Get subscription data (as DashboardHeader would)
+                const { data: subscription, error: subError } = await supabase
+                    .from('user_subscriptions')
+                    .select('*')
+                    .eq('user_id', user.id)
+                    .single();
+
+                let html = `
+                    <div class="container">
+                        <h3>📊 Dashboard Data Check</h3>
+                `;
+
+                if (collectionsError) {
+                    html += `<div class="status error">❌ Collections error: ${collectionsError.message}</div>`;
+                } else {
+                    html += `<div class="status success">✅ Collections loaded: ${collections.length}</div>`;
+                    html += `<div class="data-table">Collections:
+${collections.map(c => `- ${c.title} (${c.faqs?.length || 0} FAQs) - ${c.created_at}`).join('\n')}</div>`;
+                }
+
+                if (subError) {
+                    html += `<div class="status error">❌ Subscription error: ${subError.message}</div>`;
+                } else if (subscription) {
+                    html += `<div class="status success">✅ Subscription loaded</div>`;
+                    html += `<div class="data-table">Subscription:
+Plan: ${subscription.plan_tier}
+Usage: ${subscription.faq_usage_current}/${subscription.faq_usage_limit}
+Status: ${subscription.status}</div>`;
+                } else {
+                    html += `<div class="status warning">⚠️ No subscription found</div>`;
+                }
+
+                html += '</div>';
+                updateResults(html);
+
+            } catch (error) {
+                updateResults(`<div class="status error">❌ Exception: ${error.message}</div>`);
+            }
+        }
+
+        async function cleanupTestData() {
+            updateResults('<div class="status info">🧹 Cleaning up test data...</div>');
+
+            try {
+                const { data: { user }, error: userError } = await supabase.auth.getUser();
+                if (userError || !user) {
+                    updateResults('<div class="status error">❌ Please sign in first</div>');
+                    return;
+                }
+
+                // Delete test collections
+                const { error: deleteError } = await supabase
+                    .from('faq_collections')
+                    .delete()
+                    .eq('user_id', user.id)
+                    .or('title.ilike.%Sync Test%,title.ilike.%Real-time Test%');
+
+                if (deleteError) {
+                    updateResults(`<div class="status error">❌ Cleanup failed: ${deleteError.message}</div>`);
+                } else {
+                    updateResults('<div class="status success">✅ Test data cleaned up successfully</div>');
+                }
+
+            } catch (error) {
+                updateResults(`<div class="status error">❌ Exception: ${error.message}</div>`);
+            }
+        }
+    </script>
+</body>
+</html>

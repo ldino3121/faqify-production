@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔍 Debug Collection 97d2aa8e-0ec8-4845-b11f-7b16390251cd</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .status {
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        .warning { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        .btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+        }
+        .btn:hover { background: #0056b3; }
+        .code-block {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            padding: 10px;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+        h1 { color: #333; text-align: center; }
+        h3 { color: #007bff; border-bottom: 2px solid #007bff; padding-bottom: 5px; }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <h1>🔍 Debug Collection: 97d2aa8e-0ec8-4845-b11f-7b16390251cd</h1>
+    
+    <div class="container">
+        <h3>🎯 Diagnostic Results</h3>
+        <div id="results">
+            <div class="status info">🔄 Initializing diagnostic tests...</div>
+        </div>
+    </div>
+
+    <div class="container">
+        <h3>🔧 Manual Tests</h3>
+        <button class="btn" onclick="checkCollectionExists()">1. Check if Collection Exists</button>
+        <button class="btn" onclick="testWidgetAPI()">2. Test Widget API</button>
+        <button class="btn" onclick="testWidgetScript()">3. Test Widget Script Loading</button>
+        <button class="btn" onclick="testFullWidget()">4. Test Full Widget</button>
+    </div>
+
+    <div class="container">
+        <h3>🎯 Live Widget Test</h3>
+        <div id="widget-test-area" style="border: 2px dashed #007bff; padding: 20px; margin: 20px 0; border-radius: 8px; background: #f8f9ff;">
+            <!-- Widget will be loaded here -->
+        </div>
+    </div>
+    
+    <script>
+        const collectionId = '97d2aa8e-0ec8-4845-b11f-7b16390251cd';
+        
+        // Initialize Supabase client
+        const supabase = window.supabase.createClient(
+            'https://dlzshcshqjdghmtzlbma.supabase.co',
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRsenNoY3NocWpkZ2htdHpsYm1hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTExODUzODgsImV4cCI6MjA2Njc2MTM4OH0.EL4By0nom419JiorSHKiFckLqnh1sqmFvYnWTylB9Gk'
+        );
+
+        function addResult(title, content, type = 'info') {
+            const resultsDiv = document.getElementById('results');
+            const timestamp = new Date().toLocaleTimeString();
+            resultsDiv.innerHTML += `
+                <div class="status ${type}">
+                    <strong>[${timestamp}] ${title}</strong><br>
+                    ${content}
+                </div>
+            `;
+        }
+
+        async function checkCollectionExists() {
+            addResult('🔍 Checking Collection', 'Querying database for collection...', 'info');
+            
+            try {
+                const { data, error } = await supabase
+                    .from('faq_collections')
+                    .select(`
+                        id,
+                        title,
+                        description,
+                        status,
+                        created_at,
+                        user_id,
+                        faqs (
+                            id,
+                            question,
+                            answer,
+                            is_published,
+                            order_index
+                        )
+                    `)
+                    .eq('id', collectionId)
+                    .single();
+
+                if (error) {
+                    addResult('❌ Collection Check Failed', `Error: ${error.message}`, 'error');
+                    return;
+                }
+
+                if (!data) {
+                    addResult('❌ Collection Not Found', 'No collection found with this ID', 'error');
+                    return;
+                }
+
+                const publishedFAQs = data.faqs?.filter(faq => faq.is_published) || [];
+                
+                addResult('✅ Collection Found', `
+                    <strong>Title:</strong> ${data.title || 'No title'}<br>
+                    <strong>Status:</strong> ${data.status}<br>
+                    <strong>User ID:</strong> ${data.user_id}<br>
+                    <strong>Total FAQs:</strong> ${data.faqs?.length || 0}<br>
+                    <strong>Published FAQs:</strong> ${publishedFAQs.length}<br>
+                    <strong>Created:</strong> ${new Date(data.created_at).toLocaleString()}<br>
+                    <div class="code-block">${JSON.stringify(data, null, 2)}</div>
+                `, data.status === 'published' && publishedFAQs.length > 0 ? 'success' : 'warning');
+
+                if (data.status !== 'published') {
+                    addResult('⚠️ Collection Not Published', 'Collection exists but status is not "published"', 'warning');
+                }
+
+                if (publishedFAQs.length === 0) {
+                    addResult('⚠️ No Published FAQs', 'Collection exists but has no published FAQs', 'warning');
+                }
+
+            } catch (error) {
+                addResult('❌ Database Error', `Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testWidgetAPI() {
+            addResult('🔍 Testing Widget API', 'Calling get-faq-widget endpoint...', 'info');
+            
+            try {
+                const response = await fetch(`https://dlzshcshqjdghmtzlbma.supabase.co/functions/v1/get-faq-widget?collection_id=${collectionId}`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const responseText = await response.text();
+                
+                addResult('📡 Widget API Response', `
+                    <strong>Status:</strong> ${response.status} ${response.statusText}<br>
+                    <strong>Response:</strong><br>
+                    <div class="code-block">${responseText}</div>
+                `, response.ok ? 'success' : 'error');
+
+            } catch (error) {
+                addResult('❌ Widget API Error', `Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testWidgetScript() {
+            addResult('🔍 Testing Widget Script', 'Loading widget.js from production...', 'info');
+            
+            const script = document.createElement('script');
+            script.src = 'https://faqify-ai-spark.netlify.app/widget.js';
+            script.onload = function() {
+                addResult('✅ Widget Script Loaded', 'Widget script loaded successfully', 'success');
+                
+                if (typeof window.FAQify !== 'undefined') {
+                    addResult('✅ FAQify Available', 'FAQify widget library is available', 'success');
+                } else {
+                    addResult('❌ FAQify Not Available', 'FAQify widget library not found', 'error');
+                }
+            };
+            script.onerror = function() {
+                addResult('❌ Widget Script Failed', 'Failed to load widget script', 'error');
+            };
+            document.head.appendChild(script);
+        }
+
+        async function testFullWidget() {
+            addResult('🔍 Testing Full Widget', 'Initializing widget in test area...', 'info');
+            
+            const testArea = document.getElementById('widget-test-area');
+            testArea.innerHTML = `
+                <div data-faqify-collection="${collectionId}" 
+                     data-faqify-theme="light"
+                     data-faqify-powered-by="true"
+                     data-faqify-animation="true"
+                     data-faqify-collapsible="true"></div>
+            `;
+            
+            // Wait a bit for the widget to initialize
+            setTimeout(() => {
+                if (testArea.innerHTML.includes('Loading FAQs...')) {
+                    addResult('🔄 Widget Loading', 'Widget is attempting to load FAQs...', 'info');
+                } else if (testArea.innerHTML.includes('faqify-faq-item')) {
+                    addResult('✅ Widget Working', 'Widget loaded and displaying FAQs!', 'success');
+                } else if (testArea.innerHTML.includes('Failed to load')) {
+                    addResult('❌ Widget Failed', 'Widget failed to load FAQs', 'error');
+                } else {
+                    addResult('⚠️ Widget Status Unknown', 'Widget status unclear', 'warning');
+                }
+            }, 5000);
+        }
+
+        // Auto-run initial checks
+        window.addEventListener('load', function() {
+            setTimeout(() => {
+                checkCollectionExists();
+                setTimeout(() => testWidgetAPI(), 2000);
+                setTimeout(() => testWidgetScript(), 4000);
+            }, 1000);
+        });
+    </script>
+</body>
+</html>

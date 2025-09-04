@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fix User Sync - FAQify</title>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f8fafc;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        .status {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            font-weight: 500;
+        }
+        .status.success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+        .status.error { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+        .status.warning { background: #fefce8; color: #ca8a04; border: 1px solid #fef08a; }
+        .status.info { background: #eff6ff; color: #2563eb; border: 1px solid #dbeafe; }
+        .btn {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px;
+            transition: background 0.2s;
+        }
+        .btn:hover { background: #2563eb; }
+        .btn.danger { background: #ef4444; }
+        .btn.danger:hover { background: #dc2626; }
+        .btn.success { background: #10b981; }
+        .btn.success:hover { background: #059669; }
+        .data-table {
+            background: #f9fafb;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 12px;
+            margin: 10px 0;
+            overflow-x: auto;
+        }
+        .step {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+        }
+        .step h3 {
+            margin-top: 0;
+            color: #374151;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Fix User Sync & Pricing</h1>
+        <p>This tool will fix the database sync issues and apply correct pricing limits.</p>
+
+        <div id="status" class="status info">
+            <strong>Status:</strong> Ready to fix sync issues...
+        </div>
+
+        <div class="step">
+            <h3>📊 Step 1: Check Current Database State</h3>
+            <button class="btn" onclick="checkCurrentState()">
+                🔍 Check Current State
+            </button>
+            <div id="current-state"></div>
+        </div>
+
+        <div class="step">
+            <h3>🔄 Step 2: Apply Pricing Migration</h3>
+            <p>This will update the database to use the correct pricing structure (Free: 5, Pro: 100, Business: 500)</p>
+            <button class="btn success" onclick="applyPricingMigration()">
+                ⚡ Apply Pricing Migration
+            </button>
+            <div id="migration-result"></div>
+        </div>
+
+        <div class="step">
+            <h3>👤 Step 3: Fix Your User Account</h3>
+            <p>This will ensure your account has the correct Free plan limits (5 FAQs)</p>
+            <button class="btn success" onclick="fixUserAccount()">
+                🔧 Fix My Account
+            </button>
+            <div id="user-fix-result"></div>
+        </div>
+
+        <div class="step">
+            <h3>✅ Step 4: Verify Fix</h3>
+            <button class="btn" onclick="verifyFix()">
+                ✓ Verify Everything is Fixed
+            </button>
+            <div id="verify-result"></div>
+        </div>
+
+        <div class="step">
+            <h3>🔄 Step 5: Refresh Dashboard</h3>
+            <p>After fixing, refresh your dashboard to see the updated limits</p>
+            <button class="btn" onclick="refreshDashboard()">
+                🔄 Go to Dashboard
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Initialize Supabase client
+        const SUPABASE_URL = 'https://dlzshcshqjdghmtzlbma.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRsenNoY3NocWpkZ2htdHpsYm1hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTExODUzODgsImV4cCI6MjA2Njc2MTM4OH0.EL4By0nom419JiorSHKiFckLqnh1sqmFvYnWTylB9Gk';
+        
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        
+        function updateStatus(message, type = 'info') {
+            const statusEl = document.getElementById('status');
+            statusEl.innerHTML = `<strong>Status:</strong> ${message}`;
+            statusEl.className = `status ${type}`;
+        }
+        
+        async function checkCurrentState() {
+            updateStatus('Checking current database state...', 'info');
+            
+            try {
+                // Get current user
+                const { data: { user }, error: userError } = await supabase.auth.getUser();
+                if (userError || !user) {
+                    throw new Error('Please sign in first');
+                }
+                
+                // Check subscription plans
+                const { data: plans, error: plansError } = await supabase
+                    .from('subscription_plans')
+                    .select('name, faq_limit, price_monthly')
+                    .order('faq_limit');
+                
+                // Check user subscription
+                const { data: userSub, error: userSubError } = await supabase
+                    .from('user_subscriptions')
+                    .select('*')
+                    .eq('user_id', user.id)
+                    .single();
+                
+                const resultEl = document.getElementById('current-state');
+                resultEl.innerHTML = `
+                    <div class="status info">
+                        <strong>Current Database State:</strong><br><br>
+                        
+                        <strong>📋 Subscription Plans:</strong><br>
+                        ${plans ? plans.map(p => `• ${p.name}: ${p.faq_limit} FAQs ($${p.price_monthly/100}/month)`).join('<br>') : 'Error loading plans'}<br><br>
+                        
+                        <strong>👤 Your Account:</strong><br>
+                        • User ID: ${user.id}<br>
+                        • Email: ${user.email}<br>
+                        • Plan: ${userSub?.plan_tier || 'Not found'}<br>
+                        • Usage: ${userSub?.faq_usage_current || 0}/${userSub?.faq_usage_limit || 0} FAQs<br>
+                        • Status: ${userSub?.status || 'Not found'}<br><br>
+                        
+                        <strong>🔍 Issues Detected:</strong><br>
+                        ${userSub?.faq_usage_limit === 10 ? '• ❌ Your account has old limit (10 instead of 5)<br>' : ''}
+                        ${plans?.find(p => p.name === 'Free')?.faq_limit !== 5 ? '• ❌ Free plan has wrong limit<br>' : ''}
+                        ${plans?.find(p => p.name === 'Pro')?.faq_limit !== 100 ? '• ❌ Pro plan has wrong limit<br>' : ''}
+                        ${plans?.find(p => p.name === 'Business')?.faq_limit !== 500 ? '• ❌ Business plan has wrong limit<br>' : ''}
+                    </div>
+                `;
+                
+                updateStatus('Database state checked successfully', 'success');
+                
+            } catch (error) {
+                console.error('Error checking state:', error);
+                updateStatus(`Error: ${error.message}`, 'error');
+                
+                const resultEl = document.getElementById('current-state');
+                resultEl.innerHTML = `
+                    <div class="status error">
+                        <strong>Error:</strong> ${error.message}
+                    </div>
+                `;
+            }
+        }
+        
+        async function applyPricingMigration() {
+            updateStatus('Applying pricing migration...', 'info');
+
+            try {
+                // Get current user for auth
+                const { data: { user }, error: userError } = await supabase.auth.getUser();
+                if (userError || !user) {
+                    throw new Error('Please sign in first');
+                }
+
+                // Direct database updates instead of edge function
+                console.log('Updating subscription plans...');
+
+                // Update Free plan
+                const { error: freeError } = await supabase
+                    .from('subscription_plans')
+                    .upsert({
+                        name: 'Free',
+                        price_monthly: 0,
+                        price_yearly: 0,
+                        faq_limit: 5,
+                        features: [
+                            "Website URL analysis",
+                            "Text content analysis",
+                            "Document upload (PDF, DOCX)",
+                            "AI-powered FAQ generation",
+                            "Embed widget",
+                            "WordPress integration",
+                            "Analytics dashboard",
+                            "Export functionality",
+                            "Email support"
+                        ]
+                    }, { onConflict: 'name' });
+
+                if (freeError) throw freeError;
+
+                // Update Pro plan
+                const { error: proError } = await supabase
+                    .from('subscription_plans')
+                    .upsert({
+                        name: 'Pro',
+                        price_monthly: 900,
+                        price_yearly: 9700,
+                        faq_limit: 100,
+                        features: [
+                            "Website URL analysis",
+                            "Text content analysis",
+                            "Document upload (PDF, DOCX)",
+                            "AI-powered FAQ generation",
+                            "Embed widget",
+                            "WordPress integration",
+                            "Analytics dashboard",
+                            "Export functionality",
+                            "Priority email support"
+                        ]
+                    }, { onConflict: 'name' });
+
+                if (proError) throw proError;
+
+                // Update Business plan
+                const { error: businessError } = await supabase
+                    .from('subscription_plans')
+                    .upsert({
+                        name: 'Business',
+                        price_monthly: 2900,
+                        price_yearly: 31300,
+                        faq_limit: 500,
+                        features: [
+                            "Website URL analysis",
+                            "Text content analysis",
+                            "Document upload (PDF, DOCX)",
+                            "AI-powered FAQ generation",
+                            "Embed widget",
+                            "WordPress integration",
+                            "Analytics dashboard",
+                            "Export functionality",
+                            "Priority support & phone support"
+                        ]
+                    }, { onConflict: 'name' });
+
+                if (businessError) throw businessError;
+
+                console.log('Plans updated successfully');
+
+                const resultEl = document.getElementById('migration-result');
+                resultEl.innerHTML = `
+                    <div class="status success">
+                        <strong>✅ Pricing Migration Applied Successfully!</strong><br>
+                        Updated all subscription plans directly<br><br>
+                        <strong>New Plan Limits:</strong><br>
+                        • Free: 5 FAQs/month<br>
+                        • Pro: 100 FAQs/month ($9)<br>
+                        • Business: 500 FAQs/month ($29)
+                    </div>
+                `;
+
+                updateStatus('Pricing migration applied successfully', 'success');
+
+            } catch (error) {
+                console.error('Migration error:', error);
+                updateStatus(`Migration failed: ${error.message}`, 'error');
+
+                const resultEl = document.getElementById('migration-result');
+                resultEl.innerHTML = `
+                    <div class="status error">
+                        <strong>Migration Failed:</strong> ${error.message}<br>
+                        <small>Trying direct database approach instead of edge function</small>
+                    </div>
+                `;
+            }
+        }
+        
+        async function fixUserAccount() {
+            updateStatus('Fixing your user account...', 'info');
+            
+            try {
+                // Get current user
+                const { data: { user }, error: userError } = await supabase.auth.getUser();
+                if (userError || !user) {
+                    throw new Error('Please sign in first');
+                }
+                
+                // Update user subscription to correct limits
+                const { data, error } = await supabase
+                    .from('user_subscriptions')
+                    .update({
+                        plan_tier: 'Free',
+                        faq_usage_limit: 5,
+                        faq_usage_current: 0, // Reset usage
+                        status: 'active',
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('user_id', user.id)
+                    .select();
+                
+                if (error) {
+                    throw error;
+                }
+                
+                // If no subscription exists, create one
+                if (!data || data.length === 0) {
+                    const { data: newSub, error: createError } = await supabase
+                        .from('user_subscriptions')
+                        .insert({
+                            user_id: user.id,
+                            plan_tier: 'Free',
+                            faq_usage_limit: 5,
+                            faq_usage_current: 0,
+                            status: 'active'
+                        })
+                        .select();
+                    
+                    if (createError) {
+                        throw createError;
+                    }
+                }
+                
+                const resultEl = document.getElementById('user-fix-result');
+                resultEl.innerHTML = `
+                    <div class="status success">
+                        <strong>✅ Your Account Fixed Successfully!</strong><br>
+                        • Plan: Free<br>
+                        • Limit: 5 FAQs per month<br>
+                        • Usage: Reset to 0<br>
+                        • Status: Active
+                    </div>
+                `;
+                
+                updateStatus('Your account has been fixed successfully', 'success');
+                
+            } catch (error) {
+                console.error('User fix error:', error);
+                updateStatus(`Failed to fix account: ${error.message}`, 'error');
+                
+                const resultEl = document.getElementById('user-fix-result');
+                resultEl.innerHTML = `
+                    <div class="status error">
+                        <strong>Fix Failed:</strong> ${error.message}
+                    </div>
+                `;
+            }
+        }
+        
+        async function verifyFix() {
+            updateStatus('Verifying fix...', 'info');
+            
+            try {
+                // Get current user
+                const { data: { user }, error: userError } = await supabase.auth.getUser();
+                if (userError || !user) {
+                    throw new Error('Please sign in first');
+                }
+                
+                // Check subscription plans
+                const { data: plans, error: plansError } = await supabase
+                    .from('subscription_plans')
+                    .select('name, faq_limit')
+                    .order('faq_limit');
+                
+                // Check user subscription
+                const { data: userSub, error: userSubError } = await supabase
+                    .from('user_subscriptions')
+                    .select('*')
+                    .eq('user_id', user.id)
+                    .single();
+                
+                const freePlan = plans?.find(p => p.name === 'Free');
+                const proPlan = plans?.find(p => p.name === 'Pro');
+                const businessPlan = plans?.find(p => p.name === 'Business');
+                
+                const isFixed = 
+                    freePlan?.faq_limit === 5 &&
+                    proPlan?.faq_limit === 100 &&
+                    businessPlan?.faq_limit === 500 &&
+                    userSub?.faq_usage_limit === 5 &&
+                    userSub?.plan_tier === 'Free';
+                
+                const resultEl = document.getElementById('verify-result');
+                if (isFixed) {
+                    resultEl.innerHTML = `
+                        <div class="status success">
+                            <strong>🎉 Everything is Fixed!</strong><br>
+                            ✅ Free plan: 5 FAQs<br>
+                            ✅ Pro plan: 100 FAQs<br>
+                            ✅ Business plan: 500 FAQs<br>
+                            ✅ Your account: ${userSub.faq_usage_current}/${userSub.faq_usage_limit} FAQs<br><br>
+                            <strong>You can now refresh your dashboard!</strong>
+                        </div>
+                    `;
+                    updateStatus('All issues have been fixed successfully!', 'success');
+                } else {
+                    resultEl.innerHTML = `
+                        <div class="status warning">
+                            <strong>⚠️ Some Issues Remain:</strong><br>
+                            ${freePlan?.faq_limit !== 5 ? '❌ Free plan limit incorrect<br>' : '✅ Free plan correct<br>'}
+                            ${proPlan?.faq_limit !== 100 ? '❌ Pro plan limit incorrect<br>' : '✅ Pro plan correct<br>'}
+                            ${businessPlan?.faq_limit !== 500 ? '❌ Business plan limit incorrect<br>' : '✅ Business plan correct<br>'}
+                            ${userSub?.faq_usage_limit !== 5 ? '❌ Your account limit incorrect<br>' : '✅ Your account correct<br>'}
+                        </div>
+                    `;
+                    updateStatus('Some issues remain - try running the fixes again', 'warning');
+                }
+                
+            } catch (error) {
+                console.error('Verification error:', error);
+                updateStatus(`Verification failed: ${error.message}`, 'error');
+            }
+        }
+        
+        function refreshDashboard() {
+            window.location.href = '/dashboard';
+        }
+        
+        // Auto-check state on load
+        window.addEventListener('load', () => {
+            setTimeout(checkCurrentState, 1000);
+        });
+    </script>
+</body>
+</html>

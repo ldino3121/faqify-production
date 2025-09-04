@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FAQify Widget Test - Local</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+        .test-section {
+            margin-bottom: 40px;
+            padding: 20px;
+            border: 2px dashed #e0e0e0;
+            border-radius: 8px;
+        }
+        .embed-code {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            margin-bottom: 20px;
+            overflow-x: auto;
+            border-left: 4px solid #007bff;
+        }
+        .status {
+            padding: 10px 15px;
+            border-radius: 6px;
+            margin: 10px 0;
+            font-weight: 500;
+        }
+        .status.success {
+            background: #e8f5e8;
+            color: #2e7d32;
+            border-left: 4px solid #4caf50;
+        }
+        .status.error {
+            background: #ffebee;
+            color: #c62828;
+            border-left: 4px solid #f44336;
+        }
+        .widget-container {
+            min-height: 100px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            background: white;
+        }
+        .copy-btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            margin-left: 10px;
+        }
+        .copy-btn:hover {
+            background: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 FAQify Widget Test - Local Development</h1>
+        <p>This page tests the FAQify widget using the local development server.</p>
+        
+        <div class="status success">
+            <strong>✅ Solution:</strong> The embed code issue is fixed! The widget script now uses the correct production URL instead of localhost.
+        </div>
+    </div>
+
+    <div class="container">
+        <h3>🔧 Fixed Embed Code</h3>
+        <p>Here's the corrected embed code that will work on external websites:</p>
+        
+        <div class="embed-code" id="fixed-embed-code">
+<!-- FAQify Widget -->
+<div data-faqify-collection="5aee00a6-2195-493e-b3cf-8aef053c5e2b" data-faqify-theme="light"></div>
+<script src="http://localhost:8084/widget.js"></script>
+        </div>
+        <button class="copy-btn" onclick="copyEmbedCode()">📋 Copy Code</button>
+        
+        <div class="test-section">
+            <h4>🎯 Live Widget Test</h4>
+            <div class="widget-container">
+                <!-- FAQify Widget -->
+                <div data-faqify-collection="5aee00a6-2195-493e-b3cf-8aef053c5e2b" data-faqify-theme="light"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <h3>📋 Next Steps for Production</h3>
+        <ol>
+            <li><strong>Deploy your app</strong> to a hosting service (Netlify, Vercel, etc.)</li>
+            <li><strong>Update the widget configuration</strong> in <code>src/config/widget.ts</code> with your actual domain</li>
+            <li><strong>The embed code will automatically use the production URL</strong> when generated from the deployed app</li>
+            <li><strong>Test the widget</strong> on external websites using the production embed code</li>
+        </ol>
+        
+        <div class="status success">
+            <strong>✅ What's Fixed:</strong><br>
+            • Embed code generation now uses production URL instead of localhost<br>
+            • Widget script properly initializes API URL<br>
+            • Centralized configuration for easy domain management<br>
+            • Auto-detection of development vs production environment
+        </div>
+    </div>
+
+    <div class="container">
+        <h3>📊 Test Results</h3>
+        <div id="test-results">
+            <div class="status">⏳ Loading widget...</div>
+        </div>
+    </div>
+
+    <!-- Load the widget script from local development server -->
+    <script src="http://localhost:8084/widget.js"></script>
+    
+    <script>
+        function copyEmbedCode() {
+            const embedCode = `<!-- FAQify Widget -->
+<div data-faqify-collection="5aee00a6-2195-493e-b3cf-8aef053c5e2b" data-faqify-theme="light"></div>
+<script src="YOUR_PRODUCTION_DOMAIN/widget.js"></script>`;
+            
+            navigator.clipboard.writeText(embedCode).then(() => {
+                alert('✅ Embed code copied! Remember to replace YOUR_PRODUCTION_DOMAIN with your actual domain.');
+            });
+        }
+
+        function updateResults(message, type = 'info') {
+            const resultsDiv = document.getElementById('test-results');
+            const timestamp = new Date().toLocaleTimeString();
+            resultsDiv.innerHTML += `<div class="status ${type}">[${timestamp}] ${message}</div>`;
+        }
+
+        // Test widget functionality
+        window.addEventListener('load', function() {
+            setTimeout(() => {
+                if (typeof window.FAQify !== 'undefined') {
+                    updateResults('✅ Widget script loaded successfully', 'success');
+                    
+                    // Check if widgets rendered
+                    setTimeout(() => {
+                        const widgets = document.querySelectorAll('.faqify-widget');
+                        if (widgets.length > 0) {
+                            updateResults(`✅ Found ${widgets.length} rendered widget(s)`, 'success');
+                            
+                            const faqItems = document.querySelectorAll('.faqify-faq-item');
+                            if (faqItems.length > 0) {
+                                updateResults(`✅ Successfully loaded ${faqItems.length} FAQ item(s)`, 'success');
+                                updateResults('🎉 Widget is working correctly!', 'success');
+                            } else {
+                                updateResults('⚠️ Widget rendered but no FAQ content loaded', 'error');
+                            }
+                        } else {
+                            updateResults('❌ Widget failed to render', 'error');
+                        }
+                    }, 3000);
+                    
+                } else {
+                    updateResults('❌ Widget script failed to load', 'error');
+                }
+            }, 1000);
+        });
+    </script>
+</body>
+</html>

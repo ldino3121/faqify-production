@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test FAQ Count Functionality</title>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .warning { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        .info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #6c757d; cursor: not-allowed; }
+        input, select, textarea {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .results {
+            margin-top: 20px;
+            max-height: 600px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 10px;
+            background: #f8f9fa;
+        }
+        .faq-result {
+            background: #e9ecef;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border-left: 4px solid #007bff;
+        }
+        .faq-question {
+            font-weight: bold;
+            color: #495057;
+            margin-bottom: 8px;
+        }
+        .faq-answer {
+            color: #6c757d;
+            line-height: 1.5;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Test FAQ Count Functionality</h1>
+        <p>This tool tests the new FAQ count selection feature (3-10 FAQs).</p>
+
+        <!-- Configuration Section -->
+        <div class="test-section">
+            <h3>📋 Configuration</h3>
+            <div>
+                <label>Supabase URL:</label>
+                <input type="text" id="supabaseUrl" placeholder="https://your-project.supabase.co">
+            </div>
+            <div>
+                <label>Supabase Anon Key:</label>
+                <input type="text" id="supabaseKey" placeholder="Your anon key">
+            </div>
+            <div>
+                <label>User Email:</label>
+                <input type="email" id="userEmail" placeholder="your-email@example.com">
+            </div>
+            <div>
+                <label>User Password:</label>
+                <input type="password" id="userPassword" placeholder="your-password">
+            </div>
+            <button onclick="initializeAndLogin()">Initialize & Login</button>
+        </div>
+
+        <!-- Test Section -->
+        <div class="test-section">
+            <h3>🧪 FAQ Count Tests</h3>
+            <div>
+                <label>Test Content:</label>
+                <textarea id="testContent" rows="4" placeholder="Enter test content or leave blank for default">
+FAQify is an AI-powered FAQ generation tool that helps businesses create comprehensive FAQ sections for their websites. 
+It uses advanced natural language processing to analyze content from URLs, text, or uploaded documents and automatically 
+generates relevant questions and answers. The tool supports multiple subscription plans with different FAQ generation 
+limits and provides embeddable widgets for easy website integration.
+                </textarea>
+            </div>
+            <div>
+                <label>FAQ Count to Generate:</label>
+                <select id="faqCount">
+                    <option value="3">3 FAQs</option>
+                    <option value="4">4 FAQs</option>
+                    <option value="5">5 FAQs</option>
+                    <option value="6" selected>6 FAQs (Test Case)</option>
+                    <option value="7">7 FAQs</option>
+                    <option value="8">8 FAQs</option>
+                    <option value="9">9 FAQs</option>
+                    <option value="10">10 FAQs</option>
+                </select>
+            </div>
+            <button onclick="testFAQGeneration()">Test FAQ Generation</button>
+            <button onclick="testSixFAQIssue()">🐛 Test 6 FAQ Issue</button>
+            <button onclick="testAllCounts()">Test All Counts (3-10)</button>
+            <button onclick="clearResults()">Clear Results</button>
+        </div>
+
+        <!-- Results -->
+        <div class="results" id="results">
+            <div class="info">Test results will appear here...</div>
+        </div>
+    </div>
+
+    <script>
+        let supabase = null;
+        let testResults = [];
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            testResults.push({ timestamp, message, type });
+            updateResults();
+        }
+
+        function updateResults() {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = testResults.map(result => 
+                `<div class="${result.type}">[${result.timestamp}] ${result.message}</div>`
+            ).join('');
+            resultsDiv.scrollTop = resultsDiv.scrollHeight;
+        }
+
+        function clearResults() {
+            testResults = [];
+            updateResults();
+        }
+
+        async function initializeAndLogin() {
+            const url = document.getElementById('supabaseUrl').value;
+            const key = document.getElementById('supabaseKey').value;
+            const email = document.getElementById('userEmail').value;
+            const password = document.getElementById('userPassword').value;
+
+            if (!url || !key || !email || !password) {
+                log('Please fill in all configuration fields', 'error');
+                return;
+            }
+
+            try {
+                supabase = window.supabase.createClient(url, key);
+                log('✅ Supabase client initialized', 'success');
+
+                const { data, error } = await supabase.auth.signInWithPassword({
+                    email: email,
+                    password: password
+                });
+
+                if (error) {
+                    log(`❌ Login failed: ${error.message}`, 'error');
+                    return;
+                }
+
+                log(`✅ Logged in successfully as ${data.user.email}`, 'success');
+
+            } catch (error) {
+                log(`❌ Initialization failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testSixFAQIssue() {
+            if (!supabase) {
+                log('❌ Please initialize and login first', 'error');
+                return;
+            }
+
+            log('🐛 Testing the specific 6 FAQ issue...', 'info');
+
+            const testContent = `
+                FAQify is an advanced AI-powered FAQ generation platform designed to help businesses create comprehensive FAQ sections for their websites.
+                The platform uses cutting-edge natural language processing technology to analyze content from various sources including URLs, text documents, and uploaded files.
+                It automatically generates relevant questions and answers that address common customer inquiries.
+                FAQify supports multiple subscription plans with different FAQ generation limits to accommodate businesses of all sizes.
+                The tool provides embeddable widgets that can be easily integrated into any website, allowing for seamless customer support.
+                Users can customize the appearance and behavior of their FAQ widgets to match their brand identity.
+                The platform also includes analytics features to track FAQ performance and user engagement.
+                With its robust content analysis capabilities, FAQify can extract meaningful information from complex documents and web pages.
+                The system is designed to scale with business needs, offering enterprise-level features for larger organizations.
+            `;
+
+            try {
+                const startTime = Date.now();
+
+                const { data, error } = await supabase.functions.invoke('analyze-content', {
+                    body: {
+                        type: 'text',
+                        text: testContent,
+                        faqCount: 6
+                    }
+                });
+
+                const endTime = Date.now();
+                const duration = ((endTime - startTime) / 1000).toFixed(2);
+
+                if (error) {
+                    log(`❌ 6 FAQ test failed: ${error.message}`, 'error');
+                    return;
+                }
+
+                if (data.error) {
+                    log(`❌ API error: ${data.message}`, 'error');
+                    return;
+                }
+
+                if (data.faqs && data.faqs.length > 0) {
+                    const success = data.faqs.length === 6;
+                    log(`${success ? '✅' : '❌'} 6 FAQ Test Result: Generated ${data.faqs.length} FAQs in ${duration}s`, success ? 'success' : 'error');
+
+                    if (success) {
+                        log('🎉 SUCCESS: The 6 FAQ issue has been FIXED!', 'success');
+                    } else {
+                        log(`🐛 ISSUE PERSISTS: Requested 6 FAQs but got ${data.faqs.length}`, 'error');
+                    }
+
+                    // Display FAQs
+                    data.faqs.forEach((faq, index) => {
+                        const faqHtml = `
+                            <div class="faq-result">
+                                <div class="faq-question">Q${index + 1}: ${faq.question}</div>
+                                <div class="faq-answer">A: ${faq.answer}</div>
+                            </div>
+                        `;
+                        document.getElementById('results').innerHTML += faqHtml;
+                    });
+
+                } else {
+                    log('❌ No FAQs generated in 6 FAQ test', 'error');
+                }
+
+            } catch (error) {
+                log(`❌ 6 FAQ test failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testFAQGeneration() {
+            if (!supabase) {
+                log('❌ Please initialize and login first', 'error');
+                return;
+            }
+
+            const testContent = document.getElementById('testContent').value.trim() || 
+                document.getElementById('testContent').placeholder;
+            const faqCount = parseInt(document.getElementById('faqCount').value);
+
+            log(`🧪 Testing FAQ generation with ${faqCount} FAQs...`, 'info');
+
+            try {
+                const startTime = Date.now();
+                
+                const { data, error } = await supabase.functions.invoke('analyze-content', {
+                    body: {
+                        type: 'text',
+                        text: testContent,
+                        faqCount: faqCount
+                    }
+                });
+
+                const endTime = Date.now();
+                const duration = ((endTime - startTime) / 1000).toFixed(2);
+
+                if (error) {
+                    log(`❌ Generation failed: ${error.message}`, 'error');
+                    return;
+                }
+
+                if (data.error) {
+                    log(`❌ API error: ${data.message}`, 'error');
+                    return;
+                }
+
+                if (data.faqs && data.faqs.length > 0) {
+                    log(`✅ Generated ${data.faqs.length} FAQs in ${duration}s (requested: ${faqCount})`, 'success');
+                    log(`📊 Requested: ${data.requestedFaqCount}, Actual: ${data.actualFaqCount}`, 'info');
+                    
+                    // Validate count matches
+                    if (data.faqs.length === faqCount) {
+                        log(`✅ FAQ count matches request perfectly!`, 'success');
+                    } else {
+                        log(`⚠️ FAQ count mismatch: requested ${faqCount}, got ${data.faqs.length}`, 'warning');
+                    }
+                    
+                    // Display FAQs
+                    data.faqs.forEach((faq, index) => {
+                        const faqHtml = `
+                            <div class="faq-result">
+                                <div class="faq-question">Q${index + 1}: ${faq.question}</div>
+                                <div class="faq-answer">A: ${faq.answer}</div>
+                            </div>
+                        `;
+                        document.getElementById('results').innerHTML += faqHtml;
+                    });
+
+                } else {
+                    log('❌ No FAQs generated', 'error');
+                }
+
+            } catch (error) {
+                log(`❌ Test failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testAllCounts() {
+            if (!supabase) {
+                log('❌ Please initialize and login first', 'error');
+                return;
+            }
+
+            log('🧪 Testing all FAQ counts (3-10)...', 'info');
+
+            const testContent = document.getElementById('testContent').value.trim() || 
+                document.getElementById('testContent').placeholder;
+
+            for (let count = 3; count <= 10; count++) {
+                log(`\n📍 Testing ${count} FAQs...`, 'info');
+
+                try {
+                    const { data, error } = await supabase.functions.invoke('analyze-content', {
+                        body: {
+                            type: 'text',
+                            text: testContent,
+                            faqCount: count
+                        }
+                    });
+
+                    if (error) {
+                        log(`❌ ${count} FAQs failed: ${error.message}`, 'error');
+                        continue;
+                    }
+
+                    if (data.faqs && data.faqs.length > 0) {
+                        const success = data.faqs.length === count;
+                        log(`${success ? '✅' : '⚠️'} ${count} FAQs: Generated ${data.faqs.length} (${success ? 'Perfect!' : 'Mismatch'})`, success ? 'success' : 'warning');
+                    } else {
+                        log(`❌ ${count} FAQs: No FAQs generated`, 'error');
+                    }
+
+                } catch (error) {
+                    log(`❌ ${count} FAQs: ${error.message}`, 'error');
+                }
+
+                // Wait between requests
+                await new Promise(resolve => setTimeout(resolve, 2000));
+            }
+
+            log('\n🎉 All FAQ count testing completed!', 'success');
+        }
+    </script>
+</body>
+</html>

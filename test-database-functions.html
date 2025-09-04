@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Database Functions - FAQify</title>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f8fafc;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        .status {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            font-weight: 500;
+        }
+        .status.success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+        .status.error { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+        .status.warning { background: #fefce8; color: #ca8a04; border: 1px solid #fef08a; }
+        .status.info { background: #eff6ff; color: #2563eb; border: 1px solid #dbeafe; }
+        .btn {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px;
+            transition: background 0.2s;
+        }
+        .btn:hover { background: #2563eb; }
+        .btn.danger { background: #ef4444; }
+        .btn.danger:hover { background: #dc2626; }
+        .data-table {
+            background: #f9fafb;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 12px;
+            overflow-x: auto;
+        }
+        .test-result {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 6px;
+            border: 1px solid #e5e7eb;
+        }
+        .test-result.pass { background: #f0fdf4; border-color: #bbf7d0; }
+        .test-result.fail { background: #fef2f2; border-color: #fecaca; }
+        .test-icon { margin-right: 10px; font-weight: bold; }
+        .test-icon.pass { color: #16a34a; }
+        .test-icon.fail { color: #dc2626; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Database Functions Test Suite</h1>
+        <p>This tool tests all critical database functions for FAQ generation.</p>
+        
+        <button class="btn" onclick="runAllTests()">🚀 Run All Tests</button>
+        <button class="btn" onclick="testCanGenerate()">🔍 Test Can Generate</button>
+        <button class="btn" onclick="testIncrement()">➕ Test Increment</button>
+        <button class="btn" onclick="testReset()">🔄 Test Reset</button>
+        
+        <div id="test-results"></div>
+    </div>
+
+    <script>
+        const supabaseUrl = 'https://dlzshcshqjdghmtzlbma.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRsenNoY3NocWpkZ2htdHpsYm1hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTExODUzODgsImV4cCI6MjA2Njc2MTM4OH0.EL4By0nom419JiorSHKiFckLqnh1sqmFvYnWTylB9Gk';
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+        let currentUser = null;
+
+        async function initializeUser() {
+            const { data: { user }, error } = await supabase.auth.getUser();
+            if (error || !user) {
+                throw new Error('Please sign in first');
+            }
+            currentUser = user;
+            return user;
+        }
+
+        function createTestResult(name, passed, details) {
+            return `
+                <div class="test-result ${passed ? 'pass' : 'fail'}">
+                    <span class="test-icon ${passed ? 'pass' : 'fail'}">${passed ? '✅' : '❌'}</span>
+                    <div>
+                        <strong>${name}</strong><br>
+                        <small>${details}</small>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function testCanGenerate() {
+            const resultsDiv = document.getElementById('test-results');
+            resultsDiv.innerHTML = '<div class="status info">🔍 Testing can_generate_faqs function...</div>';
+
+            try {
+                await initializeUser();
+                let html = '<div class="container"><h2>🔍 Can Generate FAQs Tests</h2>';
+
+                // Test 1: Can generate 1 FAQ
+                const { data: test1, error: error1 } = await supabase.rpc('can_generate_faqs', {
+                    user_uuid: currentUser.id,
+                    faq_count: 1
+                });
+
+                html += createTestResult(
+                    'Can Generate 1 FAQ',
+                    !error1 && test1,
+                    error1 ? `Error: ${error1.message}` : `Result: ${JSON.stringify(test1)}`
+                );
+
+                // Test 2: Can generate 10 FAQs (should fail for Free plan)
+                const { data: test2, error: error2 } = await supabase.rpc('can_generate_faqs', {
+                    user_uuid: currentUser.id,
+                    faq_count: 10
+                });
+
+                html += createTestResult(
+                    'Can Generate 10 FAQs (should fail for Free plan)',
+                    !error2 && test2 && !test2.can_generate,
+                    error2 ? `Error: ${error2.message}` : `Result: ${JSON.stringify(test2)}`
+                );
+
+                // Test 3: Function structure validation
+                const hasRequiredFields = test1 && 
+                    typeof test1.can_generate === 'boolean' &&
+                    typeof test1.current_usage === 'number' &&
+                    typeof test1.usage_limit === 'number' &&
+                    typeof test1.remaining_faqs === 'number';
+
+                html += createTestResult(
+                    'Function Returns Correct Structure',
+                    hasRequiredFields,
+                    hasRequiredFields ? 'All required fields present' : 'Missing required fields'
+                );
+
+                html += '</div>';
+                resultsDiv.innerHTML = html;
+
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="status error">❌ Test failed: ${error.message}</div>`;
+            }
+        }
+
+        async function testIncrement() {
+            const resultsDiv = document.getElementById('test-results');
+            resultsDiv.innerHTML = '<div class="status info">➕ Testing increment_faq_usage_by_count function...</div>';
+
+            try {
+                await initializeUser();
+                let html = '<div class="container"><h2>➕ Increment Usage Tests</h2>';
+
+                // Get current usage before test
+                const { data: beforeData } = await supabase
+                    .from('user_subscriptions')
+                    .select('faq_usage_current, faq_usage_limit')
+                    .eq('user_id', currentUser.id)
+                    .single();
+
+                html += `<div class="data-table">Before Test: ${beforeData?.faq_usage_current}/${beforeData?.faq_usage_limit}</div>`;
+
+                // Test 1: Increment by 1 (should work if under limit)
+                const { data: test1, error: error1 } = await supabase.rpc('increment_faq_usage_by_count', {
+                    user_uuid: currentUser.id,
+                    faq_count: 1
+                });
+
+                const shouldPass1 = beforeData && beforeData.faq_usage_current < beforeData.faq_usage_limit;
+                html += createTestResult(
+                    'Increment by 1',
+                    !error1 && test1 === shouldPass1,
+                    error1 ? `Error: ${error1.message}` : `Result: ${test1}, Expected: ${shouldPass1}`
+                );
+
+                // Get usage after first test
+                const { data: afterData } = await supabase
+                    .from('user_subscriptions')
+                    .select('faq_usage_current, faq_usage_limit')
+                    .eq('user_id', currentUser.id)
+                    .single();
+
+                html += `<div class="data-table">After Test: ${afterData?.faq_usage_current}/${afterData?.faq_usage_limit}</div>`;
+
+                // Test 2: Try to increment beyond limit
+                const remainingSpace = afterData ? afterData.faq_usage_limit - afterData.faq_usage_current : 0;
+                const { data: test2, error: error2 } = await supabase.rpc('increment_faq_usage_by_count', {
+                    user_uuid: currentUser.id,
+                    faq_count: remainingSpace + 1
+                });
+
+                html += createTestResult(
+                    'Increment Beyond Limit (should fail)',
+                    !error2 && test2 === false,
+                    error2 ? `Error: ${error2.message}` : `Result: ${test2}, Expected: false`
+                );
+
+                html += '</div>';
+                resultsDiv.innerHTML = html;
+
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="status error">❌ Test failed: ${error.message}</div>`;
+            }
+        }
+
+        async function testReset() {
+            const resultsDiv = document.getElementById('test-results');
+            resultsDiv.innerHTML = '<div class="status info">🔄 Testing check_and_reset_user_usage function...</div>';
+
+            try {
+                await initializeUser();
+                let html = '<div class="container"><h2>🔄 Usage Reset Tests</h2>';
+
+                // Test reset function
+                const { data: resetData, error: resetError } = await supabase.rpc('check_and_reset_user_usage', {
+                    user_uuid: currentUser.id
+                });
+
+                html += createTestResult(
+                    'Reset Function Execution',
+                    !resetError,
+                    resetError ? `Error: ${resetError.message}` : `Result: ${JSON.stringify(resetData)}`
+                );
+
+                // Check if subscription data is valid after reset
+                const { data: subData, error: subError } = await supabase
+                    .from('user_subscriptions')
+                    .select('*')
+                    .eq('user_id', currentUser.id)
+                    .single();
+
+                html += createTestResult(
+                    'Subscription Data Valid After Reset',
+                    !subError && subData && typeof subData.faq_usage_current === 'number',
+                    subError ? `Error: ${subError.message}` : `Usage: ${subData?.faq_usage_current}/${subData?.faq_usage_limit}`
+                );
+
+                html += '</div>';
+                resultsDiv.innerHTML = html;
+
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="status error">❌ Test failed: ${error.message}</div>`;
+            }
+        }
+
+        async function runAllTests() {
+            const resultsDiv = document.getElementById('test-results');
+            resultsDiv.innerHTML = '<div class="status info">🚀 Running comprehensive test suite...</div>';
+
+            try {
+                await initializeUser();
+                
+                let html = '<div class="container"><h2>🚀 Comprehensive Test Results</h2>';
+                let allPassed = true;
+
+                // Test all critical functions
+                const tests = [
+                    {
+                        name: 'can_generate_faqs',
+                        params: { user_uuid: currentUser.id, faq_count: 1 }
+                    },
+                    {
+                        name: 'check_and_reset_user_usage',
+                        params: { user_uuid: currentUser.id }
+                    },
+                    {
+                        name: 'get_subscription_status',
+                        params: { user_uuid: currentUser.id }
+                    }
+                ];
+
+                for (const test of tests) {
+                    try {
+                        const { data, error } = await supabase.rpc(test.name, test.params);
+                        const passed = !error && data !== null;
+                        allPassed = allPassed && passed;
+                        
+                        html += createTestResult(
+                            test.name,
+                            passed,
+                            error ? `Error: ${error.message}` : `Success: ${JSON.stringify(data).substring(0, 100)}...`
+                        );
+                    } catch (err) {
+                        allPassed = false;
+                        html += createTestResult(
+                            test.name,
+                            false,
+                            `Exception: ${err.message}`
+                        );
+                    }
+                }
+
+                // Overall result
+                html += `
+                    <div class="status ${allPassed ? 'success' : 'error'}">
+                        <strong>Overall Result: ${allPassed ? '✅ ALL TESTS PASSED' : '❌ SOME TESTS FAILED'}</strong><br>
+                        ${allPassed ? 'All database functions are working correctly.' : 'Some database functions need attention.'}
+                    </div>
+                `;
+
+                html += '</div>';
+                resultsDiv.innerHTML = html;
+
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="status error">❌ Test suite failed: ${error.message}</div>`;
+            }
+        }
+
+        // Auto-run tests on page load
+        window.addEventListener('load', () => {
+            setTimeout(runAllTests, 1000);
+        });
+    </script>
+</body>
+</html>

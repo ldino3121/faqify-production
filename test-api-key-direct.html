@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔑 Test API Key Direct</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #0f0f0f;
+            color: #ffffff;
+        }
+        .container {
+            background: #1a1a1a;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+        .status {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+            font-weight: 500;
+        }
+        .success { background: #1a4d3a; border-left: 4px solid #10b981; }
+        .error { background: #4d1a1a; border-left: 4px solid #ef4444; }
+        .warning { background: #4d3a1a; border-left: 4px solid #f59e0b; }
+        .info { background: #1a3a4d; border-left: 4px solid #3b82f6; }
+        .data-table {
+            background: #2a2a2a;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            white-space: pre-wrap;
+            margin: 10px 0;
+            border: 1px solid #404040;
+        }
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+            transition: background 0.2s;
+        }
+        button:hover { background: #2563eb; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔑 Test API Key Direct</h1>
+        <p>Testing the API key directly with OpenRouter to see if it's valid.</p>
+        
+        <button onclick="testAPIKey()" id="testBtn">🧪 Test API Key</button>
+        
+        <div id="results"></div>
+    </div>
+
+    <script>
+        function updateResults(html) {
+            document.getElementById('results').innerHTML = html;
+        }
+
+        async function testAPIKey() {
+            updateResults('<div class="status info">🔍 Testing API key directly with OpenRouter...</div>');
+            
+            // Test the API key that's hardcoded in the function
+            const apiKey = 'sk-or-v1-8f7e6d5c4b3a2918f7e6d5c4b3a2918f7e6d5c4b3a2918f7e6d5c4b3a2918f7e6d5c';
+            
+            try {
+                const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${apiKey}`,
+                        'Content-Type': 'application/json',
+                        'HTTP-Referer': 'https://faqify.app',
+                        'X-Title': 'FAQify - Professional FAQ Generator'
+                    },
+                    body: JSON.stringify({
+                        model: 'deepseek/deepseek-chat',
+                        messages: [
+                            {
+                                role: 'system',
+                                content: 'You are a helpful assistant. Respond with a simple JSON array of one FAQ.'
+                            },
+                            {
+                                role: 'user',
+                                content: 'Generate one FAQ about artificial intelligence.'
+                            }
+                        ],
+                        temperature: 0.7,
+                        max_tokens: 200
+                    })
+                });
+
+                let html = '<div class="status info">📊 API Key Test Results:</div>';
+
+                html += `
+                    <div class="status ${response.ok ? 'success' : 'error'}">
+                        HTTP Status: ${response.status} ${response.statusText}
+                    </div>
+                `;
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    html += `
+                        <div class="status error">
+                            ❌ API Key is INVALID or EXPIRED
+                        </div>
+                        <div class="data-table">
+Error Response:
+${errorText}
+                        </div>
+                    `;
+                    
+                    if (response.status === 401) {
+                        html += `
+                            <div class="status error">
+                                🚨 AUTHENTICATION FAILED
+                                The API key is invalid or expired.
+                                This is why your FAQ generation is failing.
+                            </div>
+                        `;
+                    } else if (response.status === 402) {
+                        html += `
+                            <div class="status error">
+                                💳 PAYMENT REQUIRED
+                                The API key has no credits or the account needs payment.
+                            </div>
+                        `;
+                    } else if (response.status === 429) {
+                        html += `
+                            <div class="status warning">
+                                ⏱️ RATE LIMITED
+                                Too many requests. Try again later.
+                            </div>
+                        `;
+                    }
+                } else {
+                    const data = await response.json();
+                    html += `
+                        <div class="status success">
+                            ✅ API Key is VALID and WORKING!
+                        </div>
+                        <div class="data-table">
+Success Response:
+${JSON.stringify(data, null, 2)}
+                        </div>
+                    `;
+                }
+
+                updateResults(html);
+
+            } catch (error) {
+                updateResults(`
+                    <div class="status error">
+                        ❌ Network Error: ${error.message}
+                    </div>
+                    <div class="data-table">
+This could indicate:
+1. Network connectivity issues
+2. CORS problems
+3. Invalid API endpoint
+4. Browser blocking the request
+                    </div>
+                `);
+            }
+        }
+
+        // Auto-run test when page loads
+        window.onload = () => {
+            setTimeout(testAPIKey, 1000);
+        };
+    </script>
+</body>
+</html>

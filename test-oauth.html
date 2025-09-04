@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OAuth Test - FAQify</title>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: white;
+        }
+        .container {
+            background: #2a2a2a;
+            padding: 30px;
+            border-radius: 10px;
+            border: 1px solid #444;
+        }
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 10px 5px;
+            font-size: 16px;
+        }
+        button:hover {
+            background: #2563eb;
+        }
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+        .status {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 6px;
+            border-left: 4px solid #3b82f6;
+            background: #1e3a8a20;
+        }
+        .error {
+            border-left-color: #ef4444;
+            background: #7f1d1d20;
+            color: #fca5a5;
+        }
+        .success {
+            border-left-color: #10b981;
+            background: #064e3b20;
+            color: #6ee7b7;
+        }
+        .warning {
+            border-left-color: #f59e0b;
+            background: #78350f20;
+            color: #fcd34d;
+        }
+        pre {
+            background: #111;
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 OAuth Configuration Test</h1>
+        <p>This page tests if Google and GitHub OAuth are properly configured in Supabase.</p>
+        
+        <div id="status" class="status">
+            <strong>Status:</strong> Initializing...
+        </div>
+        
+        <div>
+            <button id="testGoogle" onclick="testGoogleOAuth()">Test Google OAuth</button>
+            <button id="testGitHub" onclick="testGitHubOAuth()">Test GitHub OAuth</button>
+            <button onclick="checkConfig()">Check Configuration</button>
+        </div>
+        
+        <div id="results">
+            <h3>Test Results:</h3>
+            <div id="output"></div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize Supabase client
+        const SUPABASE_URL = 'https://dlzshcshqjdghmtzlbma.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRsenNoY3NocWpkZ2htdHpsYm1hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTExODUzODgsImV4cCI6MjA2Njc2MTM4OH0.EL4By0nom419JiorSHKiFckLqnh1sqmFvYnWTylB9Gk';
+        
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        
+        function updateStatus(message, type = 'info') {
+            const statusEl = document.getElementById('status');
+            statusEl.innerHTML = `<strong>Status:</strong> ${message}`;
+            statusEl.className = `status ${type}`;
+        }
+        
+        function addResult(provider, success, message, details = null) {
+            const output = document.getElementById('output');
+            const resultEl = document.createElement('div');
+            resultEl.className = `status ${success ? 'success' : 'error'}`;
+            
+            let content = `<strong>${provider}:</strong> ${message}`;
+            if (details) {
+                content += `<pre>${JSON.stringify(details, null, 2)}</pre>`;
+            }
+            
+            resultEl.innerHTML = content;
+            output.appendChild(resultEl);
+        }
+        
+        async function testGoogleOAuth() {
+            updateStatus('Testing Google OAuth...', 'info');
+            document.getElementById('testGoogle').disabled = true;
+            
+            try {
+                const { data, error } = await supabase.auth.signInWithOAuth({
+                    provider: 'google',
+                    options: {
+                        skipBrowserRedirect: true,
+                        redirectTo: window.location.origin
+                    }
+                });
+                
+                if (error) {
+                    addResult('Google OAuth', false, error.message, error);
+                    updateStatus('Google OAuth test failed', 'error');
+                } else {
+                    addResult('Google OAuth', true, 'Configuration appears to be working', data);
+                    updateStatus('Google OAuth test completed', 'success');
+                }
+            } catch (err) {
+                addResult('Google OAuth', false, 'Unexpected error: ' + err.message, err);
+                updateStatus('Google OAuth test failed', 'error');
+            }
+            
+            document.getElementById('testGoogle').disabled = false;
+        }
+        
+        async function testGitHubOAuth() {
+            updateStatus('Testing GitHub OAuth...', 'info');
+            document.getElementById('testGitHub').disabled = true;
+            
+            try {
+                const { data, error } = await supabase.auth.signInWithOAuth({
+                    provider: 'github',
+                    options: {
+                        skipBrowserRedirect: true,
+                        redirectTo: window.location.origin
+                    }
+                });
+                
+                if (error) {
+                    addResult('GitHub OAuth', false, error.message, error);
+                    updateStatus('GitHub OAuth test failed', 'error');
+                } else {
+                    addResult('GitHub OAuth', true, 'Configuration appears to be working', data);
+                    updateStatus('GitHub OAuth test completed', 'success');
+                }
+            } catch (err) {
+                addResult('GitHub OAuth', false, 'Unexpected error: ' + err.message, err);
+                updateStatus('GitHub OAuth test failed', 'error');
+            }
+            
+            document.getElementById('testGitHub').disabled = false;
+        }
+        
+        function checkConfig() {
+            updateStatus('Checking configuration...', 'info');
+            
+            const config = {
+                supabaseUrl: SUPABASE_URL,
+                hasAnonKey: !!SUPABASE_ANON_KEY,
+                currentUrl: window.location.origin,
+                userAgent: navigator.userAgent
+            };
+            
+            addResult('Configuration', true, 'Current setup details', config);
+            updateStatus('Configuration check completed', 'success');
+        }
+        
+        // Initialize
+        updateStatus('Ready to test OAuth configuration', 'success');
+        
+        // Check for auth state changes
+        supabase.auth.onAuthStateChange((event, session) => {
+            if (event === 'SIGNED_IN') {
+                addResult('Auth State', true, 'User signed in successfully', {
+                    event,
+                    user: session?.user?.email,
+                    provider: session?.user?.app_metadata?.provider
+                });
+                updateStatus('User authenticated successfully!', 'success');
+            } else if (event === 'SIGNED_OUT') {
+                addResult('Auth State', true, 'User signed out', { event });
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Assign Pro Plan - FAQify</title>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f8fafc;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        .status {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            font-weight: 500;
+        }
+        .status.success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+        .status.error { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+        .status.warning { background: #fefce8; color: #ca8a04; border: 1px solid #fef08a; }
+        .status.info { background: #eff6ff; color: #2563eb; border: 1px solid #dbeafe; }
+        .btn {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px;
+            transition: background 0.2s;
+        }
+        .btn:hover { background: #2563eb; }
+        .data-table {
+            background: #f9fafb;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 12px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Force Pro Plan Assignment</h1>
+        <p>Direct database update to assign Pro plan to faqify18@gmail.com</p>
+        
+        <button class="btn" onclick="forceProPlan()">🚀 Force Assign Pro Plan</button>
+        <button class="btn" onclick="checkUserData()">👤 Check User Data</button>
+        
+        <div id="results"></div>
+    </div>
+
+    <script>
+        const supabaseUrl = 'https://dlzshcshqjdghmtzlbma.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRsenNoY3NocWpkZ2htdHpsYm1hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTExODUzODgsImV4cCI6MjA2Njc2MTM4OH0.EL4By0nom419JiorSHKiFckLqnh1sqmFvYnWTylB9Gk';
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+        function updateResults(html) {
+            document.getElementById('results').innerHTML = html;
+        }
+
+        async function checkUserData() {
+            updateResults('<div class="status info">👤 Checking user data...</div>');
+
+            try {
+                // Get current user
+                const { data: { user }, error: userError } = await supabase.auth.getUser();
+                if (userError || !user) {
+                    updateResults('<div class="status error">❌ Please sign in first</div>');
+                    return;
+                }
+
+                let html = `
+                    <div class="container">
+                        <h3>👤 Current User Data</h3>
+                        <div class="data-table">
+User ID: ${user.id}
+Email: ${user.email}
+                        </div>
+                `;
+
+                // Check profile
+                const { data: profile, error: profileError } = await supabase
+                    .from('profiles')
+                    .select('*')
+                    .eq('id', user.id)
+                    .single();
+
+                html += `
+                        <h4>Profile:</h4>
+                        <div class="data-table">
+${profile ? JSON.stringify(profile, null, 2) : `Error: ${profileError?.message}`}
+                        </div>
+                `;
+
+                // Check subscription
+                const { data: subscription, error: subError } = await supabase
+                    .from('user_subscriptions')
+                    .select('*')
+                    .eq('user_id', user.id)
+                    .single();
+
+                html += `
+                        <h4>Subscription:</h4>
+                        <div class="data-table">
+${subscription ? JSON.stringify(subscription, null, 2) : `Error: ${subError?.message}`}
+                        </div>
+                    </div>
+                `;
+
+                updateResults(html);
+
+            } catch (error) {
+                updateResults(`<div class="status error">❌ Exception: ${error.message}</div>`);
+            }
+        }
+
+        async function forceProPlan() {
+            updateResults('<div class="status info">🚀 Force assigning Pro plan...</div>');
+
+            try {
+                // Get current user
+                const { data: { user }, error: userError } = await supabase.auth.getUser();
+                if (userError || !user) {
+                    updateResults('<div class="status error">❌ Please sign in first</div>');
+                    return;
+                }
+
+                let html = `
+                    <div class="container">
+                        <h3>🚀 Pro Plan Assignment Process</h3>
+                `;
+
+                // Step 1: Check if profile exists, create if not
+                html += '<h4>Step 1: Ensure Profile Exists</h4>';
+                const { data: existingProfile, error: profileCheckError } = await supabase
+                    .from('profiles')
+                    .select('id')
+                    .eq('id', user.id)
+                    .single();
+
+                if (profileCheckError && profileCheckError.code === 'PGRST116') {
+                    // Profile doesn't exist, create it
+                    const { error: createProfileError } = await supabase
+                        .from('profiles')
+                        .insert({
+                            id: user.id,
+                            email: user.email || 'faqify18@gmail.com',
+                            full_name: user.user_metadata?.full_name || 'FAQify User'
+                        });
+
+                    if (createProfileError) {
+                        html += `<div class="status error">❌ Failed to create profile: ${createProfileError.message}</div>`;
+                        updateResults(html + '</div>');
+                        return;
+                    } else {
+                        html += `<div class="status success">✅ Profile created successfully</div>`;
+                    }
+                } else if (profileCheckError) {
+                    html += `<div class="status error">❌ Profile check error: ${profileCheckError.message}</div>`;
+                    updateResults(html + '</div>');
+                    return;
+                } else {
+                    html += `<div class="status success">✅ Profile already exists</div>`;
+                }
+
+                // Step 2: Check if subscription exists
+                html += '<h4>Step 2: Handle Subscription</h4>';
+                const { data: existingSub, error: subCheckError } = await supabase
+                    .from('user_subscriptions')
+                    .select('*')
+                    .eq('user_id', user.id)
+                    .single();
+
+                if (subCheckError && subCheckError.code === 'PGRST116') {
+                    // Subscription doesn't exist, create Pro subscription
+                    const { error: createSubError } = await supabase
+                        .from('user_subscriptions')
+                        .insert({
+                            user_id: user.id,
+                            plan_tier: 'Pro',
+                            faq_usage_limit: 100,
+                            faq_usage_current: 0,
+                            status: 'active',
+                            plan_activated_at: new Date().toISOString(),
+                            plan_expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+                            last_reset_date: new Date().toISOString().split('T')[0]
+                        });
+
+                    if (createSubError) {
+                        html += `<div class="status error">❌ Failed to create Pro subscription: ${createSubError.message}</div>`;
+                        updateResults(html + '</div>');
+                        return;
+                    } else {
+                        html += `<div class="status success">✅ Pro subscription created successfully</div>`;
+                    }
+                } else if (subCheckError) {
+                    html += `<div class="status error">❌ Subscription check error: ${subCheckError.message}</div>`;
+                    updateResults(html + '</div>');
+                    return;
+                } else {
+                    // Subscription exists, update to Pro
+                    const { error: updateSubError } = await supabase
+                        .from('user_subscriptions')
+                        .update({
+                            plan_tier: 'Pro',
+                            faq_usage_limit: 100,
+                            faq_usage_current: 0,
+                            status: 'active',
+                            plan_activated_at: new Date().toISOString(),
+                            plan_expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+                            updated_at: new Date().toISOString()
+                        })
+                        .eq('user_id', user.id);
+
+                    if (updateSubError) {
+                        html += `<div class="status error">❌ Failed to update to Pro subscription: ${updateSubError.message}</div>`;
+                        updateResults(html + '</div>');
+                        return;
+                    } else {
+                        html += `<div class="status success">✅ Subscription updated to Pro successfully</div>`;
+                    }
+                }
+
+                // Step 3: Verify the changes
+                html += '<h4>Step 3: Verify Pro Plan Assignment</h4>';
+                const { data: finalSub, error: verifyError } = await supabase
+                    .from('user_subscriptions')
+                    .select('plan_tier, faq_usage_current, faq_usage_limit, status')
+                    .eq('user_id', user.id)
+                    .single();
+
+                if (verifyError) {
+                    html += `<div class="status error">❌ Verification failed: ${verifyError.message}</div>`;
+                } else {
+                    html += `
+                        <div class="status success">✅ Pro plan assignment verified!</div>
+                        <div class="data-table">
+Final Subscription Status:
+Plan: ${finalSub.plan_tier}
+Usage: ${finalSub.faq_usage_current}/${finalSub.faq_usage_limit}
+Status: ${finalSub.status}
+                        </div>
+                    `;
+                }
+
+                html += `
+                        <div class="status info">
+                            <strong>🔄 Please refresh your dashboard now!</strong><br>
+                            You should see Pro plan with 0/100 FAQs.
+                        </div>
+                    </div>
+                `;
+
+                updateResults(html);
+
+            } catch (error) {
+                updateResults(`<div class="status error">❌ Exception: ${error.message}</div>`);
+            }
+        }
+
+        // Auto-check user data on page load
+        window.addEventListener('load', () => {
+            setTimeout(checkUserData, 1000);
+        });
+    </script>
+</body>
+</html>

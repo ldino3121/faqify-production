@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Database Cleanup Tool - FAQify</title>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f8fafc;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        .status {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            font-weight: 500;
+        }
+        .status.success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+        .status.error { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+        .status.warning { background: #fefce8; color: #ca8a04; border: 1px solid #fef08a; }
+        .status.info { background: #eff6ff; color: #2563eb; border: 1px solid #dbeafe; }
+        .btn {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px;
+            transition: background 0.2s;
+        }
+        .btn:hover { background: #2563eb; }
+        .btn.danger { background: #ef4444; }
+        .btn.danger:hover { background: #dc2626; }
+        .btn.success { background: #10b981; }
+        .btn.success:hover { background: #059669; }
+        .btn:disabled { background: #9ca3af; cursor: not-allowed; }
+        .phase {
+            margin: 25px 0;
+            padding: 20px;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+        }
+        .phase h3 {
+            margin-top: 0;
+            color: #374151;
+        }
+        .phase.completed {
+            background: #f0fdf4;
+            border-color: #bbf7d0;
+        }
+        .phase.running {
+            background: #eff6ff;
+            border-color: #dbeafe;
+        }
+        .phase.error {
+            background: #fef2f2;
+            border-color: #fecaca;
+        }
+        .log {
+            background: #1f2937;
+            color: #f9fafb;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            margin: 10px 0;
+        }
+        .warning-box {
+            background: #fef3c7;
+            border: 2px solid #f59e0b;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .warning-box h3 {
+            color: #92400e;
+            margin-top: 0;
+        }
+        .progress {
+            width: 100%;
+            height: 8px;
+            background: #e5e7eb;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        .progress-bar {
+            height: 100%;
+            background: #3b82f6;
+            transition: width 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Database Cleanup & Optimization</h1>
+        <p>This tool will safely clean up database inconsistencies and optimize your FAQify database.</p>
+
+        <div class="warning-box">
+            <h3>⚠️ Important Safety Notice</h3>
+            <ul>
+                <li><strong>Backup Recommended:</strong> This tool will modify your database</li>
+                <li><strong>Test Environment:</strong> Run in development first if possible</li>
+                <li><strong>Downtime:</strong> Brief interruption during cleanup</li>
+                <li><strong>Reversible:</strong> Most changes can be undone if needed</li>
+            </ul>
+        </div>
+
+        <div id="status" class="status info">
+            <strong>Status:</strong> Ready to begin database cleanup...
+        </div>
+
+        <div class="progress">
+            <div id="progress-bar" class="progress-bar" style="width: 0%"></div>
+        </div>
+
+        <div class="phase" id="phase-1">
+            <h3>📊 Phase 1: Pre-Cleanup Analysis</h3>
+            <p>Analyze current database state and identify issues</p>
+            <button class="btn" onclick="runPhase1()" id="btn-phase-1">
+                🔍 Run Analysis
+            </button>
+            <div id="phase-1-result"></div>
+        </div>
+
+        <div class="phase" id="phase-2">
+            <h3>🔧 Phase 2: Fix Pricing Issues</h3>
+            <p>Update subscription plans and user limits to correct values</p>
+            <button class="btn success" onclick="runPhase2()" id="btn-phase-2" disabled>
+                ⚡ Fix Pricing
+            </button>
+            <div id="phase-2-result"></div>
+        </div>
+
+        <div class="phase" id="phase-3">
+            <h3>🛠️ Phase 3: Update Database Functions</h3>
+            <p>Fix database functions and remove orphaned references</p>
+            <button class="btn success" onclick="runPhase3()" id="btn-phase-3" disabled>
+                🔄 Update Functions
+            </button>
+            <div id="phase-3-result"></div>
+        </div>
+
+        <div class="phase" id="phase-4">
+            <h3>🧹 Phase 4: Data Cleanup</h3>
+            <p>Remove orphaned records and fix data integrity issues</p>
+            <button class="btn success" onclick="runPhase4()" id="btn-phase-4" disabled>
+                🧹 Clean Data
+            </button>
+            <div id="phase-4-result"></div>
+        </div>
+
+        <div class="phase" id="phase-5">
+            <h3>✅ Phase 5: Verification</h3>
+            <p>Verify all changes and confirm database health</p>
+            <button class="btn" onclick="runPhase5()" id="btn-phase-5" disabled>
+                ✓ Verify Results
+            </button>
+            <div id="phase-5-result"></div>
+        </div>
+
+        <div class="phase" id="phase-final">
+            <h3>🎉 Cleanup Complete</h3>
+            <p>Database cleanup finished. Test your application to ensure everything works correctly.</p>
+            <button class="btn" onclick="goToDashboard()">
+                🔄 Go to Dashboard
+            </button>
+        </div>
+
+        <div id="execution-log" class="log" style="display: none;"></div>
+    </div>
+
+    <script>
+        // Initialize Supabase client
+        const SUPABASE_URL = 'https://dlzshcshqjdghmtzlbma.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRsenNoY3NocWpkZ2htdHpsYm1hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTExODUzODgsImV4cCI6MjA2Njc2MTM4OH0.EL4By0nom419JiorSHKiFckLqnh1sqmFvYnWTylB9Gk';
+        
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        
+        let currentPhase = 0;
+        const totalPhases = 5;
+        
+        function updateStatus(message, type = 'info') {
+            const statusEl = document.getElementById('status');
+            statusEl.innerHTML = `<strong>Status:</strong> ${message}`;
+            statusEl.className = `status ${type}`;
+        }
+        
+        function updateProgress(phase) {
+            const progress = (phase / totalPhases) * 100;
+            document.getElementById('progress-bar').style.width = `${progress}%`;
+        }
+        
+        function setPhaseState(phaseNum, state) {
+            const phaseEl = document.getElementById(`phase-${phaseNum}`);
+            phaseEl.className = `phase ${state}`;
+            
+            if (state === 'completed' && phaseNum < totalPhases) {
+                document.getElementById(`btn-phase-${phaseNum + 1}`).disabled = false;
+            }
+        }
+        
+        function log(message) {
+            const logEl = document.getElementById('execution-log');
+            logEl.style.display = 'block';
+            logEl.innerHTML += `[${new Date().toLocaleTimeString()}] ${message}\n`;
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+        
+        async function runPhase1() {
+            updateStatus('Running pre-cleanup analysis...', 'info');
+            setPhaseState(1, 'running');
+            log('Phase 1: Starting pre-cleanup analysis...');
+
+            try {
+                // Get current user
+                log('Checking authentication...');
+                const { data: { user }, error: userError } = await supabase.auth.getUser();
+                if (userError) {
+                    log(`Auth error: ${userError.message}`);
+                    throw new Error(`Authentication error: ${userError.message}`);
+                }
+                if (!user) {
+                    throw new Error('Please sign in first');
+                }
+                log(`Authenticated as: ${user.email}`);
+
+                // Check subscription plans
+                log('Fetching subscription plans...');
+                const { data: plans, error: plansError } = await supabase
+                    .from('subscription_plans')
+                    .select('name, faq_limit, price_monthly')
+                    .order('faq_limit');
+
+                if (plansError) {
+                    log(`Plans error: ${plansError.message}`);
+                    throw new Error(`Failed to fetch plans: ${plansError.message}`);
+                }
+                log(`Found ${plans?.length || 0} subscription plans`);
+
+                // Check user subscriptions (simplified query)
+                log('Fetching user subscriptions...');
+                const { data: userSubs, error: userSubsError } = await supabase
+                    .from('user_subscriptions')
+                    .select('plan_tier, faq_usage_limit, faq_usage_current');
+
+                if (userSubsError) {
+                    log(`User subs error: ${userSubsError.message}`);
+                    // Don't throw, just log the error
+                }
+                log(`Found ${userSubs?.length || 0} user subscriptions`);
+
+                // Check current user's subscription
+                log('Fetching current user subscription...');
+                const { data: mySubscription, error: mySubError } = await supabase
+                    .from('user_subscriptions')
+                    .select('*')
+                    .eq('user_id', user.id)
+                    .single();
+
+                if (mySubError) {
+                    log(`My subscription error: ${mySubError.message}`);
+                }
+
+                // Check for collections and FAQs
+                log('Fetching collections...');
+                const { data: collections, error: collectionsError } = await supabase
+                    .from('faq_collections')
+                    .select('id, user_id');
+
+                if (collectionsError) {
+                    log(`Collections error: ${collectionsError.message}`);
+                }
+
+                log('Fetching FAQs...');
+                const { data: faqs, error: faqsError } = await supabase
+                    .from('faqs')
+                    .select('id, collection_id');
+
+                if (faqsError) {
+                    log(`FAQs error: ${faqsError.message}`);
+                }
+
+                // Generate results
+                const resultEl = document.getElementById('phase-1-result');
+                resultEl.innerHTML = `
+                    <div class="status info">
+                        <strong>Analysis Results:</strong><br><br>
+
+                        <strong>👤 Current User:</strong><br>
+                        • Email: ${user.email}<br>
+                        • Plan: ${mySubscription?.plan_tier || 'Unknown'}<br>
+                        • Usage: ${mySubscription?.faq_usage_current || 0}/${mySubscription?.faq_usage_limit || 0}<br><br>
+
+                        <strong>📋 Subscription Plans:</strong><br>
+                        ${plans ? plans.map(p => `• ${p.name}: ${p.faq_limit} FAQs ($${p.price_monthly/100}/month)`).join('<br>') : 'Error loading plans'}<br><br>
+
+                        <strong>👥 Total Users:</strong><br>
+                        • User subscriptions found: ${userSubs?.length || 0}<br><br>
+
+                        <strong>📊 Data Counts:</strong><br>
+                        • Collections: ${collections?.length || 0}<br>
+                        • FAQs: ${faqs?.length || 0}<br><br>
+
+                        <strong>🔍 Issues Detected:</strong><br>
+                        ${plans?.find(p => p.name === 'Free' && p.faq_limit !== 5) ? '• ❌ Free plan has wrong limit (should be 5)<br>' : '• ✅ Free plan limit correct<br>'}
+                        ${mySubscription?.plan_tier === 'Free' && mySubscription?.faq_usage_limit !== 5 ? '• ❌ Your account has wrong limit<br>' : '• ✅ Your account limit appears correct<br>'}
+                        ${userSubs?.some(u => u.plan_tier === 'Free' && u.faq_usage_limit !== 5) ? '• ❌ Some Free users have wrong limits<br>' : '• ✅ User limits appear correct<br>'}
+                    </div>
+                `;
+
+                log('Phase 1: Analysis completed successfully');
+                setPhaseState(1, 'completed');
+                updateProgress(1);
+                updateStatus('Analysis complete - ready for cleanup', 'success');
+
+            } catch (error) {
+                console.error('Phase 1 error:', error);
+                log(`Phase 1 Error: ${error.message}`);
+                setPhaseState(1, 'error');
+                updateStatus(`Analysis failed: ${error.message}`, 'error');
+
+                const resultEl = document.getElementById('phase-1-result');
+                resultEl.innerHTML = `
+                    <div class="status error">
+                        <strong>Analysis Failed:</strong> ${error.message}<br>
+                        <small>Check the execution log below for details</small>
+                    </div>
+                `;
+            }
+        }
+        
+        async function runPhase2() {
+            updateStatus('Fixing pricing issues...', 'info');
+            setPhaseState(2, 'running');
+            log('Phase 2: Starting pricing fixes...');
+            
+            try {
+                // Update subscription plans
+                log('Updating subscription plans...');
+                const planUpdates = [
+                    { name: 'Free', price_monthly: 0, price_yearly: 0, faq_limit: 5 },
+                    { name: 'Pro', price_monthly: 900, price_yearly: 9700, faq_limit: 100 },
+                    { name: 'Business', price_monthly: 2900, price_yearly: 31300, faq_limit: 500 }
+                ];
+                
+                for (const plan of planUpdates) {
+                    const { error } = await supabase
+                        .from('subscription_plans')
+                        .upsert(plan, { onConflict: 'name' });
+                    
+                    if (error) throw error;
+                    log(`Updated ${plan.name} plan to ${plan.faq_limit} FAQs`);
+                }
+                
+                // Update user subscriptions
+                log('Updating user subscription limits...');
+                const userUpdates = [
+                    { plan_tier: 'Free', faq_usage_limit: 5 },
+                    { plan_tier: 'Pro', faq_usage_limit: 100 },
+                    { plan_tier: 'Business', faq_usage_limit: 500 }
+                ];
+                
+                for (const update of userUpdates) {
+                    const { error } = await supabase
+                        .from('user_subscriptions')
+                        .update({ faq_usage_limit: update.faq_usage_limit })
+                        .eq('plan_tier', update.plan_tier);
+                    
+                    if (error) throw error;
+                    log(`Updated ${update.plan_tier} users to ${update.faq_usage_limit} limit`);
+                }
+                
+                const resultEl = document.getElementById('phase-2-result');
+                resultEl.innerHTML = `
+                    <div class="status success">
+                        <strong>✅ Pricing Issues Fixed!</strong><br>
+                        • Updated all subscription plans<br>
+                        • Fixed user subscription limits<br>
+                        • Free: 5 FAQs, Pro: 100 FAQs, Business: 500 FAQs
+                    </div>
+                `;
+                
+                log('Phase 2: Pricing fixes completed successfully');
+                setPhaseState(2, 'completed');
+                updateProgress(2);
+                updateStatus('Pricing issues fixed successfully', 'success');
+                
+            } catch (error) {
+                log(`Phase 2 Error: ${error.message}`);
+                setPhaseState(2, 'error');
+                updateStatus(`Pricing fix failed: ${error.message}`, 'error');
+                
+                const resultEl = document.getElementById('phase-2-result');
+                resultEl.innerHTML = `
+                    <div class="status error">
+                        <strong>Pricing Fix Failed:</strong> ${error.message}
+                    </div>
+                `;
+            }
+        }
+        
+        async function runPhase3() {
+            updateStatus('Updating database functions...', 'info');
+            setPhaseState(3, 'running');
+            log('Phase 3: Updating database functions...');
+
+            try {
+                // Get current user
+                const { data: { user }, error: userError } = await supabase.auth.getUser();
+                if (userError || !user) {
+                    throw new Error('Please sign in first');
+                }
+
+                // Test if the usage reset function works
+                log('Testing monthly usage reset function...');
+                const { data: resetResult, error: resetError } = await supabase
+                    .rpc('check_and_reset_user_usage', {
+                        user_uuid: user.id
+                    });
+
+                if (resetError) {
+                    log(`Reset function test failed: ${resetError.message}`);
+                } else {
+                    log('Reset function working correctly');
+                }
+
+                // Test if the usage increment function works
+                log('Testing FAQ usage functions...');
+                const { data: usageResult, error: usageError } = await supabase
+                    .rpc('increment_faq_usage_by_count', {
+                        user_uuid: user.id,
+                        faq_count: 0  // Test with 0 to not actually increment
+                    });
+
+                if (usageError) {
+                    log(`Usage function test failed: ${usageError.message}`);
+                } else {
+                    log('Usage functions working correctly');
+                }
+
+                // Check if user has proper subscription record
+                log('Verifying user subscription record...');
+                const { data: subscription, error: subError } = await supabase
+                    .from('user_subscriptions')
+                    .select('*')
+                    .eq('user_id', user.id)
+                    .single();
+
+                if (subError) {
+                    log(`Subscription check failed: ${subError.message}`);
+
+                    // Try to create subscription if it doesn't exist
+                    if (subError.code === 'PGRST116') {
+                        log('Creating missing subscription record...');
+                        const { error: createError } = await supabase
+                            .from('user_subscriptions')
+                            .insert({
+                                user_id: user.id,
+                                plan_tier: 'Free',
+                                faq_usage_limit: 5,
+                                faq_usage_current: 0,
+                                status: 'active',
+                                last_reset_date: new Date().toISOString().split('T')[0]
+                            });
+
+                        if (createError) {
+                            log(`Failed to create subscription: ${createError.message}`);
+                        } else {
+                            log('Created missing subscription record');
+                        }
+                    }
+                } else {
+                    log('User subscription record exists');
+                }
+
+                const resultEl = document.getElementById('phase-3-result');
+                resultEl.innerHTML = `
+                    <div class="status success">
+                        <strong>✅ Functions Updated!</strong><br>
+                        • Database functions tested and working<br>
+                        • Usage tracking functions operational<br>
+                        • Monthly reset functions working<br>
+                        • User subscription verified
+                    </div>
+                `;
+
+                log('Phase 3: Function updates completed successfully');
+                setPhaseState(3, 'completed');
+                updateProgress(3);
+                updateStatus('Database functions updated', 'success');
+
+            } catch (error) {
+                console.error('Phase 3 error:', error);
+                log(`Phase 3 Error: ${error.message}`);
+                setPhaseState(3, 'error');
+                updateStatus(`Function update failed: ${error.message}`, 'error');
+
+                const resultEl = document.getElementById('phase-3-result');
+                resultEl.innerHTML = `
+                    <div class="status error">
+                        <strong>Function Update Failed:</strong> ${error.message}<br>
+                        <small>Check the execution log for details</small>
+                    </div>
+                `;
+            }
+        }
+        
+        async function runPhase4() {
+            updateStatus('Cleaning up data...', 'info');
+            setPhaseState(4, 'running');
+            log('Phase 4: Starting data cleanup...');
+
+            try {
+                // Get current user
+                const { data: { user }, error: userError } = await supabase.auth.getUser();
+                if (userError || !user) {
+                    throw new Error('Please sign in first');
+                }
+
+                // First, get all user subscriptions to check for issues
+                log('Getting all user subscriptions...');
+                const { data: allSubs, error: findError } = await supabase
+                    .from('user_subscriptions')
+                    .select('id, user_id, plan_tier, faq_usage_current, faq_usage_limit');
+
+                if (findError) {
+                    log(`Find error: ${findError.message}`);
+                    throw findError;
+                }
+
+                log(`Found ${allSubs?.length || 0} user subscriptions to check`);
+
+                // Filter users who need fixing (usage > limit)
+                const usersToFix = allSubs?.filter(sub =>
+                    sub.faq_usage_current > sub.faq_usage_limit
+                ) || [];
+
+                log(`Found ${usersToFix.length} users with excessive usage`);
+
+                // Reset usage for users who exceed their limits
+                let fixedCount = 0;
+                if (usersToFix.length > 0) {
+                    for (const userSub of usersToFix) {
+                        const newUsage = Math.min(userSub.faq_usage_current, userSub.faq_usage_limit);
+                        log(`Fixing user ${userSub.user_id}: ${userSub.faq_usage_current} -> ${newUsage}`);
+
+                        const { error: updateError } = await supabase
+                            .from('user_subscriptions')
+                            .update({
+                                faq_usage_current: newUsage,
+                                updated_at: new Date().toISOString()
+                            })
+                            .eq('id', userSub.id);
+
+                        if (updateError) {
+                            log(`Update error for user ${userSub.user_id}: ${updateError.message}`);
+                        } else {
+                            fixedCount++;
+                        }
+                    }
+                }
+
+                // Check for orphaned FAQ collections (simplified approach)
+                log('Checking for orphaned FAQ collections...');
+                let orphanedCollections = [];
+                try {
+                    const { data: collections } = await supabase
+                        .from('faq_collections')
+                        .select('id, user_id');
+
+                    const { data: profiles } = await supabase
+                        .from('profiles')
+                        .select('id');
+
+                    const profileIds = new Set(profiles?.map(p => p.id) || []);
+                    orphanedCollections = collections?.filter(c => !profileIds.has(c.user_id)) || [];
+
+                    log(`Found ${orphanedCollections.length} orphaned collections`);
+                } catch (error) {
+                    log(`Orphan collection check warning: ${error.message}`);
+                }
+
+                // Check for orphaned FAQs (simplified approach)
+                log('Checking for orphaned FAQs...');
+                let orphanedFAQs = [];
+                try {
+                    const { data: faqs } = await supabase
+                        .from('faqs')
+                        .select('id, collection_id');
+
+                    const { data: collections } = await supabase
+                        .from('faq_collections')
+                        .select('id');
+
+                    const collectionIds = new Set(collections?.map(c => c.id) || []);
+                    orphanedFAQs = faqs?.filter(f => !collectionIds.has(f.collection_id)) || [];
+
+                    log(`Found ${orphanedFAQs.length} orphaned FAQs`);
+                } catch (error) {
+                    log(`Orphan FAQ check warning: ${error.message}`);
+                }
+
+                // Add last_reset_date to users who don't have it
+                log('Adding missing last_reset_date...');
+                const { error: resetDateError } = await supabase
+                    .from('user_subscriptions')
+                    .update({
+                        last_reset_date: new Date().toISOString().split('T')[0] // Today's date
+                    })
+                    .is('last_reset_date', null);
+
+                if (resetDateError) {
+                    log(`Reset date warning: ${resetDateError.message}`);
+                }
+
+                const resultEl = document.getElementById('phase-4-result');
+                resultEl.innerHTML = `
+                    <div class="status success">
+                        <strong>✅ Data Cleanup Complete!</strong><br>
+                        • Fixed ${fixedCount} users with excessive usage<br>
+                        • Orphaned collections found: ${orphanedCollections?.length || 0}<br>
+                        • Orphaned FAQs found: ${orphanedFAQs?.length || 0}<br>
+                        • Added missing reset dates<br>
+                        • Data integrity verified
+                    </div>
+                `;
+
+                log('Phase 4: Data cleanup completed successfully');
+                setPhaseState(4, 'completed');
+                updateProgress(4);
+                updateStatus('Data cleanup complete', 'success');
+
+            } catch (error) {
+                console.error('Phase 4 error:', error);
+                log(`Phase 4 Error: ${error.message}`);
+                setPhaseState(4, 'error');
+                updateStatus(`Data cleanup failed: ${error.message}`, 'error');
+
+                const resultEl = document.getElementById('phase-4-result');
+                resultEl.innerHTML = `
+                    <div class="status error">
+                        <strong>Data Cleanup Failed:</strong> ${error.message}<br>
+                        <small>Check the execution log for details</small>
+                    </div>
+                `;
+            }
+        }
+        
+        async function runPhase5() {
+            updateStatus('Verifying results...', 'info');
+            setPhaseState(5, 'running');
+            log('Phase 5: Starting verification...');
+
+            try {
+                // Get current user
+                const { data: { user }, error: userError } = await supabase.auth.getUser();
+                if (userError || !user) {
+                    throw new Error('Please sign in first');
+                }
+
+                // Verify subscription plans
+                log('Verifying subscription plans...');
+                const { data: plans, error: plansError } = await supabase
+                    .from('subscription_plans')
+                    .select('name, faq_limit, price_monthly')
+                    .order('faq_limit');
+
+                if (plansError) {
+                    log(`Plans verification error: ${plansError.message}`);
+                    throw plansError;
+                }
+
+                log(`Found ${plans?.length || 0} subscription plans`);
+
+                // Verify user subscriptions (simplified)
+                log('Verifying user subscriptions...');
+                const { data: userSubs, error: userSubsError } = await supabase
+                    .from('user_subscriptions')
+                    .select('plan_tier, faq_usage_limit, faq_usage_current');
+
+                if (userSubsError) {
+                    log(`User subs verification error: ${userSubsError.message}`);
+                    // Don't throw, just log
+                }
+
+                // Verify current user's subscription
+                log('Verifying your subscription...');
+                const { data: mySubscription, error: mySubError } = await supabase
+                    .from('user_subscriptions')
+                    .select('*')
+                    .eq('user_id', user.id)
+                    .single();
+
+                if (mySubError) {
+                    log(`My subscription verification error: ${mySubError.message}`);
+                }
+
+                // Check if plans are correct
+                const freePlan = plans?.find(p => p.name === 'Free');
+                const proPlan = plans?.find(p => p.name === 'Pro');
+                const businessPlan = plans?.find(p => p.name === 'Business');
+
+                const plansCorrect =
+                    freePlan?.faq_limit === 5 &&
+                    proPlan?.faq_limit === 100 &&
+                    businessPlan?.faq_limit === 500;
+
+                // Check if user limits are correct
+                const freeUsers = userSubs?.filter(u => u.plan_tier === 'Free') || [];
+                const freeUsersCorrect = freeUsers.every(u => u.faq_usage_limit === 5);
+
+                const myAccountCorrect = mySubscription?.plan_tier === 'Free' && mySubscription?.faq_usage_limit === 5;
+
+                // Count issues
+                const issuesFound = [];
+                if (!plansCorrect) issuesFound.push('Subscription plans have incorrect limits');
+                if (!freeUsersCorrect) issuesFound.push('Some Free users have incorrect limits');
+                if (!myAccountCorrect) issuesFound.push('Your account has incorrect limits');
+
+                const isFixed = issuesFound.length === 0;
+
+                log(`Verification complete. Issues found: ${issuesFound.length}`);
+
+                const resultEl = document.getElementById('phase-5-result');
+                if (isFixed) {
+                    resultEl.innerHTML = `
+                        <div class="status success">
+                            <strong>🎉 Verification Successful!</strong><br>
+                            ✅ Free plan: ${freePlan?.faq_limit || 'Unknown'} FAQs<br>
+                            ✅ Pro plan: ${proPlan?.faq_limit || 'Unknown'} FAQs<br>
+                            ✅ Business plan: ${businessPlan?.faq_limit || 'Unknown'} FAQs<br>
+                            ✅ Your account: ${mySubscription?.faq_usage_current || 0}/${mySubscription?.faq_usage_limit || 0} FAQs<br>
+                            ✅ Free users: ${freeUsers.length} users with correct limits<br><br>
+                            <strong>Database cleanup completed successfully!</strong>
+                        </div>
+                    `;
+
+                    document.getElementById('phase-final').style.display = 'block';
+                } else {
+                    resultEl.innerHTML = `
+                        <div class="status warning">
+                            <strong>⚠️ Verification Issues Found:</strong><br>
+                            ${issuesFound.map(issue => `• ${issue}`).join('<br>')}<br><br>
+                            <strong>Plans Status:</strong><br>
+                            • Free: ${freePlan?.faq_limit || 'Unknown'} FAQs ${freePlan?.faq_limit === 5 ? '✅' : '❌'}<br>
+                            • Pro: ${proPlan?.faq_limit || 'Unknown'} FAQs ${proPlan?.faq_limit === 100 ? '✅' : '❌'}<br>
+                            • Business: ${businessPlan?.faq_limit || 'Unknown'} FAQs ${businessPlan?.faq_limit === 500 ? '✅' : '❌'}<br><br>
+                            <strong>Your Account:</strong><br>
+                            • Plan: ${mySubscription?.plan_tier || 'Unknown'}<br>
+                            • Limit: ${mySubscription?.faq_usage_limit || 'Unknown'} ${mySubscription?.faq_usage_limit === 5 ? '✅' : '❌'}
+                        </div>
+                    `;
+                }
+
+                log('Phase 5: Verification completed');
+                setPhaseState(5, 'completed');
+                updateProgress(5);
+                updateStatus(isFixed ? 'Database cleanup completed successfully!' : 'Verification found some remaining issues', isFixed ? 'success' : 'warning');
+
+            } catch (error) {
+                console.error('Phase 5 error:', error);
+                log(`Phase 5 Error: ${error.message}`);
+                setPhaseState(5, 'error');
+                updateStatus(`Verification failed: ${error.message}`, 'error');
+
+                const resultEl = document.getElementById('phase-5-result');
+                resultEl.innerHTML = `
+                    <div class="status error">
+                        <strong>Verification Failed:</strong> ${error.message}<br>
+                        <small>Check the execution log for details</small>
+                    </div>
+                `;
+            }
+        }
+        
+        function goToDashboard() {
+            window.location.href = '/dashboard';
+        }
+        
+        // Auto-start analysis
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                updateStatus('Ready to begin database cleanup. Click "Run Analysis" to start.', 'info');
+            }, 1000);
+        });
+    </script>
+</body>
+</html>

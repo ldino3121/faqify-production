@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Check User Subscription</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .warning { background-color: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        .info { background-color: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        button:hover { background-color: #0056b3; }
+        button:disabled { background-color: #6c757d; cursor: not-allowed; }
+        .fix-button { background-color: #28a745; }
+        .fix-button:hover { background-color: #218838; }
+        pre {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            border: 1px solid #e9ecef;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 User Subscription Checker</h1>
+        <p>This tool checks if your user has a proper subscription record and can fix missing subscriptions.</p>
+        
+        <button onclick="checkUserSubscription()">Check My Subscription</button>
+        <button onclick="fixMissingSubscription()" id="fixButton" style="display: none;" class="fix-button">Fix Missing Subscription</button>
+        
+        <div id="results"></div>
+    </div>
+
+    <script>
+        const supabaseUrl = 'https://dlzahcahqjdqhmtzbma.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRsemFoY2FocWpkcWhtdHpibWEiLCJyb2xlIjoiYW5vbiIsImlhdCI6MTczNTQ3NzI5NCwiZXhwIjoyMDUxMDUzMjk0fQ.Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8';
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+        function updateResults(html) {
+            document.getElementById('results').innerHTML = html;
+        }
+
+        function log(message) {
+            console.log(message);
+        }
+
+        async function checkUserSubscription() {
+            updateResults('<div class="info">🔍 Checking user subscription and FAQ saving flow...</div>');
+
+            try {
+                // Step 1: Check if user is logged in
+                const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+                if (userError || !user) {
+                    updateResults('<div class="error">❌ User not logged in. Please log in first.</div>');
+                    return;
+                }
+
+                let html = `<div class="success">✅ User logged in: ${user.email}</div>`;
+                html += `<div class="info">User ID: ${user.id}</div>`;
+
+                // Step 2: Check subscription
+                log('Checking subscription...');
+                const { data: subscription, error: subscriptionError } = await supabase
+                    .from('user_subscriptions')
+                    .select('*')
+                    .eq('user_id', user.id)
+                    .single();
+
+                if (subscriptionError || !subscription) {
+                    html += '<div class="error">❌ Subscription not found</div>';
+                    html += `<pre>Subscription Error: ${JSON.stringify(subscriptionError, null, 2)}</pre>`;
+                    document.getElementById('fixButton').style.display = 'inline-block';
+                } else {
+                    html += '<div class="success">✅ Subscription found</div>';
+                    html += `<div class="info">Plan: ${subscription.plan_tier} | Usage: ${subscription.faq_usage_current}/${subscription.faq_usage_limit}</div>`;
+                    html += `<pre>Subscription Details: ${JSON.stringify(subscription, null, 2)}</pre>`;
+                    document.getElementById('fixButton').style.display = 'none';
+                }
+
+                // Step 3: Check existing FAQ collections
+                log('Checking existing FAQ collections...');
+                const { data: collections, error: collectionsError } = await supabase
+                    .from('faq_collections')
+                    .select('id, title, status, created_at, user_id')
+                    .eq('user_id', user.id)
+                    .order('created_at', { ascending: false })
+                    .limit(5);
+
+                if (collectionsError) {
+                    html += '<div class="error">❌ Failed to fetch collections</div>';
+                    html += `<pre>Collections Error: ${JSON.stringify(collectionsError, null, 2)}</pre>`;
+                } else {
+                    html += `<div class="info">📁 Found ${collections.length} FAQ collections</div>`;
+                    if (collections.length > 0) {
+                        html += '<div class="success">✅ Collections exist - FAQ saving has worked before</div>';
+                        html += `<pre>Recent Collections: ${JSON.stringify(collections, null, 2)}</pre>`;
+                    } else {
+                        html += '<div class="warning">⚠️ No collections found - FAQs have never been saved</div>';
+                    }
+                }
+
+                // Step 4: Check increment_faq_usage_by_count function
+                log('Testing increment_faq_usage_by_count function...');
+                try {
+                    const { data: testResult, error: testError } = await supabase.rpc('increment_faq_usage_by_count', {
+                        user_uuid: user.id,
+                        faq_count: 0  // Test with 0 to not actually increment
+                    });
+
+                    if (testError) {
+                        html += '<div class="error">❌ increment_faq_usage_by_count function failed</div>';
+                        html += `<pre>Function Error: ${JSON.stringify(testError, null, 2)}</pre>`;
+                        html += '<div class="warning">⚠️ This might be why FAQ saving fails!</div>';
+                    } else {
+                        html += '<div class="success">✅ increment_faq_usage_by_count function works</div>';
+                        html += `<pre>Function Result: ${JSON.stringify(testResult, null, 2)}</pre>`;
+                    }
+                } catch (funcError) {
+                    html += '<div class="error">❌ Function test failed</div>';
+                    html += `<pre>Function Test Error: ${JSON.stringify(funcError, null, 2)}</pre>`;
+                }
+
+                updateResults(html);
+
+            } catch (error) {
+                updateResults(`<div class="error">❌ Error: ${error.message}</div>`);
+                console.error('Check failed:', error);
+            }
+        }
+
+        async function fixMissingSubscription() {
+            updateResults('<div class="info">🔧 Fixing missing subscription...</div>');
+            
+            try {
+                const { data: { user }, error: userError } = await supabase.auth.getUser();
+                
+                if (userError || !user) {
+                    updateResults('<div class="error">❌ User not logged in</div>');
+                    return;
+                }
+
+                // Create missing subscription
+                const { data: newSubscription, error: createError } = await supabase
+                    .from('user_subscriptions')
+                    .insert({
+                        user_id: user.id,
+                        plan_tier: 'Free',
+                        faq_usage_limit: 5,
+                        faq_usage_current: 0,
+                        status: 'active',
+                        plan_activated_at: new Date().toISOString(),
+                        plan_expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+                        last_reset_date: new Date().toISOString().split('T')[0]
+                    })
+                    .select()
+                    .single();
+
+                if (createError) {
+                    updateResults(`<div class="error">❌ Failed to create subscription: ${createError.message}</div>`);
+                    return;
+                }
+
+                updateResults(`
+                    <div class="success">✅ Subscription created successfully!</div>
+                    <pre>New Subscription: ${JSON.stringify(newSubscription, null, 2)}</pre>
+                    <div class="info">🎉 You can now try generating FAQs again!</div>
+                `);
+
+                // Hide fix button
+                document.getElementById('fixButton').style.display = 'none';
+
+            } catch (error) {
+                updateResults(`<div class="error">❌ Fix failed: ${error.message}</div>`);
+                console.error('Fix failed:', error);
+            }
+        }
+
+        // Auto-check on page load
+        window.addEventListener('load', () => {
+            setTimeout(checkUserSubscription, 1000);
+        });
+    </script>
+</body>
+</html>

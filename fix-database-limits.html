@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fix Database Limits - FAQify</title>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f8fafc;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        .status {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            font-weight: 500;
+        }
+        .status.success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+        .status.error { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+        .status.warning { background: #fefce8; color: #ca8a04; border: 1px solid #fef08a; }
+        .status.info { background: #eff6ff; color: #2563eb; border: 1px solid #dbeafe; }
+        .btn {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px;
+            transition: background 0.2s;
+        }
+        .btn:hover { background: #2563eb; }
+        .data-table {
+            background: #f9fafb;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 12px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Assign Pro Plan</h1>
+        <p>Assign Pro plan (100 FAQs/month) to faqify18@gmail.com for testing.</p>
+        
+        <button class="btn" onclick="fixDatabaseLimits()">🚀 Assign Pro Plan</button>
+        <button class="btn" onclick="checkCurrentLimits()">📊 Check Current Limits</button>
+        
+        <div id="results"></div>
+    </div>
+
+    <script>
+        const supabaseUrl = 'https://dlzshcshqjdghmtzlbma.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRsenNoY3NocWpkZ2htdHpsYm1hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTExODUzODgsImV4cCI6MjA2Njc2MTM4OH0.EL4By0nom419JiorSHKiFckLqnh1sqmFvYnWTylB9Gk';
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+        function updateResults(html) {
+            document.getElementById('results').innerHTML = html;
+        }
+
+        async function checkCurrentLimits() {
+            updateResults('<div class="status info">📊 Checking current limits...</div>');
+
+            try {
+                // Get current user
+                const { data: { user }, error: userError } = await supabase.auth.getUser();
+                if (userError || !user) {
+                    updateResults('<div class="status error">❌ Please sign in first</div>');
+                    return;
+                }
+
+                // Check subscription plans
+                const { data: plans, error: plansError } = await supabase
+                    .from('subscription_plans')
+                    .select('name, faq_limit')
+                    .order('name');
+
+                // Check user subscription
+                const { data: userSub, error: userSubError } = await supabase
+                    .from('user_subscriptions')
+                    .select('plan_tier, faq_usage_current, faq_usage_limit, status')
+                    .eq('user_id', user.id)
+                    .single();
+
+                let html = `
+                    <div class="container">
+                        <h3>📊 Current Database State</h3>
+                        
+                        <h4>Subscription Plans:</h4>
+                        <div class="data-table">
+                `;
+
+                if (plans) {
+                    plans.forEach(plan => {
+                        html += `${plan.name}: ${plan.faq_limit} FAQs\n`;
+                    });
+                } else {
+                    html += `Error: ${plansError?.message}`;
+                }
+
+                html += `
+                        </div>
+                        
+                        <h4>Your Subscription:</h4>
+                        <div class="data-table">
+                `;
+
+                if (userSub) {
+                    html += `Plan: ${userSub.plan_tier}
+Usage: ${userSub.faq_usage_current}/${userSub.faq_usage_limit}
+Status: ${userSub.status}`;
+                } else {
+                    html += `Error: ${userSubError?.message}`;
+                }
+
+                html += `
+                        </div>
+                    </div>
+                `;
+
+                updateResults(html);
+
+            } catch (error) {
+                updateResults(`<div class="status error">❌ Exception: ${error.message}</div>`);
+            }
+        }
+
+        async function fixDatabaseLimits() {
+            updateResults('<div class="status info">🔧 Assigning Pro plan to faqify18@gmail.com...</div>');
+
+            try {
+                // Get current user
+                const { data: { user }, error: userError } = await supabase.auth.getUser();
+                if (userError || !user) {
+                    updateResults('<div class="status error">❌ Please sign in first</div>');
+                    return;
+                }
+
+                let html = `
+                    <div class="container">
+                        <h3>🔧 Pro Plan Assignment Results</h3>
+                `;
+
+                // Step 1: Update user subscription to Pro plan
+                html += '<h4>Step 1: Assign Pro Plan</h4>';
+                const { error: updateUserError } = await supabase
+                    .from('user_subscriptions')
+                    .update({
+                        plan_tier: 'Pro',
+                        faq_usage_limit: 100,
+                        faq_usage_current: 0, // Reset usage for new plan
+                        status: 'active',
+                        plan_activated_at: new Date().toISOString(),
+                        plan_expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('user_id', user.id);
+
+                if (updateUserError) {
+                    html += `<div class="status error">❌ Failed to assign Pro plan: ${updateUserError.message}</div>`;
+                } else {
+                    html += `<div class="status success">✅ Pro plan assigned successfully! (100 FAQs/month)</div>`;
+                }
+
+                // Step 2: Verify the changes
+                html += '<h4>Step 2: Verify Changes</h4>';
+                const { data: updatedSub, error: verifyError } = await supabase
+                    .from('user_subscriptions')
+                    .select('plan_tier, faq_usage_current, faq_usage_limit, status')
+                    .eq('user_id', user.id)
+                    .single();
+
+                if (verifyError) {
+                    html += `<div class="status error">❌ Failed to verify changes: ${verifyError.message}</div>`;
+                } else {
+                    html += `
+                        <div class="status success">✅ Pro plan assignment verified successfully</div>
+                        <div class="data-table">
+Updated Subscription:
+Plan: ${updatedSub.plan_tier}
+Usage: ${updatedSub.faq_usage_current}/${updatedSub.faq_usage_limit}
+Status: ${updatedSub.status}
+                        </div>
+                    `;
+                }
+
+                html += `
+                        <div class="status info">
+                            <strong>🔄 Please refresh your dashboard</strong><br>
+                            You now have Pro plan with 100 FAQs per month!
+                        </div>
+                    </div>
+                `;
+
+                updateResults(html);
+
+            } catch (error) {
+                updateResults(`<div class="status error">❌ Exception: ${error.message}</div>`);
+            }
+        }
+
+        // Auto-check limits on page load
+        window.addEventListener('load', () => {
+            setTimeout(checkCurrentLimits, 1000);
+        });
+    </script>
+</body>
+</html>

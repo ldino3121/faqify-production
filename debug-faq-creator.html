@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug FAQ Creator</title>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: white;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .success { background: #0f5132; }
+        .error { background: #842029; }
+        .info { background: #055160; }
+        button {
+            background: #0d6efd;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #0b5ed7; }
+        .log {
+            background: #2d2d2d;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔧 FAQ Creator Debug Tool</h1>
+    <p>This tool helps debug issues with the FAQ Creator component.</p>
+
+    <div id="status" class="status info">
+        <strong>Status:</strong> Ready to test...
+    </div>
+
+    <div>
+        <button onclick="testAuth()">Test Authentication</button>
+        <button onclick="testSubscription()">Test Subscription</button>
+        <button onclick="testDatabase()">Test Database Functions</button>
+        <button onclick="clearLog()">Clear Log</button>
+    </div>
+
+    <div id="log" class="log"></div>
+
+    <script>
+        // Initialize Supabase client
+        const SUPABASE_URL = 'https://dlzshcshqjdghmtzlbma.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRsenNoY3NocWpkZ2htdHpsYm1hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTExODUzODgsImV4cCI6MjA2Njc2MTM4OH0.EL4By0nom419JiorSHKiFckLqnh1sqmFvYnWTylB9Gk';
+        
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        
+        function updateStatus(message, type = 'info') {
+            const statusEl = document.getElementById('status');
+            statusEl.innerHTML = `<strong>Status:</strong> ${message}`;
+            statusEl.className = `status ${type}`;
+        }
+        
+        function log(message) {
+            const logEl = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            logEl.innerHTML += `[${timestamp}] ${message}\n`;
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+        
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+        
+        async function testAuth() {
+            updateStatus('Testing authentication...', 'info');
+            log('=== Testing Authentication ===');
+            
+            try {
+                const { data: { user }, error } = await supabase.auth.getUser();
+                
+                if (error) {
+                    log(`❌ Auth Error: ${error.message}`);
+                    updateStatus('Authentication failed', 'error');
+                    return;
+                }
+                
+                if (!user) {
+                    log('❌ No user found - please sign in first');
+                    updateStatus('Please sign in first', 'error');
+                    return;
+                }
+                
+                log(`✅ User authenticated: ${user.email}`);
+                log(`   User ID: ${user.id}`);
+                log(`   Created: ${user.created_at}`);
+                updateStatus('Authentication successful', 'success');
+                
+            } catch (err) {
+                log(`❌ Auth Exception: ${err.message}`);
+                updateStatus('Authentication error', 'error');
+            }
+        }
+        
+        async function testSubscription() {
+            updateStatus('Testing subscription...', 'info');
+            log('=== Testing Subscription ===');
+            
+            try {
+                const { data: { user }, error: userError } = await supabase.auth.getUser();
+                
+                if (userError || !user) {
+                    log('❌ Please authenticate first');
+                    return;
+                }
+                
+                // Test subscription query
+                const { data: subscription, error: subError } = await supabase
+                    .from('user_subscriptions')
+                    .select('*')
+                    .eq('user_id', user.id)
+                    .single();
+                
+                if (subError) {
+                    log(`❌ Subscription Error: ${subError.message}`);
+                    log(`   Code: ${subError.code}`);
+                    log(`   Details: ${subError.details}`);
+                    updateStatus('Subscription query failed', 'error');
+                    return;
+                }
+                
+                if (!subscription) {
+                    log('❌ No subscription found for user');
+                    updateStatus('No subscription found', 'error');
+                    return;
+                }
+                
+                log(`✅ Subscription found:`);
+                log(`   Plan: ${subscription.plan_tier}`);
+                log(`   Status: ${subscription.status}`);
+                log(`   Usage: ${subscription.faq_usage_current}/${subscription.faq_usage_limit}`);
+                log(`   Created: ${subscription.created_at}`);
+                updateStatus('Subscription query successful', 'success');
+                
+            } catch (err) {
+                log(`❌ Subscription Exception: ${err.message}`);
+                updateStatus('Subscription error', 'error');
+            }
+        }
+        
+        async function testDatabase() {
+            updateStatus('Testing database functions...', 'info');
+            log('=== Testing Database Functions ===');
+            
+            try {
+                const { data: { user }, error: userError } = await supabase.auth.getUser();
+                
+                if (userError || !user) {
+                    log('❌ Please authenticate first');
+                    return;
+                }
+                
+                // Test increment_faq_usage_by_count function
+                log('Testing increment_faq_usage_by_count function...');
+                const { data: incrementData, error: incrementError } = await supabase.rpc('increment_faq_usage_by_count', {
+                    user_uuid: user.id,
+                    faq_count: 0  // Test with 0 to not actually increment
+                });
+                
+                if (incrementError) {
+                    log(`❌ increment_faq_usage_by_count Error: ${incrementError.message}`);
+                    log(`   Code: ${incrementError.code}`);
+                    log(`   Details: ${incrementError.details}`);
+                } else {
+                    log(`✅ increment_faq_usage_by_count successful: ${JSON.stringify(incrementData)}`);
+                }
+                
+                // Test can_generate_faqs function (if it exists)
+                log('Testing can_generate_faqs function...');
+                const { data: canGenerateData, error: canGenerateError } = await supabase.rpc('can_generate_faqs', {
+                    user_uuid: user.id,
+                    faq_count: 1
+                });
+                
+                if (canGenerateError) {
+                    log(`❌ can_generate_faqs Error: ${canGenerateError.message}`);
+                    log(`   Code: ${canGenerateError.code}`);
+                    log(`   This function might not exist yet`);
+                } else {
+                    log(`✅ can_generate_faqs successful: ${JSON.stringify(canGenerateData)}`);
+                }
+                
+                // Test basic table access
+                log('Testing basic table access...');
+                const { data: profileData, error: profileError } = await supabase
+                    .from('profiles')
+                    .select('*')
+                    .eq('id', user.id)
+                    .single();
+                
+                if (profileError) {
+                    log(`❌ Profile query error: ${profileError.message}`);
+                } else {
+                    log(`✅ Profile query successful: ${profileData.email}`);
+                }
+                
+                updateStatus('Database tests completed', 'success');
+                
+            } catch (err) {
+                log(`❌ Database Exception: ${err.message}`);
+                updateStatus('Database error', 'error');
+            }
+        }
+        
+        // Auto-run auth test on load
+        window.addEventListener('load', () => {
+            setTimeout(testAuth, 1000);
+        });
+    </script>
+</body>
+</html>

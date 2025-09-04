@@ -1,0 +1,69 @@
+
+project_id = "c1f5176a-63f2-4ef9-9287-0ad8f4c2e104"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+
+[db.pooler]
+enabled = false
+port = 54329
+pool_mode = "transaction"
+default_pool_size = 20
+max_client_conn = 100
+
+[realtime]
+enabled = true
+
+[studio]
+enabled = true
+port = 54324
+api_url = "http://127.0.0.1:54321"
+openai_api_key = "env(OPENAI_API_KEY)"
+
+[inbucket]
+enabled = true
+port = 54325
+smtp_port = 54326
+pop3_port = 54327
+
+[storage]
+enabled = true
+file_size_limit = "50MiB"
+
+[auth]
+enabled = true
+site_url = "http://localhost:8082"
+additional_redirect_urls = [
+  "http://localhost:8082/dashboard",
+  "http://localhost:8082/",
+  "http://localhost:8082/validate-oauth.html"
+]
+jwt_expiry = 3600
+enable_signup = true
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = true
+enable_confirmations = false
+
+[functions.analyze-content]
+verify_jwt = false
+
+[functions.get-faq-widget]
+verify_jwt = false
+
+[edge_runtime]
+enabled = true
+
+[analytics]
+enabled = false
+port = 54327
+vector_port = 54328
+backend = "postgres"

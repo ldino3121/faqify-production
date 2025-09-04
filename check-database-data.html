@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Check Database Data - FAQify</title>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f8fafc;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        .status {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            font-weight: 500;
+        }
+        .status.success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+        .status.error { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+        .status.warning { background: #fefce8; color: #ca8a04; border: 1px solid #fef08a; }
+        .status.info { background: #eff6ff; color: #2563eb; border: 1px solid #dbeafe; }
+        .btn {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px;
+            transition: background 0.2s;
+        }
+        .btn:hover { background: #2563eb; }
+        .btn.danger { background: #dc2626; }
+        .btn.danger:hover { background: #b91c1c; }
+        .data-table {
+            background: #f9fafb;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 12px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Check Database Data</h1>
+        <p>Investigate what data is causing the dashboard to show incorrect counts.</p>
+        
+        <button class="btn" onclick="checkAllData()">🔍 Check All Data</button>
+        <button class="btn danger" onclick="cleanupBadData()">🧹 Clean Up Bad Data</button>
+        
+        <div id="results"></div>
+    </div>
+
+    <script>
+        const supabaseUrl = 'https://dlzshcshqjdghmtzlbma.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRsenNoY3NocWpkZ2htdHpsYm1hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTExODUzODgsImV4cCI6MjA2Njc2MTM4OH0.EL4By0nom419JiorSHKiFckLqnh1sqmFvYnWTylB9Gk';
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+        function updateResults(html) {
+            document.getElementById('results').innerHTML = html;
+        }
+
+        async function checkAllData() {
+            updateResults('<div class="status info">🔍 Checking all database data...</div>');
+
+            try {
+                // Get current user
+                const { data: { user }, error: userError } = await supabase.auth.getUser();
+                if (userError || !user) {
+                    updateResults('<div class="status error">❌ Please sign in first</div>');
+                    return;
+                }
+
+                let html = `
+                    <div class="container">
+                        <h3>🔍 Database Data Analysis</h3>
+                        <div class="status info">User: ${user.email} (${user.id})</div>
+                `;
+
+                // Check FAQ Collections
+                html += '<h4>📁 FAQ Collections:</h4>';
+                const { data: collections, error: collectionsError } = await supabase
+                    .from('faq_collections')
+                    .select('*')
+                    .eq('user_id', user.id);
+
+                if (collectionsError) {
+                    html += `<div class="status error">❌ Collections Error: ${collectionsError.message}</div>`;
+                } else {
+                    html += `
+                        <div class="data-table">
+Count: ${collections?.length || 0}
+Data: ${JSON.stringify(collections, null, 2)}
+                        </div>
+                    `;
+                }
+
+                // Check FAQs
+                html += '<h4>❓ FAQs:</h4>';
+                const { data: faqs, error: faqsError } = await supabase
+                    .from('faqs')
+                    .select('*')
+                    .in('collection_id', collections?.map(c => c.id) || []);
+
+                if (faqsError) {
+                    html += `<div class="status error">❌ FAQs Error: ${faqsError.message}</div>`;
+                } else {
+                    html += `
+                        <div class="data-table">
+Count: ${faqs?.length || 0}
+Data: ${JSON.stringify(faqs, null, 2)}
+                        </div>
+                    `;
+                }
+
+                // Check Analytics Events
+                html += '<h4>📊 Analytics Events:</h4>';
+                const { data: analytics, error: analyticsError } = await supabase
+                    .from('analytics_events')
+                    .select('*')
+                    .in('collection_id', collections?.map(c => c.id) || []);
+
+                if (analyticsError) {
+                    html += `<div class="status error">❌ Analytics Error: ${analyticsError.message}</div>`;
+                } else {
+                    html += `
+                        <div class="data-table">
+Count: ${analytics?.length || 0}
+Data: ${JSON.stringify(analytics, null, 2)}
+                        </div>
+                    `;
+                }
+
+                // Check User Subscription
+                html += '<h4>💎 User Subscription:</h4>';
+                const { data: subscription, error: subError } = await supabase
+                    .from('user_subscriptions')
+                    .select('*')
+                    .eq('user_id', user.id);
+
+                if (subError) {
+                    html += `<div class="status error">❌ Subscription Error: ${subError.message}</div>`;
+                } else {
+                    html += `
+                        <div class="data-table">
+Data: ${JSON.stringify(subscription, null, 2)}
+                        </div>
+                    `;
+                }
+
+                // Check if there are any orphaned records
+                html += '<h4>🔍 Orphaned Data Check:</h4>';
+                
+                // Check for collections not belonging to current user
+                const { data: allCollections, error: allCollectionsError } = await supabase
+                    .from('faq_collections')
+                    .select('*');
+
+                if (!allCollectionsError && allCollections) {
+                    const otherUserCollections = allCollections.filter(c => c.user_id !== user.id);
+                    html += `
+                        <div class="data-table">
+Total Collections in DB: ${allCollections.length}
+Your Collections: ${collections?.length || 0}
+Other Users' Collections: ${otherUserCollections.length}
+                        </div>
+                    `;
+                }
+
+                html += '</div>';
+                updateResults(html);
+
+            } catch (error) {
+                updateResults(`<div class="status error">❌ Exception: ${error.message}</div>`);
+            }
+        }
+
+        async function cleanupBadData() {
+            updateResults('<div class="status info">🧹 Cleaning up bad data...</div>');
+
+            try {
+                // Get current user
+                const { data: { user }, error: userError } = await supabase.auth.getUser();
+                if (userError || !user) {
+                    updateResults('<div class="status error">❌ Please sign in first</div>');
+                    return;
+                }
+
+                let html = `
+                    <div class="container">
+                        <h3>🧹 Data Cleanup Process</h3>
+                        <div class="status info">User: ${user.email}</div>
+                `;
+
+                // Step 1: Delete all collections for this user
+                html += '<h4>Step 1: Delete User Collections</h4>';
+                const { error: deleteCollectionsError } = await supabase
+                    .from('faq_collections')
+                    .delete()
+                    .eq('user_id', user.id);
+
+                if (deleteCollectionsError) {
+                    html += `<div class="status error">❌ Failed to delete collections: ${deleteCollectionsError.message}</div>`;
+                } else {
+                    html += `<div class="status success">✅ All user collections deleted</div>`;
+                }
+
+                // Step 2: Delete all FAQs for this user (they should cascade, but let's be sure)
+                html += '<h4>Step 2: Delete Orphaned FAQs</h4>';
+                const { data: userCollections } = await supabase
+                    .from('faq_collections')
+                    .select('id')
+                    .eq('user_id', user.id);
+
+                const collectionIds = userCollections?.map(c => c.id) || [];
+                
+                if (collectionIds.length > 0) {
+                    const { error: deleteFaqsError } = await supabase
+                        .from('faqs')
+                        .delete()
+                        .in('collection_id', collectionIds);
+
+                    if (deleteFaqsError) {
+                        html += `<div class="status error">❌ Failed to delete FAQs: ${deleteFaqsError.message}</div>`;
+                    } else {
+                        html += `<div class="status success">✅ All user FAQs deleted</div>`;
+                    }
+                } else {
+                    html += `<div class="status success">✅ No FAQs to delete</div>`;
+                }
+
+                // Step 3: Delete analytics events
+                html += '<h4>Step 3: Delete Analytics Events</h4>';
+                if (collectionIds.length > 0) {
+                    const { error: deleteAnalyticsError } = await supabase
+                        .from('analytics_events')
+                        .delete()
+                        .in('collection_id', collectionIds);
+
+                    if (deleteAnalyticsError) {
+                        html += `<div class="status error">❌ Failed to delete analytics: ${deleteAnalyticsError.message}</div>`;
+                    } else {
+                        html += `<div class="status success">✅ All analytics events deleted</div>`;
+                    }
+                } else {
+                    html += `<div class="status success">✅ No analytics to delete</div>`;
+                }
+
+                // Step 4: Reset subscription usage
+                html += '<h4>Step 4: Reset Subscription Usage</h4>';
+                const { error: resetUsageError } = await supabase
+                    .from('user_subscriptions')
+                    .update({
+                        faq_usage_current: 0,
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('user_id', user.id);
+
+                if (resetUsageError) {
+                    html += `<div class="status error">❌ Failed to reset usage: ${resetUsageError.message}</div>`;
+                } else {
+                    html += `<div class="status success">✅ Subscription usage reset to 0</div>`;
+                }
+
+                html += `
+                        <div class="status info">
+                            <strong>🔄 Please refresh your dashboard now!</strong><br>
+                            All counts should now show 0 (no collections, no FAQs, no views).
+                        </div>
+                    </div>
+                `;
+
+                updateResults(html);
+
+            } catch (error) {
+                updateResults(`<div class="status error">❌ Exception: ${error.message}</div>`);
+            }
+        }
+
+        // Auto-check data on page load
+        window.addEventListener('load', () => {
+            setTimeout(checkAllData, 1000);
+        });
+    </script>
+</body>
+</html>

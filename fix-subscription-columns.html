@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fix Subscription Columns - FAQify</title>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f8fafc;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        .status {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            font-weight: 500;
+        }
+        .status.success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+        .status.error { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+        .status.warning { background: #fefce8; color: #ca8a04; border: 1px solid #fef08a; }
+        .status.info { background: #eff6ff; color: #2563eb; border: 1px solid #dbeafe; }
+        .btn {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px;
+            transition: background 0.2s;
+        }
+        .btn:hover { background: #2563eb; }
+        .btn.success { background: #16a34a; }
+        .btn.success:hover { background: #15803d; }
+        .data-table {
+            background: #f9fafb;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 12px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Fix Subscription Columns</h1>
+        <p>This tool adds missing date columns to the user_subscriptions table and populates them with proper values.</p>
+        
+        <div class="status warning">
+            <strong>⚠️ Issue:</strong> The profile section shows "Not available" because the database is missing required date columns.
+        </div>
+        
+        <button class="btn" onclick="checkColumns()">🔍 Check Current Columns</button>
+        <button class="btn success" onclick="addMissingColumns()">🔧 Add Missing Columns</button>
+        <button class="btn" onclick="verifyFix()">✅ Verify Fix</button>
+        
+        <div id="results"></div>
+    </div>
+
+    <script>
+        const supabaseUrl = 'https://dlzshcshqjdghmtzlbma.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRsenNoY3NocWpkZ2htdHpsYm1hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTExODUzODgsImV4cCI6MjA2Njc2MTM4OH0.EL4By0nom419JiorSHKiFckLqnh1sqmFvYnWTylB9Gk';
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+        function updateResults(html) {
+            document.getElementById('results').innerHTML = html;
+        }
+
+        async function checkColumns() {
+            updateResults('<div class="status info">🔍 Checking current columns...</div>');
+
+            try {
+                const { data: { user }, error: userError } = await supabase.auth.getUser();
+                if (userError || !user) {
+                    updateResults('<div class="status error">❌ Please sign in first</div>');
+                    return;
+                }
+
+                // Get current subscription data to see what columns exist
+                const { data: subscription, error: subError } = await supabase
+                    .from('user_subscriptions')
+                    .select('*')
+                    .eq('user_id', user.id)
+                    .single();
+
+                let html = `
+                    <div class="container">
+                        <h3>🔍 Current Subscription Columns</h3>
+                        <div class="status info">User: ${user.email}</div>
+                `;
+
+                if (subError) {
+                    html += `<div class="status error">❌ Error: ${subError.message}</div>`;
+                } else if (subscription) {
+                    const requiredColumns = [
+                        'plan_activated_at',
+                        'plan_expires_at', 
+                        'last_reset_date',
+                        'previous_plan_tier',
+                        'plan_changed_at'
+                    ];
+
+                    html += `<h4>📋 Column Status:</h4>`;
+                    html += `<div class="data-table">`;
+                    
+                    let missingColumns = [];
+                    for (const col of requiredColumns) {
+                        const exists = subscription.hasOwnProperty(col);
+                        const hasValue = exists && subscription[col] !== null && subscription[col] !== undefined;
+                        const status = hasValue ? '✅' : exists ? '⚠️' : '❌';
+                        const statusText = hasValue ? 'OK' : exists ? 'NULL' : 'Missing';
+                        
+                        html += `${status} ${col}: ${statusText}\n`;
+                        
+                        if (!hasValue) {
+                            missingColumns.push(col);
+                        }
+                    }
+
+                    html += `\nCurrent data:\n`;
+                    html += `Plan: ${subscription.plan_tier}\n`;
+                    html += `Created: ${subscription.created_at}\n`;
+                    html += `Updated: ${subscription.updated_at}\n`;
+                    html += `</div>`;
+
+                    if (missingColumns.length > 0) {
+                        html += `
+                            <div class="status warning">
+                                ⚠️ Missing or NULL columns: ${missingColumns.join(', ')}<br>
+                                Click "Add Missing Columns" to fix this.
+                            </div>
+                        `;
+                    } else {
+                        html += `<div class="status success">✅ All required columns exist and have values!</div>`;
+                    }
+                } else {
+                    html += `<div class="status warning">⚠️ No subscription found</div>`;
+                }
+
+                html += '</div>';
+                updateResults(html);
+
+            } catch (error) {
+                updateResults(`<div class="status error">❌ Exception: ${error.message}</div>`);
+            }
+        }
+
+        async function addMissingColumns() {
+            updateResults('<div class="status info">🔧 Adding missing columns...</div>');
+
+            try {
+                const { data: { user }, error: userError } = await supabase.auth.getUser();
+                if (userError || !user) {
+                    updateResults('<div class="status error">❌ Please sign in first</div>');
+                    return;
+                }
+
+                let html = `
+                    <div class="container">
+                        <h3>🔧 Adding Missing Columns</h3>
+                `;
+
+                // Get current subscription first
+                const { data: currentSub, error: currentError } = await supabase
+                    .from('user_subscriptions')
+                    .select('*')
+                    .eq('user_id', user.id)
+                    .single();
+
+                if (currentError || !currentSub) {
+                    html += `<div class="status error">❌ Error fetching current subscription: ${currentError?.message || 'Not found'}</div>`;
+                    updateResults(html + '</div>');
+                    return;
+                }
+
+                // Prepare the update with proper values
+                const now = new Date().toISOString();
+                const updateData = {
+                    updated_at: now
+                };
+
+                // Set plan_activated_at
+                if (!currentSub.plan_activated_at) {
+                    updateData.plan_activated_at = currentSub.created_at || now;
+                    html += `<div class="status info">📅 Setting plan_activated_at</div>`;
+                }
+
+                // Set plan_expires_at
+                if (!currentSub.plan_expires_at) {
+                    if (currentSub.plan_tier === 'Free') {
+                        updateData.plan_expires_at = '2099-12-31T23:59:59.999Z';
+                    } else {
+                        const activationDate = new Date(currentSub.plan_activated_at || currentSub.created_at || now);
+                        const expirationDate = new Date(activationDate);
+                        expirationDate.setMonth(expirationDate.getMonth() + 1);
+                        updateData.plan_expires_at = expirationDate.toISOString();
+                    }
+                    html += `<div class="status info">📅 Setting plan_expires_at</div>`;
+                }
+
+                // Update the subscription
+                const { error: updateError } = await supabase
+                    .from('user_subscriptions')
+                    .update(updateData)
+                    .eq('user_id', user.id);
+
+                if (updateError) {
+                    html += `<div class="status error">❌ Failed to update: ${updateError.message}</div>`;
+                } else {
+                    html += `
+                        <div class="status success">
+                            ✅ Successfully updated subscription!<br>
+                            Updated ${Object.keys(updateData).length} fields.<br>
+                            The profile section should now show proper dates.
+                        </div>
+                    `;
+                }
+
+                html += '</div>';
+                updateResults(html);
+
+            } catch (error) {
+                updateResults(`<div class="status error">❌ Exception: ${error.message}</div>`);
+            }
+        }
+
+        async function verifyFix() {
+            updateResults('<div class="status info">✅ Verifying fix...</div>');
+            
+            // Just re-run the column check
+            await checkColumns();
+        }
+    </script>
+</body>
+</html>

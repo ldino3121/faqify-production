@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fix Usage Sync - FAQify</title>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f8fafc;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        .status {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            font-weight: 500;
+        }
+        .status.success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+        .status.error { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+        .status.warning { background: #fefce8; color: #ca8a04; border: 1px solid #fef08a; }
+        .status.info { background: #eff6ff; color: #2563eb; border: 1px solid #dbeafe; }
+        .btn {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px;
+            transition: background 0.2s;
+        }
+        .btn:hover { background: #2563eb; }
+        .btn.danger { background: #dc2626; }
+        .btn.danger:hover { background: #b91c1c; }
+        .btn.success { background: #16a34a; }
+        .btn.success:hover { background: #15803d; }
+        .data-table {
+            background: #f9fafb;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 12px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .comparison {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .metric {
+            background: #f8fafc;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .metric.mismatch {
+            background: #fef2f2;
+            border: 2px solid #fecaca;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔄 Fix Usage Sync Issue</h1>
+        <p>This tool diagnoses and fixes the mismatch between actual FAQ count and subscription usage tracking.</p>
+        
+        <div class="status warning">
+            <strong>⚠️ Issue:</strong> Dashboard shows different numbers for "Total FAQs" vs "Monthly Usage" - they should match!
+        </div>
+        
+        <button class="btn" onclick="diagnoseSync()">🔍 Diagnose Sync Issue</button>
+        <button class="btn success" onclick="fixSync()">🔧 Fix Sync Issue</button>
+        <button class="btn" onclick="verifyFix()">✅ Verify Fix</button>
+        
+        <div id="results"></div>
+    </div>
+
+    <script>
+        const supabaseUrl = 'https://dlzshcshqjdghmtzlbma.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRsenNoY3NocWpkZ2htdHpsYm1hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTExODUzODgsImV4cCI6MjA2Njc2MTM4OH0.EL4By0nom419JiorSHKiFckLqnh1sqmFvYnWTylB9Gk';
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+        function updateResults(html) {
+            document.getElementById('results').innerHTML = html;
+        }
+
+        async function diagnoseSync() {
+            updateResults('<div class="status info">🔍 Diagnosing usage sync issue...</div>');
+
+            try {
+                const { data: { user }, error: userError } = await supabase.auth.getUser();
+                if (userError || !user) {
+                    updateResults('<div class="status error">❌ Please sign in first</div>');
+                    return;
+                }
+
+                let html = `
+                    <div class="container">
+                        <h3>🔍 Usage Sync Diagnosis</h3>
+                        <div class="status info">User: ${user.email}</div>
+                `;
+
+                // Get user's collections
+                const { data: collections, error: collectionsError } = await supabase
+                    .from('faq_collections')
+                    .select('id, title, created_at')
+                    .eq('user_id', user.id)
+                    .order('created_at', { ascending: false });
+
+                if (collectionsError) {
+                    html += `<div class="status error">❌ Error fetching collections: ${collectionsError.message}</div>`;
+                    updateResults(html + '</div>');
+                    return;
+                }
+
+                // Count actual FAQs
+                const { count: actualFAQCount, error: faqCountError } = await supabase
+                    .from('faqs')
+                    .select('*', { count: 'exact', head: true })
+                    .in('collection_id', collections?.map(c => c.id) || []);
+
+                if (faqCountError) {
+                    html += `<div class="status error">❌ Error counting FAQs: ${faqCountError.message}</div>`;
+                    updateResults(html + '</div>');
+                    return;
+                }
+
+                // Get subscription usage tracking
+                const { data: subscription, error: subError } = await supabase
+                    .from('user_subscriptions')
+                    .select('*')
+                    .eq('user_id', user.id)
+                    .single();
+
+                if (subError) {
+                    html += `<div class="status error">❌ Error fetching subscription: ${subError.message}</div>`;
+                    updateResults(html + '</div>');
+                    return;
+                }
+
+                const actualCount = actualFAQCount || 0;
+                const trackedCount = subscription?.faq_usage_current || 0;
+                const isMismatch = actualCount !== trackedCount;
+
+                html += `
+                    <div class="comparison">
+                        <div class="metric ${isMismatch ? 'mismatch' : ''}">
+                            <h4>📊 Actual FAQ Count</h4>
+                            <div style="font-size: 2em; font-weight: bold;">${actualCount}</div>
+                            <small>From database query</small>
+                        </div>
+                        <div class="metric ${isMismatch ? 'mismatch' : ''}">
+                            <h4>📈 Tracked Usage</h4>
+                            <div style="font-size: 2em; font-weight: bold;">${trackedCount}</div>
+                            <small>From subscription tracking</small>
+                        </div>
+                    </div>
+                `;
+
+                if (isMismatch) {
+                    const difference = actualCount - trackedCount;
+                    html += `
+                        <div class="status error">
+                            <strong>❌ Sync Issue Detected!</strong><br>
+                            Difference: ${difference > 0 ? '+' : ''}${difference} FAQs<br>
+                            ${difference > 0 ? 'Tracking is behind actual count' : 'Tracking is ahead of actual count'}
+                        </div>
+                    `;
+                } else {
+                    html += `<div class="status success">✅ No sync issues detected - counts match!</div>`;
+                }
+
+                // Show detailed breakdown
+                html += `
+                    <h4>📋 Detailed Breakdown:</h4>
+                    <div class="data-table">
+Collections: ${collections?.length || 0}
+Total FAQs in database: ${actualCount}
+Subscription plan: ${subscription?.plan_tier || 'Unknown'}
+Usage limit: ${subscription?.faq_usage_limit || 0}
+Tracked usage: ${trackedCount}
+Last reset: ${subscription?.last_reset_date || 'Never'}
+Plan activated: ${subscription?.plan_activated_at || 'Unknown'}
+
+Collections breakdown:
+${collections?.map(c => `- ${c.title} (${c.created_at})`).join('\n') || 'No collections'}
+                    </div>
+                `;
+
+                html += '</div>';
+                updateResults(html);
+
+            } catch (error) {
+                updateResults(`<div class="status error">❌ Exception: ${error.message}</div>`);
+            }
+        }
+
+        async function fixSync() {
+            updateResults('<div class="status info">🔧 Fixing usage sync issue...</div>');
+
+            try {
+                const { data: { user }, error: userError } = await supabase.auth.getUser();
+                if (userError || !user) {
+                    updateResults('<div class="status error">❌ Please sign in first</div>');
+                    return;
+                }
+
+                let html = `
+                    <div class="container">
+                        <h3>🔧 Fixing Usage Sync</h3>
+                `;
+
+                // Get user's collections
+                const { data: collections, error: collectionsError } = await supabase
+                    .from('faq_collections')
+                    .select('id')
+                    .eq('user_id', user.id);
+
+                if (collectionsError) {
+                    html += `<div class="status error">❌ Error fetching collections: ${collectionsError.message}</div>`;
+                    updateResults(html + '</div>');
+                    return;
+                }
+
+                // Count actual FAQs
+                const { count: actualFAQCount, error: faqCountError } = await supabase
+                    .from('faqs')
+                    .select('*', { count: 'exact', head: true })
+                    .in('collection_id', collections?.map(c => c.id) || []);
+
+                if (faqCountError) {
+                    html += `<div class="status error">❌ Error counting FAQs: ${faqCountError.message}</div>`;
+                    updateResults(html + '</div>');
+                    return;
+                }
+
+                const actualCount = actualFAQCount || 0;
+
+                // Update subscription usage to match actual count
+                const { error: updateError } = await supabase
+                    .from('user_subscriptions')
+                    .update({ 
+                        faq_usage_current: actualCount,
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('user_id', user.id);
+
+                if (updateError) {
+                    html += `<div class="status error">❌ Failed to update usage: ${updateError.message}</div>`;
+                } else {
+                    html += `
+                        <div class="status success">
+                            ✅ Usage sync fixed successfully!<br>
+                            Updated tracked usage to match actual FAQ count: ${actualCount}
+                        </div>
+                    `;
+                }
+
+                html += '</div>';
+                updateResults(html);
+
+            } catch (error) {
+                updateResults(`<div class="status error">❌ Exception: ${error.message}</div>`);
+            }
+        }
+
+        async function verifyFix() {
+            updateResults('<div class="status info">✅ Verifying fix...</div>');
+
+            try {
+                const { data: { user }, error: userError } = await supabase.auth.getUser();
+                if (userError || !user) {
+                    updateResults('<div class="status error">❌ Please sign in first</div>');
+                    return;
+                }
+
+                // Re-run diagnosis to verify
+                await diagnoseSync();
+
+            } catch (error) {
+                updateResults(`<div class="status error">❌ Exception: ${error.message}</div>`);
+            }
+        }
+    </script>
+</body>
+</html>

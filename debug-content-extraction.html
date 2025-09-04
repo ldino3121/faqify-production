@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Content Extraction</title>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .warning { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        .info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #6c757d; cursor: not-allowed; }
+        input, textarea {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .results {
+            margin-top: 20px;
+            max-height: 600px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 10px;
+            background: #f8f9fa;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .debug-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Debug Content Extraction</h1>
+        <p>This tool helps debug content extraction issues with detailed logging.</p>
+
+        <!-- Configuration -->
+        <div class="debug-section">
+            <h3>📋 Configuration</h3>
+            <div>
+                <label>Supabase URL:</label>
+                <input type="text" id="supabaseUrl" placeholder="https://your-project.supabase.co">
+            </div>
+            <div>
+                <label>Supabase Anon Key:</label>
+                <input type="text" id="supabaseKey" placeholder="Your anon key">
+            </div>
+            <div>
+                <label>User Email:</label>
+                <input type="email" id="userEmail" placeholder="your-email@example.com">
+            </div>
+            <div>
+                <label>User Password:</label>
+                <input type="password" id="userPassword" placeholder="your-password">
+            </div>
+            <button onclick="initializeAndLogin()">Initialize & Login</button>
+        </div>
+
+        <!-- Test URLs -->
+        <div class="debug-section">
+            <h3>🧪 Test URLs</h3>
+            <div>
+                <label>Test URL:</label>
+                <input type="text" id="testUrl" value="https://indianexpress.com/article/india/shubhanshu-shukla-returns-to-earth-after-20-days-in-space-10128252/" placeholder="Enter URL to test">
+            </div>
+            <button onclick="debugContentExtraction()">Debug Content Extraction</button>
+            <button onclick="testRedditUrl()">Test Reddit URL</button>
+            <button onclick="clearResults()">Clear Results</button>
+        </div>
+
+        <!-- Results -->
+        <div class="results" id="results">
+            Debug results will appear here...
+        </div>
+    </div>
+
+    <script>
+        let supabase = null;
+        let debugLogs = [];
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            debugLogs.push({ timestamp, message, type });
+            updateResults();
+        }
+
+        function updateResults() {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = debugLogs.map(log => 
+                `<div class="${log.type}">[${log.timestamp}] ${log.message}</div>`
+            ).join('');
+            resultsDiv.scrollTop = resultsDiv.scrollHeight;
+        }
+
+        function clearResults() {
+            debugLogs = [];
+            updateResults();
+        }
+
+        async function initializeAndLogin() {
+            const url = document.getElementById('supabaseUrl').value;
+            const key = document.getElementById('supabaseKey').value;
+            const email = document.getElementById('userEmail').value;
+            const password = document.getElementById('userPassword').value;
+
+            if (!url || !key || !email || !password) {
+                log('Please fill in all configuration fields', 'error');
+                return;
+            }
+
+            try {
+                supabase = window.supabase.createClient(url, key);
+                log('✅ Supabase client initialized', 'success');
+
+                const { data, error } = await supabase.auth.signInWithPassword({
+                    email: email,
+                    password: password
+                });
+
+                if (error) {
+                    log(`❌ Login failed: ${error.message}`, 'error');
+                    return;
+                }
+
+                log(`✅ Logged in successfully as ${data.user.email}`, 'success');
+
+            } catch (error) {
+                log(`❌ Initialization failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function debugContentExtraction() {
+            if (!supabase) {
+                log('❌ Please initialize and login first', 'error');
+                return;
+            }
+
+            const testUrl = document.getElementById('testUrl').value;
+            if (!testUrl) {
+                log('❌ Please enter a test URL', 'error');
+                return;
+            }
+
+            log(`🔍 DEBUGGING content extraction for: ${testUrl}`, 'info');
+            log(`📊 Starting detailed analysis...`, 'info');
+
+            try {
+                const startTime = Date.now();
+                
+                const { data, error } = await supabase.functions.invoke('analyze-content', {
+                    body: {
+                        type: 'url',
+                        url: testUrl
+                    }
+                });
+
+                const endTime = Date.now();
+                const duration = ((endTime - startTime) / 1000).toFixed(2);
+
+                log(`⏱️ Request completed in ${duration}s`, 'info');
+
+                if (error) {
+                    log(`❌ SUPABASE ERROR: ${error.message}`, 'error');
+                    log(`📋 Error details: ${JSON.stringify(error, null, 2)}`, 'error');
+                    return;
+                }
+
+                if (data.error) {
+                    log(`❌ FUNCTION ERROR: ${data.message}`, 'error');
+                    if (data.details) {
+                        log(`📋 Error details: ${data.details}`, 'error');
+                    }
+                    if (data.debugInfo) {
+                        log(`🔍 Debug info: ${JSON.stringify(data.debugInfo, null, 2)}`, 'info');
+                    }
+                    return;
+                }
+
+                if (data.faqs && data.faqs.length > 0) {
+                    log(`✅ SUCCESS: Generated ${data.faqs.length} FAQs`, 'success');
+                    log(`📊 Content length processed: ${data.contentLength} characters`, 'info');
+                    
+                    // Analyze FAQ quality
+                    data.faqs.forEach((faq, index) => {
+                        log(`\n📝 FAQ ${index + 1}:`, 'info');
+                        log(`   Q: ${faq.question}`, 'info');
+                        log(`   A: ${faq.answer.substring(0, 100)}...`, 'info');
+                        
+                        // Check for author content
+                        const fullText = (faq.question + ' ' + faq.answer).toLowerCase();
+                        const authorKeywords = ['anonna', 'dutt', 'bachelor', 'journalism', 'university'];
+                        const foundAuthorKeywords = authorKeywords.filter(keyword => fullText.includes(keyword));
+                        
+                        if (foundAuthorKeywords.length > 0) {
+                            log(`   ⚠️ AUTHOR CONTENT DETECTED: ${foundAuthorKeywords.join(', ')}`, 'warning');
+                        } else {
+                            log(`   ✅ No author content detected`, 'success');
+                        }
+                        
+                        // Check for main content
+                        const mainKeywords = ['shubhanshu', 'space', 'astronaut', 'mission'];
+                        const foundMainKeywords = mainKeywords.filter(keyword => fullText.includes(keyword));
+                        
+                        if (foundMainKeywords.length > 0) {
+                            log(`   ✅ MAIN CONTENT DETECTED: ${foundMainKeywords.join(', ')}`, 'success');
+                        } else {
+                            log(`   ⚠️ No main content keywords detected`, 'warning');
+                        }
+                    });
+
+                } else {
+                    log('❌ No FAQs generated', 'error');
+                    log(`📊 Response data: ${JSON.stringify(data, null, 2)}`, 'info');
+                }
+
+            } catch (error) {
+                log(`❌ CRITICAL ERROR: ${error.message}`, 'error');
+                log(`📋 Full error: ${JSON.stringify(error, null, 2)}`, 'error');
+                console.error('Full error object:', error);
+            }
+        }
+
+        async function testRedditUrl() {
+            if (!supabase) {
+                log('❌ Please initialize and login first', 'error');
+                return;
+            }
+
+            const redditUrl = 'https://www.reddit.com/user/adobe/comments/1lea6lg/still_on_the_fence_about_getting_that_adobe/?p=1&impressionid=5436252630714216730';
+            log(`🔍 TESTING Reddit URL: ${redditUrl}`, 'info');
+
+            try {
+                const { data, error } = await supabase.functions.invoke('analyze-content', {
+                    body: {
+                        type: 'url',
+                        url: redditUrl
+                    }
+                });
+
+                if (error) {
+                    log(`✅ EXPECTED: Reddit URL rejected by Supabase - ${error.message}`, 'success');
+                } else if (data.error) {
+                    log(`✅ EXPECTED: Reddit URL rejected by function - ${data.message}`, 'success');
+                } else {
+                    log(`⚠️ UNEXPECTED: Reddit URL was processed`, 'warning');
+                    log(`📊 Response: ${JSON.stringify(data, null, 2)}`, 'info');
+                }
+
+            } catch (error) {
+                log(`✅ EXPECTED: Reddit URL rejected - ${error.message}`, 'success');
+            }
+        }
+    </script>
+</body>
+</html>

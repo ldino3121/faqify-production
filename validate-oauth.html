@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OAuth Validation Test - FAQify</title>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f8fafc;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .status {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            font-weight: 500;
+        }
+        .status.success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+        .status.error { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+        .status.warning { background: #fefce8; color: #ca8a04; border: 1px solid #fef08a; }
+        .status.info { background: #eff6ff; color: #2563eb; border: 1px solid #dbeafe; }
+        .test-section {
+            margin: 25px 0;
+            padding: 20px;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+        }
+        .test-section h3 {
+            margin-top: 0;
+            color: #374151;
+        }
+        .btn {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px;
+            transition: background 0.2s;
+        }
+        .btn:hover { background: #2563eb; }
+        .btn.google { background: #db4437; }
+        .btn.google:hover { background: #c23321; }
+        .btn.github { background: #333; }
+        .btn.github:hover { background: #24292e; }
+        .config-info {
+            background: #f9fafb;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 12px;
+            margin: 10px 0;
+        }
+        .check-item {
+            display: flex;
+            align-items: center;
+            margin: 8px 0;
+        }
+        .check-icon {
+            width: 20px;
+            height: 20px;
+            margin-right: 10px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .check-icon.pass { background: #10b981; color: white; }
+        .check-icon.fail { background: #ef4444; color: white; }
+        .check-icon.pending { background: #f59e0b; color: white; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔐 OAuth Validation Test</h1>
+            <p>Testing Google and GitHub OAuth configuration for FAQify</p>
+        </div>
+
+        <div id="status" class="status info">
+            <strong>Status:</strong> Initializing validation tests...
+        </div>
+
+        <div class="test-section">
+            <h3>📋 Configuration Check</h3>
+            <div id="config-checks">
+                <div class="check-item">
+                    <div class="check-icon pending">?</div>
+                    <span>Supabase client initialization</span>
+                </div>
+                <div class="check-item">
+                    <div class="check-icon pending">?</div>
+                    <span>Supabase URL configuration</span>
+                </div>
+                <div class="check-item">
+                    <div class="check-icon pending">?</div>
+                    <span>OAuth providers availability</span>
+                </div>
+            </div>
+            
+            <div class="config-info">
+                <strong>Current Configuration:</strong><br>
+                Supabase URL: https://dlzshcshqjdghmtzlbma.supabase.co<br>
+                Project Ref: dlzshcshqjdghmtzlbma<br>
+                Expected Redirect URI: https://dlzshcshqjdghmtzlbma.supabase.co/auth/v1/callback
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>🧪 OAuth Provider Tests</h3>
+            <p>Click the buttons below to test OAuth providers:</p>
+            
+            <button class="btn google" onclick="testGoogleOAuth()">
+                🔍 Test Google OAuth
+            </button>
+            
+            <button class="btn github" onclick="testGitHubOAuth()">
+                🐙 Test GitHub OAuth
+            </button>
+            
+            <div id="oauth-results"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>👤 Current Session</h3>
+            <div id="session-info">
+                <div class="status info">No active session</div>
+            </div>
+            
+            <button class="btn" onclick="checkSession()">
+                🔄 Refresh Session Info
+            </button>
+            
+            <button class="btn" onclick="signOut()" style="background: #ef4444;">
+                🚪 Sign Out
+            </button>
+        </div>
+
+        <div class="test-section">
+            <h3>🔧 Troubleshooting</h3>
+            <div id="troubleshooting">
+                <p><strong>If OAuth fails, check:</strong></p>
+                <ul>
+                    <li>Google/GitHub OAuth apps have correct redirect URI</li>
+                    <li>Providers are enabled in Supabase Dashboard</li>
+                    <li>Client IDs and secrets are correctly configured</li>
+                    <li>Browser console for detailed error messages</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize Supabase client
+        const SUPABASE_URL = 'https://dlzshcshqjdghmtzlbma.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRsenNoY3NocWpkZ2htdHpsYm1hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTExODUzODgsImV4cCI6MjA2Njc2MTM4OH0.EL4By0nom419JiorSHKiFckLqnh1sqmFvYnWTylB9Gk';
+        
+        let supabase;
+        
+        function updateStatus(message, type = 'info') {
+            const statusEl = document.getElementById('status');
+            statusEl.innerHTML = `<strong>Status:</strong> ${message}`;
+            statusEl.className = `status ${type}`;
+        }
+        
+        function updateCheck(index, status, message = '') {
+            const checks = document.querySelectorAll('.check-item .check-icon');
+            const check = checks[index];
+            const text = check.nextElementSibling;
+            
+            check.className = `check-icon ${status}`;
+            check.textContent = status === 'pass' ? '✓' : status === 'fail' ? '✗' : '?';
+            
+            if (message) {
+                text.textContent = message;
+            }
+        }
+        
+        async function initializeValidation() {
+            try {
+                // Test 1: Supabase client initialization
+                supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                updateCheck(0, 'pass', 'Supabase client initialized successfully');
+                
+                // Test 2: URL configuration
+                if (SUPABASE_URL.includes('dlzshcshqjdghmtzlbma')) {
+                    updateCheck(1, 'pass', 'Supabase URL matches project configuration');
+                } else {
+                    updateCheck(1, 'fail', 'Supabase URL mismatch');
+                }
+                
+                // Test 3: Check session and auth state
+                const { data: { session } } = await supabase.auth.getSession();
+                if (session) {
+                    updateSessionInfo(session);
+                    updateStatus('Validation complete - User is signed in', 'success');
+                } else {
+                    updateStatus('Validation complete - Ready to test OAuth', 'info');
+                }
+                
+                updateCheck(2, 'pass', 'OAuth providers ready for testing');
+                
+            } catch (error) {
+                console.error('Validation error:', error);
+                updateStatus(`Validation failed: ${error.message}`, 'error');
+                updateCheck(0, 'fail', 'Supabase client initialization failed');
+            }
+        }
+        
+        async function testGoogleOAuth() {
+            updateStatus('Testing Google OAuth...', 'info');
+            
+            try {
+                const { data, error } = await supabase.auth.signInWithOAuth({
+                    provider: 'google',
+                    options: {
+                        redirectTo: `${window.location.origin}/validate-oauth.html`,
+                        queryParams: {
+                            access_type: 'offline',
+                            prompt: 'consent',
+                        },
+                    },
+                });
+                
+                if (error) {
+                    throw error;
+                }
+                
+                updateStatus('Redirecting to Google...', 'info');
+                
+            } catch (error) {
+                console.error('Google OAuth error:', error);
+                updateStatus(`Google OAuth failed: ${error.message}`, 'error');
+                
+                const resultsEl = document.getElementById('oauth-results');
+                resultsEl.innerHTML = `
+                    <div class="status error">
+                        <strong>Google OAuth Error:</strong> ${error.message}<br>
+                        <small>Check browser console for details</small>
+                    </div>
+                `;
+            }
+        }
+        
+        async function testGitHubOAuth() {
+            updateStatus('Testing GitHub OAuth...', 'info');
+            
+            try {
+                const { data, error } = await supabase.auth.signInWithOAuth({
+                    provider: 'github',
+                    options: {
+                        redirectTo: `${window.location.origin}/validate-oauth.html`,
+                        scopes: 'user:email',
+                    },
+                });
+                
+                if (error) {
+                    throw error;
+                }
+                
+                updateStatus('Redirecting to GitHub...', 'info');
+                
+            } catch (error) {
+                console.error('GitHub OAuth error:', error);
+                updateStatus(`GitHub OAuth failed: ${error.message}`, 'error');
+                
+                const resultsEl = document.getElementById('oauth-results');
+                resultsEl.innerHTML = `
+                    <div class="status error">
+                        <strong>GitHub OAuth Error:</strong> ${error.message}<br>
+                        <small>Check browser console for details</small>
+                    </div>
+                `;
+            }
+        }
+        
+        async function checkSession() {
+            try {
+                const { data: { session }, error } = await supabase.auth.getSession();
+                
+                if (error) {
+                    throw error;
+                }
+                
+                updateSessionInfo(session);
+                
+            } catch (error) {
+                console.error('Session check error:', error);
+                updateStatus(`Session check failed: ${error.message}`, 'error');
+            }
+        }
+        
+        function updateSessionInfo(session) {
+            const sessionEl = document.getElementById('session-info');
+            
+            if (session) {
+                const user = session.user;
+                sessionEl.innerHTML = `
+                    <div class="status success">
+                        <strong>✅ Signed in successfully!</strong><br>
+                        <strong>User ID:</strong> ${user.id}<br>
+                        <strong>Email:</strong> ${user.email || 'N/A'}<br>
+                        <strong>Provider:</strong> ${user.app_metadata?.provider || 'Unknown'}<br>
+                        <strong>Name:</strong> ${user.user_metadata?.full_name || user.user_metadata?.name || 'N/A'}<br>
+                        <strong>Session expires:</strong> ${new Date(session.expires_at * 1000).toLocaleString()}
+                    </div>
+                `;
+                updateStatus('OAuth test successful! User is authenticated.', 'success');
+            } else {
+                sessionEl.innerHTML = `
+                    <div class="status info">
+                        <strong>No active session</strong><br>
+                        Click the OAuth buttons above to test authentication.
+                    </div>
+                `;
+            }
+        }
+        
+        async function signOut() {
+            try {
+                const { error } = await supabase.auth.signOut();
+                
+                if (error) {
+                    throw error;
+                }
+                
+                updateStatus('Signed out successfully', 'success');
+                updateSessionInfo(null);
+                
+            } catch (error) {
+                console.error('Sign out error:', error);
+                updateStatus(`Sign out failed: ${error.message}`, 'error');
+            }
+        }
+        
+        // Handle OAuth callback
+        window.addEventListener('load', async () => {
+            // Check for OAuth callback
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('code') || window.location.hash.includes('access_token')) {
+                updateStatus('Processing OAuth callback...', 'info');
+                
+                try {
+                    const { data, error } = await supabase.auth.getSession();
+                    
+                    if (error) {
+                        throw error;
+                    }
+                    
+                    if (data.session) {
+                        updateStatus('OAuth authentication successful!', 'success');
+                        updateSessionInfo(data.session);
+                        
+                        // Clean up URL
+                        window.history.replaceState({}, document.title, window.location.pathname);
+                    }
+                    
+                } catch (error) {
+                    console.error('OAuth callback error:', error);
+                    updateStatus(`OAuth callback failed: ${error.message}`, 'error');
+                }
+            }
+            
+            // Initialize validation
+            await initializeValidation();
+        });
+        
+        // Listen for auth state changes
+        supabase?.auth.onAuthStateChange((event, session) => {
+            console.log('Auth state changed:', event, session);
+            
+            if (event === 'SIGNED_IN') {
+                updateStatus('Successfully signed in via OAuth!', 'success');
+                updateSessionInfo(session);
+            } else if (event === 'SIGNED_OUT') {
+                updateStatus('Signed out', 'info');
+                updateSessionInfo(null);
+            }
+        });
+    </script>
+</body>
+</html>

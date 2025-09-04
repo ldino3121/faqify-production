@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔍 Debug Edge Function Error</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #0f0f0f;
+            color: #ffffff;
+        }
+        .container {
+            background: #1a1a1a;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+        .status {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+            font-weight: 500;
+        }
+        .success { background: #1a4d3a; border-left: 4px solid #10b981; }
+        .error { background: #4d1a1a; border-left: 4px solid #ef4444; }
+        .warning { background: #4d3a1a; border-left: 4px solid #f59e0b; }
+        .info { background: #1a3a4d; border-left: 4px solid #3b82f6; }
+        .data-table {
+            background: #2a2a2a;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            white-space: pre-wrap;
+            margin: 10px 0;
+            border: 1px solid #404040;
+        }
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+            transition: background 0.2s;
+        }
+        button:hover { background: #2563eb; }
+        button:disabled { background: #6b7280; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Debug Edge Function Error</h1>
+        <p>Let's find out exactly what's causing the "non 2xx status code" error.</p>
+        
+        <button onclick="debugEdgeFunction()" id="debugBtn">🔍 Debug Edge Function</button>
+        <button onclick="testDirectAPI()" id="apiBtn">🧪 Test Direct API</button>
+        
+        <div id="results"></div>
+    </div>
+
+    <script>
+        const supabase = window.supabase.createClient(
+            'https://dlzshcshqjdghmtzlbma.supabase.co',
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRsenNoY3NocWpkZ2htdHpsYm1hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTExODUzODgsImV4cCI6MjA2Njc2MTM4OH0.EL4By0nom419JiorSHKiFckLqnh1sqmFvYnWTylB9Gk'
+        );
+
+        function updateResults(html) {
+            document.getElementById('results').innerHTML = html;
+        }
+
+        async function debugEdgeFunction() {
+            updateResults('<div class="status info">🔍 Debugging edge function error...</div>');
+            
+            try {
+                // Test the exact same URL that's failing
+                const testUrl = 'https://publiclisting.in/aston-pharmaceuticals-ipo/';
+                
+                console.log('Testing URL:', testUrl);
+                
+                const { data, error } = await supabase.functions.invoke('analyze-content', {
+                    body: {
+                        url: testUrl,
+                        type: 'url'
+                    }
+                });
+
+                let html = '<div class="status info">📊 Edge Function Debug Results:</div>';
+
+                if (error) {
+                    html += `
+                        <div class="status error">
+                            ❌ Edge Function Error: ${error.message}
+                        </div>
+                        <div class="data-table">
+Error Details:
+${JSON.stringify(error, null, 2)}
+                        </div>
+                    `;
+                    
+                    // Try to get more details about the error
+                    if (error.message.includes('non 2xx status code')) {
+                        html += `
+                            <div class="status warning">
+                                🔍 This indicates the edge function is returning an HTTP error status (4xx or 5xx).
+                                Common causes:
+                                1. API key authentication failure
+                                2. Content scraping failure
+                                3. AI API quota exceeded
+                                4. Function timeout
+                                5. Invalid request format
+                            </div>
+                        `;
+                    }
+                } else {
+                    html += `
+                        <div class="status success">
+                            ✅ Edge Function Success!
+                        </div>
+                        <div class="data-table">
+FAQs Generated: ${data?.faqs?.length || 0}
+Is Demo Mode: ${data?.isDemoMode || false}
+
+First FAQ:
+Q: ${data?.faqs?.[0]?.question || 'N/A'}
+A: ${data?.faqs?.[0]?.answer?.substring(0, 200) || 'N/A'}...
+                        </div>
+                    `;
+                }
+
+                updateResults(html);
+
+            } catch (error) {
+                updateResults(`
+                    <div class="status error">
+                        ❌ Exception: ${error.message}
+                    </div>
+                    <div class="data-table">
+Stack Trace:
+${error.stack || 'No stack trace available'}
+                    </div>
+                `);
+            }
+        }
+
+        async function testDirectAPI() {
+            updateResults('<div class="status info">🧪 Testing direct API call...</div>');
+            
+            try {
+                // Test direct fetch to the edge function
+                const response = await fetch('https://dlzshcshqjdghmtzlbma.supabase.co/functions/v1/analyze-content', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRsenNoY3NocWpkZ2htdHpsYm1hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTExODUzODgsImV4cCI6MjA2Njc2MTM4OH0.EL4By0nom419JiorSHKiFckLqnh1sqmFvYnWTylB9Gk'
+                    },
+                    body: JSON.stringify({
+                        text: "This is a simple test about artificial intelligence.",
+                        type: 'text'
+                    })
+                });
+
+                let html = '<div class="status info">📊 Direct API Test Results:</div>';
+
+                html += `
+                    <div class="status ${response.ok ? 'success' : 'error'}">
+                        HTTP Status: ${response.status} ${response.statusText}
+                    </div>
+                `;
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    html += `
+                        <div class="data-table">
+Error Response:
+${errorText}
+                        </div>
+                    `;
+                } else {
+                    const data = await response.json();
+                    html += `
+                        <div class="data-table">
+Success Response:
+${JSON.stringify(data, null, 2)}
+                        </div>
+                    `;
+                }
+
+                updateResults(html);
+
+            } catch (error) {
+                updateResults(`
+                    <div class="status error">
+                        ❌ Direct API Exception: ${error.message}
+                    </div>
+                `);
+            }
+        }
+
+        // Auto-run debug when page loads
+        window.onload = () => {
+            setTimeout(debugEdgeFunction, 1000);
+        };
+    </script>
+</body>
+</html>

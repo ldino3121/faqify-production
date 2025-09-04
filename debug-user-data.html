@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug User Data</title>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+        .log {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+            margin: 10px 0;
+        }
+        button {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Debug User Data</h1>
+        
+        <button onclick="checkAllUsers()">Check All Users</button>
+        <button onclick="checkSpecificUser()">Check faqify18@gmail.com</button>
+        <button onclick="checkUserSubscriptions()">Check All Subscriptions</button>
+        
+        <div id="results" class="log">Ready to debug user data...</div>
+    </div>
+
+    <script>
+        const SUPABASE_URL = 'https://dlzshcshqjdghmtzlbma.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRsenNoY3NocWpkZ2htdHpsYm1hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTExODUzODgsImV4cCI6MjA2Njc2MTM4OH0.EL4By0nom419JiorSHKiFckLqnh1sqmFvYnWTylB9Gk';
+
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        function updateResults(message) {
+            const results = document.getElementById('results');
+            const timestamp = new Date().toLocaleTimeString();
+            results.textContent += `[${timestamp}] ${message}\n`;
+            results.scrollTop = results.scrollHeight;
+        }
+
+        async function checkAllUsers() {
+            updateResults('🔍 Checking all users in profiles table...');
+            
+            try {
+                const { data: profiles, error } = await supabase
+                    .from('profiles')
+                    .select('*')
+                    .order('created_at', { ascending: false });
+
+                if (error) throw error;
+
+                updateResults(`📊 Found ${profiles.length} users:`);
+                
+                profiles.forEach((profile, index) => {
+                    updateResults(`${index + 1}. ${profile.full_name || 'No name'} (${profile.email || 'No email'}) - ID: ${profile.id}`);
+                });
+
+                // Check for faqify18@gmail.com specifically
+                const targetUser = profiles.find(p => p.email && p.email.toLowerCase().includes('faqify18'));
+                if (targetUser) {
+                    updateResults(`✅ Found target user: ${targetUser.email}`);
+                } else {
+                    updateResults(`❌ faqify18@gmail.com not found in profiles`);
+                    
+                    // Check for similar emails
+                    const similarUsers = profiles.filter(p => p.email && (
+                        p.email.toLowerCase().includes('faqify') || 
+                        p.email.toLowerCase().includes('18')
+                    ));
+                    
+                    if (similarUsers.length > 0) {
+                        updateResults(`🔍 Similar emails found:`);
+                        similarUsers.forEach(user => {
+                            updateResults(`   - ${user.email}`);
+                        });
+                    }
+                }
+
+            } catch (error) {
+                updateResults(`❌ Error: ${error.message}`);
+            }
+        }
+
+        async function checkSpecificUser() {
+            updateResults('🔍 Checking for faqify18@gmail.com specifically...');
+            
+            try {
+                // Try exact match
+                let { data: profiles, error } = await supabase
+                    .from('profiles')
+                    .select('*')
+                    .eq('email', 'faqify18@gmail.com');
+
+                if (error) throw error;
+
+                if (profiles && profiles.length > 0) {
+                    updateResults(`✅ Found user with exact match:`);
+                    profiles.forEach(profile => {
+                        updateResults(`   Name: ${profile.full_name}`);
+                        updateResults(`   Email: ${profile.email}`);
+                        updateResults(`   ID: ${profile.id}`);
+                        updateResults(`   Created: ${profile.created_at}`);
+                    });
+                } else {
+                    updateResults(`❌ No exact match for faqify18@gmail.com`);
+                    
+                    // Try case-insensitive search
+                    const { data: profiles2, error: error2 } = await supabase
+                        .from('profiles')
+                        .select('*')
+                        .ilike('email', '%faqify18%');
+
+                    if (error2) throw error2;
+
+                    if (profiles2 && profiles2.length > 0) {
+                        updateResults(`🔍 Found similar emails:`);
+                        profiles2.forEach(profile => {
+                            updateResults(`   ${profile.email} - ${profile.full_name}`);
+                        });
+                    } else {
+                        updateResults(`❌ No similar emails found`);
+                    }
+                }
+
+            } catch (error) {
+                updateResults(`❌ Error: ${error.message}`);
+            }
+        }
+
+        async function checkUserSubscriptions() {
+            updateResults('🔍 Checking all user subscriptions...');
+            
+            try {
+                const { data: subscriptions, error } = await supabase
+                    .from('user_subscriptions')
+                    .select(`
+                        *,
+                        profiles!inner(email, full_name)
+                    `)
+                    .order('created_at', { ascending: false });
+
+                if (error) throw error;
+
+                updateResults(`📊 Found ${subscriptions.length} subscriptions:`);
+                
+                subscriptions.forEach((sub, index) => {
+                    const email = sub.profiles?.email || 'No email';
+                    const name = sub.profiles?.full_name || 'No name';
+                    const expiryDate = sub.plan_expires_at ? new Date(sub.plan_expires_at).toLocaleDateString() : 'No expiry';
+                    const now = new Date();
+                    const expiry = sub.plan_expires_at ? new Date(sub.plan_expires_at) : null;
+                    const isExpired = expiry && now > expiry;
+                    
+                    updateResults(`${index + 1}. ${name} (${email})`);
+                    updateResults(`   Plan: ${sub.plan_tier} | Status: ${sub.status}`);
+                    updateResults(`   Expires: ${expiryDate} | Expired: ${isExpired ? 'YES' : 'NO'}`);
+                    updateResults(`   Usage: ${sub.faq_usage_current}/${sub.faq_usage_limit}`);
+                    updateResults('');
+                });
+
+                // Look for expired users
+                const expiredUsers = subscriptions.filter(sub => {
+                    if (sub.plan_tier === 'Free') return false;
+                    if (!sub.plan_expires_at) return false;
+                    return new Date() > new Date(sub.plan_expires_at);
+                });
+
+                if (expiredUsers.length > 0) {
+                    updateResults(`⚠️ Found ${expiredUsers.length} expired users:`);
+                    expiredUsers.forEach(user => {
+                        updateResults(`   - ${user.profiles?.email} (expired: ${new Date(user.plan_expires_at).toLocaleDateString()})`);
+                    });
+                }
+
+            } catch (error) {
+                updateResults(`❌ Error: ${error.message}`);
+            }
+        }
+
+        // Auto-run on load
+        window.addEventListener('load', () => {
+            updateResults('🌟 User data debugger ready');
+            updateResults('📝 This will help identify the correct user email and subscription data');
+        });
+    </script>
+</body>
+</html>

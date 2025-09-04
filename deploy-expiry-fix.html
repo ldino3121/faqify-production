@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deploy Plan Expiry Fix</title>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+        }
+        .section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 2px solid #e1e5e9;
+            border-radius: 10px;
+            background: #f8f9fa;
+        }
+        .success { border-color: #28a745; background: #d4edda; }
+        .error { border-color: #dc3545; background: #f8d7da; }
+        .warning { border-color: #ffc107; background: #fff3cd; }
+        .info { border-color: #17a2b8; background: #d1ecf1; }
+        button {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px;
+            transition: all 0.3s ease;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        button:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .log {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+            margin: 10px 0;
+        }
+        .user-info {
+            background: #e3f2fd;
+            border: 2px solid #2196f3;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        .status-active { background: #28a745; }
+        .status-expired { background: #dc3545; }
+        .status-unknown { background: #6c757d; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔒 Deploy Plan Expiry Fix</h1>
+        
+        <div class="section info">
+            <h3>📋 Fix Overview</h3>
+            <p><strong>Issue:</strong> Users with expired plans can still generate FAQs</p>
+            <p><strong>Solution:</strong> Enhanced database functions with strict expiry enforcement</p>
+            <p><strong>Target User:</strong> faqify18@gmail.com (expired on August 17, 2025)</p>
+        </div>
+
+        <div class="section">
+            <h3>🚀 Deployment Actions</h3>
+            <button onclick="deployExpiryFix()">Deploy Expiry Fix</button>
+            <button onclick="checkSpecificUser()">Check faqify18@gmail.com Status</button>
+            <button onclick="testFAQGeneration()">Test FAQ Generation</button>
+            <button onclick="updateExpiredSubscriptions()">Update Expired Subscriptions</button>
+        </div>
+
+        <div class="section">
+            <h3>📊 Results</h3>
+            <div id="results" class="log">Ready to deploy plan expiry fix...</div>
+        </div>
+
+        <div class="section">
+            <h3>👤 User Status</h3>
+            <div id="userStatus" class="user-info">
+                <p>Click "Check faqify18@gmail.com Status" to see current status</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize Supabase client
+        const SUPABASE_URL = 'https://dlzshcshqjdghmtzlbma.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRsenNoY3NocWpkZ2htdHpsYm1hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTExODUzODgsImV4cCI6MjA2Njc2MTM4OH0.EL4By0nom419JiorSHKiFckLqnh1sqmFvYnWTylB9Gk';
+
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        function updateResults(message) {
+            const results = document.getElementById('results');
+            const timestamp = new Date().toLocaleTimeString();
+            results.textContent += `[${timestamp}] ${message}\n`;
+            results.scrollTop = results.scrollHeight;
+        }
+
+        function updateUserStatus(status) {
+            document.getElementById('userStatus').innerHTML = status;
+        }
+
+        async function deployExpiryFix() {
+            updateResults('🚀 Starting plan expiry fix deployment...');
+            
+            try {
+                // Deploy the enhanced functions
+                const functions = [
+                    {
+                        name: 'is_subscription_active_strict',
+                        sql: `
+                        CREATE OR REPLACE FUNCTION public.is_subscription_active_strict(user_uuid UUID)
+                        RETURNS BOOLEAN AS $$
+                        DECLARE
+                          subscription_record RECORD;
+                        BEGIN
+                          SELECT plan_tier, status, plan_expires_at
+                          INTO subscription_record
+                          FROM public.user_subscriptions 
+                          WHERE user_id = user_uuid;
+                          
+                          IF subscription_record IS NULL OR subscription_record.status != 'active' THEN
+                            RETURN FALSE;
+                          END IF;
+                          
+                          IF subscription_record.plan_tier = 'Free' THEN
+                            RETURN TRUE;
+                          END IF;
+                          
+                          IF subscription_record.plan_expires_at IS NULL THEN
+                            RETURN FALSE;
+                          END IF;
+                          
+                          RETURN subscription_record.plan_expires_at > CURRENT_TIMESTAMP;
+                        END;
+                        $$ LANGUAGE plpgsql SECURITY DEFINER;
+                        `
+                    },
+                    {
+                        name: 'can_generate_faqs_strict',
+                        sql: `
+                        CREATE OR REPLACE FUNCTION public.can_generate_faqs_strict(user_uuid UUID, faq_count INTEGER DEFAULT 1)
+                        RETURNS JSONB AS $$
+                        DECLARE
+                          subscription_record RECORD;
+                          is_active BOOLEAN;
+                          result JSONB;
+                        BEGIN
+                          SELECT plan_tier, status, plan_expires_at, faq_usage_current, faq_usage_limit
+                          INTO subscription_record
+                          FROM public.user_subscriptions 
+                          WHERE user_id = user_uuid;
+                          
+                          result := jsonb_build_object(
+                            'can_generate', false,
+                            'reason', 'No subscription found',
+                            'is_expired', false
+                          );
+                          
+                          IF subscription_record IS NULL THEN
+                            RETURN result;
+                          END IF;
+                          
+                          is_active := public.is_subscription_active_strict(user_uuid);
+                          
+                          IF NOT is_active AND subscription_record.plan_tier != 'Free' THEN
+                            result := jsonb_set(result, '{reason}', 
+                              '"Your " || subscription_record.plan_tier || " plan has expired. Please upgrade to continue."');
+                            result := jsonb_set(result, '{is_expired}', 'true');
+                            RETURN result;
+                          END IF;
+                          
+                          IF subscription_record.faq_usage_current + faq_count > subscription_record.faq_usage_limit THEN
+                            result := jsonb_set(result, '{reason}', '"Monthly FAQ limit exceeded"');
+                            RETURN result;
+                          END IF;
+                          
+                          result := jsonb_set(result, '{can_generate}', 'true');
+                          result := jsonb_set(result, '{reason}', '"OK"');
+                          RETURN result;
+                        END;
+                        $$ LANGUAGE plpgsql SECURITY DEFINER;
+                        `
+                    }
+                ];
+
+                for (const func of functions) {
+                    updateResults(`📝 Deploying ${func.name}...`);
+                    
+                    const { data, error } = await supabase.rpc('exec_sql', { 
+                        sql: func.sql 
+                    });
+
+                    if (error) {
+                        updateResults(`❌ Error deploying ${func.name}: ${error.message}`);
+                    } else {
+                        updateResults(`✅ Successfully deployed ${func.name}`);
+                    }
+                }
+
+                updateResults('🎉 Plan expiry fix deployment completed!');
+                
+            } catch (error) {
+                updateResults(`❌ Deployment failed: ${error.message}`);
+            }
+        }
+
+        async function checkSpecificUser() {
+            updateResults('🔍 Checking faqify18@gmail.com status...');
+            
+            try {
+                // Get user by email
+                const { data: profiles, error: profileError } = await supabase
+                    .from('profiles')
+                    .select('id, email, full_name')
+                    .eq('email', 'faqify18@gmail.com');
+
+                if (profileError) throw profileError;
+
+                if (!profiles || profiles.length === 0) {
+                    updateResults('❌ User faqify18@gmail.com not found');
+                    updateUserStatus('<p>❌ User not found</p>');
+                    return;
+                }
+
+                const user = profiles[0];
+                updateResults(`✅ Found user: ${user.full_name} (${user.email})`);
+
+                // Get subscription details
+                const { data: subscription, error: subError } = await supabase
+                    .from('user_subscriptions')
+                    .select('*')
+                    .eq('user_id', user.id)
+                    .single();
+
+                if (subError) throw subError;
+
+                const now = new Date();
+                const expiryDate = new Date(subscription.plan_expires_at);
+                const isExpired = now > expiryDate;
+
+                updateResults(`📊 Subscription Details:
+- Plan: ${subscription.plan_tier}
+- Status: ${subscription.status}
+- Expires: ${expiryDate.toLocaleDateString()}
+- Current Usage: ${subscription.faq_usage_current}/${subscription.faq_usage_limit}
+- Is Expired: ${isExpired ? 'YES' : 'NO'}`);
+
+                // Test the new function
+                const { data: canGenerate, error: testError } = await supabase
+                    .rpc('can_generate_faqs_strict', {
+                        user_uuid: user.id,
+                        faq_count: 1
+                    });
+
+                if (testError) throw testError;
+
+                updateResults(`🧪 FAQ Generation Test: ${canGenerate.can_generate ? 'ALLOWED' : 'BLOCKED'}`);
+                updateResults(`📝 Reason: ${canGenerate.reason}`);
+
+                // Update user status display
+                const statusIndicator = isExpired ? 'status-expired' : 'status-active';
+                const statusText = isExpired ? 'EXPIRED' : 'ACTIVE';
+                
+                updateUserStatus(`
+                    <h4><span class="status-indicator ${statusIndicator}"></span>${user.full_name}</h4>
+                    <p><strong>Email:</strong> ${user.email}</p>
+                    <p><strong>Plan:</strong> ${subscription.plan_tier} (${statusText})</p>
+                    <p><strong>Expires:</strong> ${expiryDate.toLocaleDateString()}</p>
+                    <p><strong>Usage:</strong> ${subscription.faq_usage_current}/${subscription.faq_usage_limit}</p>
+                    <p><strong>Can Generate FAQs:</strong> ${canGenerate.can_generate ? '✅ YES' : '❌ NO'}</p>
+                    <p><strong>Reason:</strong> ${canGenerate.reason}</p>
+                `);
+
+            } catch (error) {
+                updateResults(`❌ Error checking user: ${error.message}`);
+            }
+        }
+
+        async function testFAQGeneration() {
+            updateResults('🧪 Testing FAQ generation for faqify18@gmail.com...');
+            
+            try {
+                // Get user ID
+                const { data: profiles } = await supabase
+                    .from('profiles')
+                    .select('id')
+                    .eq('email', 'faqify18@gmail.com')
+                    .single();
+
+                if (!profiles) {
+                    updateResults('❌ User not found');
+                    return;
+                }
+
+                // Test with different FAQ counts
+                const testCounts = [1, 5, 10];
+                
+                for (const count of testCounts) {
+                    const { data: result, error } = await supabase
+                        .rpc('can_generate_faqs_strict', {
+                            user_uuid: profiles.id,
+                            faq_count: count
+                        });
+
+                    if (error) throw error;
+
+                    updateResults(`📊 Test ${count} FAQ(s): ${result.can_generate ? 'ALLOWED' : 'BLOCKED'} - ${result.reason}`);
+                }
+
+            } catch (error) {
+                updateResults(`❌ Test failed: ${error.message}`);
+            }
+        }
+
+        async function updateExpiredSubscriptions() {
+            updateResults('🔄 Updating expired subscriptions...');
+            
+            try {
+                const { data, error } = await supabase.rpc('exec_sql', {
+                    sql: `
+                    UPDATE public.user_subscriptions 
+                    SET status = 'expired', updated_at = CURRENT_TIMESTAMP
+                    WHERE plan_tier != 'Free' 
+                      AND status = 'active'
+                      AND plan_expires_at IS NOT NULL 
+                      AND plan_expires_at <= CURRENT_TIMESTAMP;
+                    `
+                });
+
+                if (error) throw error;
+
+                updateResults('✅ Expired subscriptions updated successfully');
+                updateResults('🔄 Re-checking user status...');
+                
+                // Re-check the specific user
+                setTimeout(checkSpecificUser, 1000);
+
+            } catch (error) {
+                updateResults(`❌ Update failed: ${error.message}`);
+            }
+        }
+
+        // Auto-load user status on page load
+        window.addEventListener('load', () => {
+            updateResults('🌟 Plan Expiry Fix Tool Ready');
+            updateResults('📝 This tool will fix the issue where expired users can still generate FAQs');
+        });
+    </script>
+</body>
+</html>

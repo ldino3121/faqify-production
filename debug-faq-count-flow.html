@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug FAQ Count Data Flow</title>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .debug-section {
+            background: #f8f9fa;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            border-left: 4px solid #007bff;
+        }
+        .status {
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .warning { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        .info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px 5px;
+            font-size: 16px;
+        }
+        button:hover { background: #0056b3; }
+        input, select, textarea {
+            width: 100%;
+            padding: 10px;
+            margin: 8px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        pre {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Debug FAQ Count Data Flow</h1>
+        <p>This tool debugs the exact data flow from frontend to backend to identify why FAQ count isn't working.</p>
+
+        <!-- Configuration -->
+        <div class="debug-section">
+            <h3>📋 Configuration</h3>
+            <div>
+                <label>Supabase URL:</label>
+                <input type="text" id="supabaseUrl" value="https://dlzshcshqjdghmtzlbma.supabase.co">
+            </div>
+            <div>
+                <label>Supabase Anon Key:</label>
+                <input type="text" id="supabaseKey" placeholder="Your anon key">
+            </div>
+            <div>
+                <label>User Email:</label>
+                <input type="email" id="userEmail" value="faqify18@gmail.com">
+            </div>
+            <div>
+                <label>User Password:</label>
+                <input type="password" id="userPassword" placeholder="your-password">
+            </div>
+            <button onclick="initializeAndLogin()">Initialize & Login</button>
+        </div>
+
+        <!-- Debug Test -->
+        <div class="debug-section">
+            <h3>🧪 FAQ Count Debug Test</h3>
+            <div>
+                <label>FAQ Count to Test:</label>
+                <select id="faqCount">
+                    <option value="3">3 FAQs</option>
+                    <option value="4">4 FAQs</option>
+                    <option value="5">5 FAQs</option>
+                    <option value="6">6 FAQs</option>
+                    <option value="7">7 FAQs</option>
+                    <option value="8" selected>8 FAQs (Problem Case)</option>
+                    <option value="9">9 FAQs</option>
+                    <option value="10">10 FAQs</option>
+                </select>
+            </div>
+            <div>
+                <label>Test Content:</label>
+                <textarea id="testContent" rows="4">
+FAQify is an AI-powered FAQ generation tool that helps businesses create comprehensive FAQ sections. It uses advanced natural language processing to analyze content and automatically generates relevant questions and answers. The tool supports multiple subscription plans and provides embeddable widgets for easy website integration.
+                </textarea>
+            </div>
+            <button onclick="debugFAQCountFlow()">🔍 Debug FAQ Count Flow</button>
+            <button onclick="clearDebugLog()">🗑️ Clear Log</button>
+        </div>
+
+        <!-- Debug Log -->
+        <div class="debug-section">
+            <h3>📊 Debug Log</h3>
+            <div id="debugLog">
+                <div class="info">Debug information will appear here...</div>
+            </div>
+        </div>
+
+        <!-- Raw Data Display -->
+        <div class="debug-section">
+            <h3>📋 Raw Data Analysis</h3>
+            <div id="rawDataDisplay">
+                <div class="info">Raw request/response data will appear here...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let supabase = null;
+        let debugLog = [];
+
+        function log(message, type = 'info', data = null) {
+            const timestamp = new Date().toLocaleTimeString();
+            debugLog.push({ timestamp, message, type, data });
+            updateDebugLog();
+        }
+
+        function updateDebugLog() {
+            const logDiv = document.getElementById('debugLog');
+            logDiv.innerHTML = debugLog.map(entry => {
+                let content = `<div class="${entry.type}">[${entry.timestamp}] ${entry.message}</div>`;
+                if (entry.data) {
+                    content += `<pre>${JSON.stringify(entry.data, null, 2)}</pre>`;
+                }
+                return content;
+            }).join('');
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function clearDebugLog() {
+            debugLog = [];
+            updateDebugLog();
+            document.getElementById('rawDataDisplay').innerHTML = '<div class="info">Raw data cleared...</div>';
+        }
+
+        async function initializeAndLogin() {
+            const url = document.getElementById('supabaseUrl').value;
+            const key = document.getElementById('supabaseKey').value;
+            const email = document.getElementById('userEmail').value;
+            const password = document.getElementById('userPassword').value;
+
+            if (!url || !key || !email || !password) {
+                log('Please fill in all configuration fields', 'error');
+                return;
+            }
+
+            try {
+                supabase = window.supabase.createClient(url, key);
+                log('✅ Supabase client initialized', 'success');
+
+                const { data, error } = await supabase.auth.signInWithPassword({
+                    email: email,
+                    password: password
+                });
+
+                if (error) {
+                    log(`❌ Login failed: ${error.message}`, 'error');
+                    return;
+                }
+
+                log(`✅ Logged in successfully as ${data.user.email}`, 'success');
+
+            } catch (error) {
+                log(`❌ Initialization failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function debugFAQCountFlow() {
+            if (!supabase) {
+                log('❌ Please initialize and login first', 'error');
+                return;
+            }
+
+            const faqCount = parseInt(document.getElementById('faqCount').value);
+            const testContent = document.getElementById('testContent').value.trim();
+
+            log('🔍 Starting FAQ Count Debug Flow', 'info');
+            log(`📊 Frontend Values:`, 'info', {
+                selectedFaqCount: faqCount,
+                typeOfFaqCount: typeof faqCount,
+                testContentLength: testContent.length
+            });
+
+            // Prepare request data exactly like frontend does
+            const requestData = {
+                type: 'text',
+                text: testContent,
+                faqCount: faqCount
+            };
+
+            log('📤 Request Data Being Sent:', 'info', requestData);
+
+            try {
+                const startTime = Date.now();
+                
+                log('🚀 Calling analyze-content function...', 'info');
+                
+                const { data, error } = await supabase.functions.invoke('analyze-content', {
+                    body: requestData
+                });
+
+                const endTime = Date.now();
+                const duration = ((endTime - startTime) / 1000).toFixed(2);
+
+                if (error) {
+                    log(`❌ Function call failed: ${error.message}`, 'error', error);
+                    return;
+                }
+
+                log(`📥 Response received in ${duration}s`, 'success');
+
+                if (data.error) {
+                    log(`❌ API error: ${data.message}`, 'error', data);
+                    return;
+                }
+
+                // Analyze the response
+                const actualCount = data.faqs ? data.faqs.length : 0;
+                const requestedCount = faqCount;
+                const isCorrect = actualCount === requestedCount;
+
+                log(`📊 FAQ Count Analysis:`, isCorrect ? 'success' : 'error', {
+                    requestedCount: requestedCount,
+                    actualCount: actualCount,
+                    isCorrect: isCorrect,
+                    backendRequestedCount: data.requestedFaqCount,
+                    backendActualCount: data.actualFaqCount
+                });
+
+                if (isCorrect) {
+                    log('🎉 SUCCESS: FAQ count is working correctly!', 'success');
+                } else {
+                    log(`🐛 PROBLEM IDENTIFIED: Requested ${requestedCount}, got ${actualCount}`, 'error');
+                    
+                    // Additional debugging
+                    if (data.requestedFaqCount !== requestedCount) {
+                        log(`🚨 BACKEND RECEIVED WRONG COUNT: Frontend sent ${requestedCount}, backend received ${data.requestedFaqCount}`, 'error');
+                    } else {
+                        log(`✅ Backend received correct count, but AI/processing failed`, 'warning');
+                    }
+                }
+
+                // Display raw data
+                document.getElementById('rawDataDisplay').innerHTML = `
+                    <h4>📤 Request Data:</h4>
+                    <pre>${JSON.stringify(requestData, null, 2)}</pre>
+                    <h4>📥 Response Data:</h4>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `;
+
+                // Show first few FAQs for verification
+                if (data.faqs && data.faqs.length > 0) {
+                    log(`📝 Generated FAQs (showing first 3):`, 'info', 
+                        data.faqs.slice(0, 3).map((faq, i) => ({
+                            index: i + 1,
+                            question: faq.question,
+                            answer: faq.answer.substring(0, 100) + '...'
+                        }))
+                    );
+                }
+
+            } catch (error) {
+                log(`❌ Debug test failed: ${error.message}`, 'error', error);
+            }
+        }
+    </script>
+</body>
+</html>

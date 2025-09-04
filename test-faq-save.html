@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FAQ Save Diagnostic Tool</title>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #1a1a1a;
+            color: #ffffff;
+        }
+        .container {
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .status.info { background-color: #3b82f6; }
+        .status.success { background-color: #10b981; }
+        .status.error { background-color: #ef4444; }
+        .status.warning { background-color: #f59e0b; }
+        button {
+            background-color: #3b82f6;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background-color: #2563eb; }
+        button:disabled { background-color: #6b7280; cursor: not-allowed; }
+        .log {
+            background: #1a1a1a;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #374151;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #374151;
+            border-radius: 4px;
+            background: #1a1a1a;
+            color: #ffffff;
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 FAQ Save Diagnostic Tool</h1>
+    
+    <div class="container">
+        <h2>Current Status</h2>
+        <div id="status" class="status info">Ready to test...</div>
+    </div>
+
+    <div class="container">
+        <h2>Test Controls</h2>
+        <button onclick="testConnection()">1. Test Database Connection</button>
+        <button onclick="testAuth()">2. Test Authentication</button>
+        <button onclick="testUserSetup()">3. Test User Setup</button>
+        <button onclick="testFAQSave()">4. Test FAQ Save</button>
+        <button onclick="clearLog()">Clear Log</button>
+    </div>
+
+    <div class="container">
+        <h2>Test Data</h2>
+        <input type="text" id="testTitle" placeholder="Collection Title" value="Test FAQ Collection">
+        <textarea id="testFAQs" rows="4" placeholder="Test FAQs (JSON format)">
+[
+  {"question": "What is a test?", "answer": "A test is a procedure to verify functionality."},
+  {"question": "Why test?", "answer": "Testing ensures quality and reliability."}
+]
+        </textarea>
+    </div>
+
+    <div class="container">
+        <h2>Diagnostic Log</h2>
+        <div id="log" class="log">Waiting for tests to run...</div>
+    </div>
+
+    <script>
+        // Initialize Supabase client
+        const SUPABASE_URL = 'https://dlzshcshqjdghmtzlbma.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRsenNoY3NocWpkZ2htdHpsYm1hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTExODUzODgsImV4cCI6MjA2Njc2MTM4OH0.EL4By0nom419JiorSHKiFckLqnh1sqmFvYnWTylB9Gk';
+        
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        
+        function updateStatus(message, type = 'info') {
+            const statusEl = document.getElementById('status');
+            statusEl.innerHTML = `<strong>Status:</strong> ${message}`;
+            statusEl.className = `status ${type}`;
+        }
+        
+        function log(message) {
+            const logEl = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            logEl.textContent += `[${timestamp}] ${message}\n`;
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+        
+        function clearLog() {
+            document.getElementById('log').textContent = '';
+        }
+        
+        async function testConnection() {
+            updateStatus('Testing database connection...', 'info');
+            log('🔌 Testing database connection...');
+            
+            try {
+                const { data, error } = await supabase
+                    .from('profiles')
+                    .select('count')
+                    .limit(1);
+                
+                if (error) {
+                    log(`❌ Connection failed: ${error.message}`);
+                    updateStatus('Database connection failed', 'error');
+                    return false;
+                }
+                
+                log('✅ Database connection successful');
+                updateStatus('Database connection successful', 'success');
+                return true;
+            } catch (error) {
+                log(`❌ Connection error: ${error.message}`);
+                updateStatus('Database connection error', 'error');
+                return false;
+            }
+        }
+        
+        async function testAuth() {
+            updateStatus('Testing authentication...', 'info');
+            log('🔐 Testing authentication...');
+            
+            try {
+                const { data: { user }, error } = await supabase.auth.getUser();
+                
+                if (error) {
+                    log(`❌ Auth error: ${error.message}`);
+                    updateStatus('Authentication failed', 'error');
+                    return null;
+                }
+                
+                if (!user) {
+                    log('⚠️ No user logged in');
+                    updateStatus('No user logged in', 'warning');
+                    return null;
+                }
+                
+                log(`✅ User authenticated: ${user.email} (ID: ${user.id})`);
+                updateStatus('User authenticated successfully', 'success');
+                return user;
+            } catch (error) {
+                log(`❌ Auth test error: ${error.message}`);
+                updateStatus('Authentication test failed', 'error');
+                return null;
+            }
+        }
+        
+        async function testUserSetup() {
+            updateStatus('Testing user setup...', 'info');
+            log('👤 Testing user setup...');
+            
+            const user = await testAuth();
+            if (!user) {
+                log('❌ Cannot test user setup - no authenticated user');
+                return false;
+            }
+            
+            try {
+                // Check profile
+                log('Checking user profile...');
+                const { data: profile, error: profileError } = await supabase
+                    .from('profiles')
+                    .select('*')
+                    .eq('id', user.id)
+                    .single();
+                
+                if (profileError) {
+                    log(`❌ Profile check failed: ${profileError.message}`);
+                    return false;
+                }
+                
+                if (!profile) {
+                    log('⚠️ No profile found');
+                    return false;
+                }
+                
+                log(`✅ Profile found: ${profile.email}`);
+                
+                // Check subscription
+                log('Checking user subscription...');
+                const { data: subscription, error: subError } = await supabase
+                    .from('user_subscriptions')
+                    .select('*')
+                    .eq('user_id', user.id)
+                    .single();
+                
+                if (subError) {
+                    log(`❌ Subscription check failed: ${subError.message}`);
+                    return false;
+                }
+                
+                if (!subscription) {
+                    log('⚠️ No subscription found');
+                    return false;
+                }
+                
+                log(`✅ Subscription found: ${subscription.plan_tier} (Usage: ${subscription.faq_usage_current}/${subscription.faq_usage_limit})`);
+                updateStatus('User setup complete', 'success');
+                return true;
+                
+            } catch (error) {
+                log(`❌ User setup test error: ${error.message}`);
+                updateStatus('User setup test failed', 'error');
+                return false;
+            }
+        }
+        
+        async function testFAQSave() {
+            updateStatus('Testing FAQ save...', 'info');
+            log('💾 Testing FAQ save process...');
+            
+            const user = await testAuth();
+            if (!user) {
+                log('❌ Cannot test FAQ save - no authenticated user');
+                return false;
+            }
+            
+            const title = document.getElementById('testTitle').value.trim();
+            if (!title) {
+                log('❌ No collection title provided');
+                updateStatus('Collection title required', 'error');
+                return false;
+            }
+            
+            let faqs;
+            try {
+                faqs = JSON.parse(document.getElementById('testFAQs').value);
+            } catch (error) {
+                log('❌ Invalid FAQ JSON format');
+                updateStatus('Invalid FAQ format', 'error');
+                return false;
+            }
+            
+            try {
+                // Step 1: Create collection
+                log('Step 1: Creating FAQ collection...');
+                const { data: collection, error: collectionError } = await supabase
+                    .from('faq_collections')
+                    .insert({
+                        user_id: user.id,
+                        title: title,
+                        source_url: 'https://test.com',
+                        source_content: 'Test content',
+                        status: 'published'
+                    })
+                    .select('id')
+                    .single();
+                
+                if (collectionError) {
+                    log(`❌ Collection creation failed: ${collectionError.message}`);
+                    updateStatus('Collection creation failed', 'error');
+                    return false;
+                }
+                
+                log(`✅ Collection created with ID: ${collection.id}`);
+                
+                // Step 2: Insert FAQs
+                log('Step 2: Inserting FAQs...');
+                const faqsToInsert = faqs.map((faq, index) => ({
+                    collection_id: collection.id,
+                    question: faq.question,
+                    answer: faq.answer,
+                    order_index: index
+                }));
+                
+                const { error: faqsError } = await supabase
+                    .from('faqs')
+                    .insert(faqsToInsert);
+                
+                if (faqsError) {
+                    log(`❌ FAQ insertion failed: ${faqsError.message}`);
+                    updateStatus('FAQ insertion failed', 'error');
+                    return false;
+                }
+                
+                log(`✅ ${faqs.length} FAQs inserted successfully`);
+                
+                // Step 3: Update usage
+                log('Step 3: Updating usage count...');
+                const { data: usageResult, error: usageError } = await supabase.rpc('increment_faq_usage_by_count', {
+                    user_uuid: user.id,
+                    faq_count: faqs.length
+                });
+                
+                if (usageError) {
+                    log(`❌ Usage update failed: ${usageError.message}`);
+                    updateStatus('Usage update failed', 'error');
+                    return false;
+                }
+                
+                if (!usageResult) {
+                    log('❌ Usage update returned false - quota exceeded or subscription inactive');
+                    updateStatus('Usage quota exceeded', 'error');
+                    return false;
+                }
+                
+                log('✅ Usage count updated successfully');
+                log(`🎉 FAQ save test completed successfully! Collection ID: ${collection.id}`);
+                updateStatus('FAQ save test successful', 'success');
+                return true;
+                
+            } catch (error) {
+                log(`❌ FAQ save test error: ${error.message}`);
+                updateStatus('FAQ save test failed', 'error');
+                return false;
+            }
+        }
+        
+        // Auto-run connection test on load
+        window.addEventListener('load', () => {
+            setTimeout(testConnection, 1000);
+        });
+    </script>
+</body>
+</html>

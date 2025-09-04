@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Enhanced Content Extraction</title>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .warning { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        .info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #6c757d; cursor: not-allowed; }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .test-results {
+            margin-top: 20px;
+            max-height: 600px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 10px;
+            background: #f8f9fa;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .faq-result {
+            background: #e9ecef;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border-left: 4px solid #007bff;
+        }
+        .faq-question {
+            font-weight: bold;
+            color: #495057;
+            margin-bottom: 8px;
+        }
+        .faq-answer {
+            color: #6c757d;
+            line-height: 1.5;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧠 Test Enhanced Content Extraction</h1>
+        <p>This tool tests the enhanced content extraction that focuses on main article content and ignores author bios.</p>
+
+        <!-- Configuration Section -->
+        <div class="test-section">
+            <h3>📋 Configuration</h3>
+            <div>
+                <label>Supabase URL:</label>
+                <input type="text" id="supabaseUrl" placeholder="https://your-project.supabase.co">
+            </div>
+            <div>
+                <label>Supabase Anon Key:</label>
+                <input type="text" id="supabaseKey" placeholder="Your anon key">
+            </div>
+            <div>
+                <label>User Email (for login):</label>
+                <input type="email" id="userEmail" placeholder="your-email@example.com">
+            </div>
+            <div>
+                <label>User Password:</label>
+                <input type="password" id="userPassword" placeholder="your-password">
+            </div>
+            <button onclick="initializeAndLogin()">Initialize & Login</button>
+        </div>
+
+        <!-- Test URLs Section -->
+        <div class="test-section">
+            <h3>🧪 Test URLs</h3>
+            <div>
+                <label>Test URL (problematic article):</label>
+                <input type="text" id="testUrl" value="https://indianexpress.com/article/india/shubhanshu-shukla-returns-to-earth-after-20-days-in-space-10128252/?utm_source=firefox-newtab-en-intl" placeholder="Enter URL to test">
+            </div>
+            <button onclick="testContentExtraction()">Test Enhanced Content Extraction</button>
+            <button onclick="testMultipleUrls()">Test Multiple URLs</button>
+            <button onclick="testRedditUrl()">Test Reddit URL (Should Fail)</button>
+            <button onclick="testProblematicUrls()">Test Problematic URLs</button>
+        </div>
+
+        <!-- Results -->
+        <div class="test-results" id="results">
+            <div class="info">Test results will appear here...</div>
+        </div>
+    </div>
+
+    <script>
+        let supabase = null;
+        let testResults = [];
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            testResults.push({ timestamp, message, type });
+            updateResults();
+        }
+
+        function updateResults() {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = testResults.map(result => 
+                `<div class="${result.type}">[${result.timestamp}] ${result.message}</div>`
+            ).join('');
+            resultsDiv.scrollTop = resultsDiv.scrollHeight;
+        }
+
+        async function initializeAndLogin() {
+            const url = document.getElementById('supabaseUrl').value;
+            const key = document.getElementById('supabaseKey').value;
+            const email = document.getElementById('userEmail').value;
+            const password = document.getElementById('userPassword').value;
+
+            if (!url || !key || !email || !password) {
+                log('Please fill in all configuration fields', 'error');
+                return;
+            }
+
+            try {
+                supabase = window.supabase.createClient(url, key);
+                log('✅ Supabase client initialized', 'success');
+
+                // Login user
+                const { data, error } = await supabase.auth.signInWithPassword({
+                    email: email,
+                    password: password
+                });
+
+                if (error) {
+                    log(`❌ Login failed: ${error.message}`, 'error');
+                    return;
+                }
+
+                log(`✅ Logged in successfully as ${data.user.email}`, 'success');
+                log(`   User ID: ${data.user.id}`, 'info');
+
+            } catch (error) {
+                log(`❌ Initialization failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testContentExtraction() {
+            if (!supabase) {
+                log('❌ Please initialize and login first', 'error');
+                return;
+            }
+
+            const testUrl = document.getElementById('testUrl').value;
+            if (!testUrl) {
+                log('❌ Please enter a test URL', 'error');
+                return;
+            }
+
+            log(`🧪 Testing ULTRA-ENHANCED content extraction for: ${testUrl}`, 'info');
+
+            try {
+                const startTime = Date.now();
+
+                const { data, error } = await supabase.functions.invoke('analyze-content', {
+                    body: {
+                        type: 'url',
+                        url: testUrl
+                    }
+                });
+
+                const endTime = Date.now();
+                const duration = ((endTime - startTime) / 1000).toFixed(2);
+
+                if (error) {
+                    log(`❌ Content extraction failed: ${error.message}`, 'error');
+                    if (data && data.details) {
+                        log(`📋 Error details: ${data.details}`, 'error');
+                    }
+                    return;
+                }
+
+                if (data.error) {
+                    log(`❌ API returned error: ${data.message}`, 'error');
+                    if (data.details) {
+                        log(`📋 Error details: ${data.details}`, 'error');
+                    }
+                    return;
+                }
+
+                if (data.faqs && data.faqs.length > 0) {
+                    log(`✅ Successfully generated ${data.faqs.length} FAQs in ${duration}s`, 'success');
+                    log(`📊 Content length processed: ${data.contentLength} characters`, 'info');
+
+                    // Display FAQs
+                    data.faqs.forEach((faq, index) => {
+                        const faqHtml = `
+                            <div class="faq-result">
+                                <div class="faq-question">Q${index + 1}: ${faq.question}</div>
+                                <div class="faq-answer">A: ${faq.answer}</div>
+                            </div>
+                        `;
+                        document.getElementById('results').innerHTML += faqHtml;
+                    });
+
+                    // COMPREHENSIVE content quality analysis
+                    const authorKeywords = [
+                        'anonna', 'dutt', 'bachelor', 'journalism', 'university', 'symbiosis',
+                        'asian college', 'chennai', 'hindustan times', 'dart centre', 'columbia',
+                        'fellowship', 'correspondent', 'reporter', 'career', 'started her'
+                    ];
+
+                    const mainContentKeywords = [
+                        'shubhanshu', 'shukla', 'space', 'astronaut', 'axiom', 'iss',
+                        'international space station', 'mission', 'spacecraft', 'earth', 'gaganyaan'
+                    ];
+
+                    let authorContentFound = [];
+                    let mainContentFound = [];
+
+                    data.faqs.forEach((faq, index) => {
+                        const fullText = (faq.question + ' ' + faq.answer).toLowerCase();
+
+                        authorKeywords.forEach(keyword => {
+                            if (fullText.includes(keyword)) {
+                                authorContentFound.push(`FAQ ${index + 1}: "${keyword}"`);
+                            }
+                        });
+
+                        mainContentKeywords.forEach(keyword => {
+                            if (fullText.includes(keyword)) {
+                                mainContentFound.push(`FAQ ${index + 1}: "${keyword}"`);
+                            }
+                        });
+                    });
+
+                    // Report results
+                    if (authorContentFound.length > 0) {
+                        log(`🚨 CRITICAL ISSUE: Author content still detected!`, 'error');
+                        authorContentFound.forEach(item => log(`   - ${item}`, 'error'));
+                    } else {
+                        log('✅ EXCELLENT: No author biographical content detected!', 'success');
+                    }
+
+                    if (mainContentFound.length > 0) {
+                        log(`✅ PERFECT: Main article content detected!`, 'success');
+                        mainContentFound.slice(0, 3).forEach(item => log(`   - ${item}`, 'success'));
+                    } else {
+                        log('⚠️ CONCERN: No main article keywords detected', 'warning');
+                    }
+
+                    // Overall assessment
+                    if (authorContentFound.length === 0 && mainContentFound.length > 0) {
+                        log('🎉 OVERALL RESULT: CONTENT EXTRACTION WORKING PERFECTLY!', 'success');
+                    } else if (authorContentFound.length > 0) {
+                        log('❌ OVERALL RESULT: CONTENT EXTRACTION NEEDS MORE WORK', 'error');
+                    } else {
+                        log('⚠️ OVERALL RESULT: CONTENT EXTRACTION PARTIALLY WORKING', 'warning');
+                    }
+
+                } else {
+                    log('❌ No FAQs generated', 'error');
+                }
+
+            } catch (error) {
+                log(`❌ Test failed: ${error.message}`, 'error');
+                console.error('Full error:', error);
+            }
+        }
+
+        async function testMultipleUrls() {
+            if (!supabase) {
+                log('❌ Please initialize and login first', 'error');
+                return;
+            }
+
+            const testUrls = [
+                'https://indianexpress.com/article/india/shubhanshu-shukla-returns-to-earth-after-20-days-in-space-10128252/',
+                'https://www.groww.in/p/what-is-mutual-fund',
+                'https://example.com'
+            ];
+
+            log('🧪 Testing multiple URLs for content extraction quality...', 'info');
+
+            for (let i = 0; i < testUrls.length; i++) {
+                const url = testUrls[i];
+                log(`\n📍 Testing URL ${i + 1}/${testUrls.length}: ${url}`, 'info');
+
+                try {
+                    const { data, error } = await supabase.functions.invoke('analyze-content', {
+                        body: {
+                            type: 'url',
+                            url: url
+                        }
+                    });
+
+                    if (error) {
+                        log(`❌ Failed: ${error.message}`, 'error');
+                        continue;
+                    }
+
+                    if (data.faqs && data.faqs.length > 0) {
+                        log(`✅ Generated ${data.faqs.length} FAQs`, 'success');
+                        
+                        // Show first FAQ as sample
+                        log(`📝 Sample FAQ: ${data.faqs[0].question}`, 'info');
+                    } else {
+                        log(`❌ No FAQs generated`, 'error');
+                    }
+
+                } catch (error) {
+                    log(`❌ Error: ${error.message}`, 'error');
+                }
+
+                // Wait between requests
+                if (i < testUrls.length - 1) {
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                }
+            }
+
+            log('\n🎉 Multiple URL testing completed', 'success');
+        }
+
+        async function testRedditUrl() {
+            if (!supabase) {
+                log('❌ Please initialize and login first', 'error');
+                return;
+            }
+
+            const redditUrl = 'https://www.reddit.com/user/adobe/comments/1lea6lg/still_on_the_fence_about_getting_that_adobe/?p=1&impressionid=5436252630714216730';
+            log(`🧪 Testing Reddit URL (should fail gracefully): ${redditUrl}`, 'info');
+
+            try {
+                const { data, error } = await supabase.functions.invoke('analyze-content', {
+                    body: {
+                        type: 'url',
+                        url: redditUrl
+                    }
+                });
+
+                if (error) {
+                    log(`✅ EXPECTED: Reddit URL properly rejected - ${error.message}`, 'success');
+                } else if (data.error) {
+                    log(`✅ EXPECTED: Reddit URL properly rejected - ${data.message}`, 'success');
+                } else {
+                    log(`⚠️ UNEXPECTED: Reddit URL was processed (should be rejected)`, 'warning');
+                }
+
+            } catch (error) {
+                log(`✅ EXPECTED: Reddit URL properly rejected - ${error.message}`, 'success');
+            }
+        }
+
+        async function testProblematicUrls() {
+            if (!supabase) {
+                log('❌ Please initialize and login first', 'error');
+                return;
+            }
+
+            const problematicUrls = [
+                'https://www.reddit.com/user/adobe/comments/1lea6lg/still_on_the_fence_about_getting_that_adobe/?p=1&impressionid=5436252630714216730',
+                'https://facebook.com/some-page',
+                'https://twitter.com/some-user',
+                'https://instagram.com/some-profile',
+                'https://linkedin.com/in/some-profile'
+            ];
+
+            log('🧪 Testing problematic URLs (all should fail gracefully)...', 'info');
+
+            for (let i = 0; i < problematicUrls.length; i++) {
+                const url = problematicUrls[i];
+                const urlType = url.includes('reddit') ? 'Reddit' :
+                               url.includes('facebook') ? 'Facebook' :
+                               url.includes('twitter') ? 'Twitter' :
+                               url.includes('instagram') ? 'Instagram' : 'LinkedIn';
+
+                log(`\n📍 Testing ${urlType} URL: ${url}`, 'info');
+
+                try {
+                    const { data, error } = await supabase.functions.invoke('analyze-content', {
+                        body: {
+                            type: 'url',
+                            url: url
+                        }
+                    });
+
+                    if (error) {
+                        log(`✅ ${urlType} URL properly rejected: ${error.message}`, 'success');
+                    } else if (data.error) {
+                        log(`✅ ${urlType} URL properly rejected: ${data.message}`, 'success');
+                    } else {
+                        log(`⚠️ ${urlType} URL was processed (should be rejected)`, 'warning');
+                    }
+
+                } catch (error) {
+                    log(`✅ ${urlType} URL properly rejected: ${error.message}`, 'success');
+                }
+
+                // Wait between requests
+                if (i < problematicUrls.length - 1) {
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+            }
+
+            log('\n🎉 Problematic URL testing completed', 'success');
+        }
+
+        // Clear results
+        function clearResults() {
+            testResults = [];
+            updateResults();
+        }
+
+        // Add clear button
+        document.addEventListener('DOMContentLoaded', function() {
+            const container = document.querySelector('.container');
+            const clearButton = document.createElement('button');
+            clearButton.textContent = 'Clear Results';
+            clearButton.onclick = clearResults;
+            clearButton.style.background = '#6c757d';
+            container.appendChild(clearButton);
+        });
+    </script>
+</body>
+</html>

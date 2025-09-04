@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test FAQ Generation - FAQify</title>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f8fafc;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        .status {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            font-weight: 500;
+        }
+        .status.success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+        .status.error { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+        .status.warning { background: #fefce8; color: #ca8a04; border: 1px solid #fef08a; }
+        .status.info { background: #eff6ff; color: #2563eb; border: 1px solid #dbeafe; }
+        .btn {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px;
+            transition: background 0.2s;
+        }
+        .btn:hover { background: #2563eb; }
+        .btn:disabled { background: #9ca3af; cursor: not-allowed; }
+        .data-table {
+            background: #f9fafb;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 12px;
+            overflow-x: auto;
+        }
+        .form-group {
+            margin: 15px 0;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+        .form-group input, .form-group textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        .highlight { background: #fef3c7; padding: 2px 4px; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 FAQ Generation Test</h1>
+        <p>Test the complete FAQ generation flow with real data.</p>
+        
+        <div id="status-info"></div>
+        
+        <div class="form-group">
+            <label for="test-url">Test URL:</label>
+            <input type="text" id="test-url" value="https://example.com" placeholder="Enter a URL to test">
+        </div>
+        
+        <div class="form-group">
+            <label for="test-text">Test Text:</label>
+            <textarea id="test-text" rows="4" placeholder="Enter text content to test">Our company provides excellent customer service and support. We offer 24/7 help desk, live chat, and email support. Our team is dedicated to helping customers solve their problems quickly and efficiently.</textarea>
+        </div>
+        
+        <button class="btn" onclick="checkStatus()">🔍 Check Status</button>
+        <button class="btn" onclick="testURLGeneration()" id="url-btn">🌐 Test URL Generation</button>
+        <button class="btn" onclick="testTextGeneration()" id="text-btn">📝 Test Text Generation</button>
+        
+        <div id="test-results"></div>
+    </div>
+
+    <script>
+        const supabaseUrl = 'https://dlzshcshqjdghmtzlbma.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRsenNoY3NocWpkZ2htdHpsYm1hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTExODUzODgsImV4cCI6MjA2Njc2MTM4OH0.EL4By0nom419JiorSHKiFckLqnh1sqmFvYnWTylB9Gk';
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+        let currentUser = null;
+        let subscription = null;
+
+        async function checkStatus() {
+            const statusDiv = document.getElementById('status-info');
+            const resultsDiv = document.getElementById('test-results');
+            
+            statusDiv.innerHTML = '<div class="status info">🔍 Checking current status...</div>';
+            resultsDiv.innerHTML = '';
+
+            try {
+                // Get current user
+                const { data: { user }, error: userError } = await supabase.auth.getUser();
+                if (userError || !user) {
+                    statusDiv.innerHTML = '<div class="status error">❌ Please sign in first</div>';
+                    return;
+                }
+                currentUser = user;
+
+                // Get subscription
+                const { data: subData, error: subError } = await supabase
+                    .from('user_subscriptions')
+                    .select('*')
+                    .eq('user_id', user.id)
+                    .single();
+
+                if (subError) {
+                    statusDiv.innerHTML = `<div class="status error">❌ Subscription error: ${subError.message}</div>`;
+                    return;
+                }
+                subscription = subData;
+
+                // Check if can generate FAQs
+                const { data: canGenerate, error: canGenError } = await supabase.rpc('can_generate_faqs', {
+                    user_uuid: user.id,
+                    faq_count: 1
+                });
+
+                const remainingUsage = subscription.faq_usage_limit - subscription.faq_usage_current;
+                const canCreateFAQ = subscription.faq_usage_current < subscription.faq_usage_limit;
+                const shouldShowUpgrade = remainingUsage <= 2;
+
+                let html = `
+                    <div class="status ${canCreateFAQ ? 'success' : 'error'}">
+                        <strong>📊 Current Status</strong><br>
+                        User: ${user.email}<br>
+                        Plan: <span class="highlight">${subscription.plan_tier}</span><br>
+                        Status: <span class="highlight">${subscription.status}</span><br>
+                        Usage: <span class="highlight">${subscription.faq_usage_current}/${subscription.faq_usage_limit}</span><br>
+                        Remaining: <span class="highlight">${remainingUsage}</span><br>
+                        Can Create FAQ: <span class="highlight">${canCreateFAQ ? 'YES' : 'NO'}</span><br>
+                        Show Upgrade: <span class="highlight">${shouldShowUpgrade ? 'YES' : 'NO'}</span><br>
+                        DB Function Result: <span class="highlight">${canGenerate?.can_generate ? 'YES' : 'NO'}</span>
+                    </div>
+                `;
+
+                statusDiv.innerHTML = html;
+
+                // Enable/disable buttons based on status
+                document.getElementById('url-btn').disabled = !canCreateFAQ;
+                document.getElementById('text-btn').disabled = !canCreateFAQ;
+
+            } catch (error) {
+                statusDiv.innerHTML = `<div class="status error">❌ Status check failed: ${error.message}</div>`;
+            }
+        }
+
+        async function testURLGeneration() {
+            const resultsDiv = document.getElementById('test-results');
+            const url = document.getElementById('test-url').value.trim();
+            
+            if (!url) {
+                resultsDiv.innerHTML = '<div class="status error">❌ Please enter a URL</div>';
+                return;
+            }
+
+            resultsDiv.innerHTML = '<div class="status info">🌐 Testing URL FAQ generation...</div>';
+
+            try {
+                // Test the analyze-content edge function
+                const { data, error } = await supabase.functions.invoke('analyze-content', {
+                    body: {
+                        url: url,
+                        type: 'url'
+                    }
+                });
+
+                if (error) {
+                    resultsDiv.innerHTML = `<div class="status error">❌ URL generation failed: ${error.message}</div>`;
+                    return;
+                }
+
+                let html = `
+                    <div class="container">
+                        <h3>🌐 URL Generation Results</h3>
+                        <div class="data-table">
+                            URL: ${url}<br>
+                            Status: ${data ? 'Success' : 'Failed'}<br>
+                            FAQs Generated: ${data?.faqs?.length || 0}
+                        </div>
+                `;
+
+                if (data?.faqs && data.faqs.length > 0) {
+                    html += '<h4>Generated FAQs:</h4>';
+                    data.faqs.forEach((faq, index) => {
+                        html += `
+                            <div class="data-table">
+                                <strong>Q${index + 1}:</strong> ${faq.question}<br>
+                                <strong>A:</strong> ${faq.answer}
+                            </div>
+                        `;
+                    });
+                }
+
+                html += '</div>';
+                resultsDiv.innerHTML = html;
+
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="status error">❌ URL generation exception: ${error.message}</div>`;
+            }
+        }
+
+        async function testTextGeneration() {
+            const resultsDiv = document.getElementById('test-results');
+            const text = document.getElementById('test-text').value.trim();
+            
+            if (!text) {
+                resultsDiv.innerHTML = '<div class="status error">❌ Please enter text content</div>';
+                return;
+            }
+
+            resultsDiv.innerHTML = '<div class="status info">📝 Testing text FAQ generation...</div>';
+
+            try {
+                // Test the analyze-content edge function
+                const { data, error } = await supabase.functions.invoke('analyze-content', {
+                    body: {
+                        text: text,
+                        type: 'text'
+                    }
+                });
+
+                if (error) {
+                    resultsDiv.innerHTML = `<div class="status error">❌ Text generation failed: ${error.message}</div>`;
+                    return;
+                }
+
+                let html = `
+                    <div class="container">
+                        <h3>📝 Text Generation Results</h3>
+                        <div class="data-table">
+                            Text Length: ${text.length} characters<br>
+                            Status: ${data ? 'Success' : 'Failed'}<br>
+                            FAQs Generated: ${data?.faqs?.length || 0}
+                        </div>
+                `;
+
+                if (data?.faqs && data.faqs.length > 0) {
+                    html += '<h4>Generated FAQs:</h4>';
+                    data.faqs.forEach((faq, index) => {
+                        html += `
+                            <div class="data-table">
+                                <strong>Q${index + 1}:</strong> ${faq.question}<br>
+                                <strong>A:</strong> ${faq.answer}
+                            </div>
+                        `;
+                    });
+                }
+
+                html += '</div>';
+                resultsDiv.innerHTML = html;
+
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="status error">❌ Text generation exception: ${error.message}</div>`;
+            }
+        }
+
+        // Auto-check status on page load
+        window.addEventListener('load', () => {
+            setTimeout(checkStatus, 1000);
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Update Current User to Pro - FAQify</title>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f8fafc;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        .status {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            font-weight: 500;
+        }
+        .status.success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+        .status.error { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+        .status.warning { background: #fefce8; color: #ca8a04; border: 1px solid #fef08a; }
+        .status.info { background: #eff6ff; color: #2563eb; border: 1px solid #dbeafe; }
+        .btn {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px;
+            transition: background 0.2s;
+        }
+        .btn:hover { background: #2563eb; }
+        .data-table {
+            background: #f9fafb;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 12px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+        }
+        .auth-info {
+            background: #f0f9ff;
+            border: 1px solid #0ea5e9;
+            color: #0c4a6e;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Update Current User to Pro Plan</h1>
+        <p>This will update your currently signed-in account to Pro plan (100 FAQs/month).</p>
+        
+        <div class="auth-info">
+            <strong>📋 Instructions:</strong><br>
+            1. Make sure you're signed in to your dashboard in another tab<br>
+            2. Click "Update to Pro Plan" below<br>
+            3. Refresh your dashboard to see the changes
+        </div>
+        
+        <button class="btn" onclick="updateCurrentUserToPro()">🚀 Update to Pro Plan</button>
+        <button class="btn" onclick="checkCurrentUser()">👤 Check Current User</button>
+        
+        <div id="results"></div>
+    </div>
+
+    <script>
+        const supabaseUrl = 'https://dlzshcshqjdghmtzlbma.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRsenNoY3NocWpkZ2htdHpsYm1hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTExODUzODgsImV4cCI6MjA2Njc2MTM4OH0.EL4By0nom419JiorSHKiFckLqnh1sqmFvYnWTylB9Gk';
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+        function updateResults(html) {
+            document.getElementById('results').innerHTML = html;
+        }
+
+        async function checkCurrentUser() {
+            updateResults('<div class="status info">👤 Checking current user...</div>');
+
+            try {
+                // Get current user
+                const { data: { user }, error: userError } = await supabase.auth.getUser();
+                if (userError || !user) {
+                    updateResults('<div class="status error">❌ No user signed in. Please sign in to your dashboard first.</div>');
+                    return;
+                }
+
+                let html = `
+                    <div class="container">
+                        <h3>👤 Current User Information</h3>
+                        <div class="data-table">
+User ID: ${user.id}
+Email: ${user.email}
+Created: ${user.created_at}
+                        </div>
+                `;
+
+                // Check current subscription
+                const { data: subscription, error: subError } = await supabase
+                    .from('user_subscriptions')
+                    .select('*')
+                    .eq('user_id', user.id)
+                    .single();
+
+                html += `
+                        <h4>Current Subscription:</h4>
+                        <div class="data-table">
+${subscription ? `Plan: ${subscription.plan_tier}
+Usage: ${subscription.faq_usage_current}/${subscription.faq_usage_limit}
+Status: ${subscription.status}
+Last Reset: ${subscription.last_reset_date || 'N/A'}
+Updated: ${subscription.updated_at || 'N/A'}` : `Error: ${subError?.message || 'No subscription found'}`}
+                        </div>
+                    </div>
+                `;
+
+                updateResults(html);
+
+            } catch (error) {
+                updateResults(`<div class="status error">❌ Exception: ${error.message}</div>`);
+            }
+        }
+
+        async function updateCurrentUserToPro() {
+            updateResults('<div class="status info">🚀 Updating current user to Pro plan...</div>');
+
+            try {
+                // Get current user
+                const { data: { user }, error: userError } = await supabase.auth.getUser();
+                if (userError || !user) {
+                    updateResults('<div class="status error">❌ No user signed in. Please sign in to your dashboard first.</div>');
+                    return;
+                }
+
+                let html = `
+                    <div class="container">
+                        <h3>🚀 Pro Plan Update Process</h3>
+                        <div class="status info">Updating user: ${user.email}</div>
+                `;
+
+                // Step 1: Check if subscription exists
+                html += '<h4>Step 1: Check Current Subscription</h4>';
+                const { data: existingSub, error: checkError } = await supabase
+                    .from('user_subscriptions')
+                    .select('*')
+                    .eq('user_id', user.id)
+                    .single();
+
+                if (checkError && checkError.code === 'PGRST116') {
+                    // No subscription exists, create Pro subscription
+                    html += '<div class="status warning">No subscription found, creating Pro subscription...</div>';
+                    
+                    const { data: newSub, error: createError } = await supabase
+                        .from('user_subscriptions')
+                        .insert({
+                            user_id: user.id,
+                            plan_tier: 'Pro',
+                            faq_usage_limit: 100,
+                            faq_usage_current: 0,
+                            status: 'active',
+                            last_reset_date: new Date().toISOString().split('T')[0]
+                        })
+                        .select()
+                        .single();
+
+                    if (createError) {
+                        html += `<div class="status error">❌ Failed to create Pro subscription: ${createError.message}</div>`;
+                        updateResults(html + '</div>');
+                        return;
+                    } else {
+                        html += `<div class="status success">✅ Pro subscription created successfully</div>`;
+                    }
+                } else if (checkError) {
+                    html += `<div class="status error">❌ Error checking subscription: ${checkError.message}</div>`;
+                    updateResults(html + '</div>');
+                    return;
+                } else {
+                    // Subscription exists, update to Pro
+                    html += '<div class="status info">Existing subscription found, updating to Pro...</div>';
+                    
+                    const { data: updatedSub, error: updateError } = await supabase
+                        .from('user_subscriptions')
+                        .update({
+                            plan_tier: 'Pro',
+                            faq_usage_limit: 100,
+                            faq_usage_current: 0, // Reset usage for new plan
+                            status: 'active',
+                            updated_at: new Date().toISOString()
+                        })
+                        .eq('user_id', user.id)
+                        .select()
+                        .single();
+
+                    if (updateError) {
+                        html += `<div class="status error">❌ Failed to update to Pro: ${updateError.message}</div>`;
+                        updateResults(html + '</div>');
+                        return;
+                    } else {
+                        html += `<div class="status success">✅ Subscription updated to Pro successfully</div>`;
+                    }
+                }
+
+                // Step 2: Verify the changes
+                html += '<h4>Step 2: Verify Pro Plan Assignment</h4>';
+                const { data: finalSub, error: verifyError } = await supabase
+                    .from('user_subscriptions')
+                    .select('*')
+                    .eq('user_id', user.id)
+                    .single();
+
+                if (verifyError) {
+                    html += `<div class="status error">❌ Verification failed: ${verifyError.message}</div>`;
+                } else {
+                    html += `
+                        <div class="status success">✅ Pro plan assignment verified!</div>
+                        <div class="data-table">
+Final Subscription Status:
+Plan: ${finalSub.plan_tier}
+Usage: ${finalSub.faq_usage_current}/${finalSub.faq_usage_limit}
+Status: ${finalSub.status}
+Updated: ${finalSub.updated_at}
+                        </div>
+                    `;
+                }
+
+                html += `
+                        <div class="status info">
+                            <strong>🔄 Please refresh your dashboard now!</strong><br>
+                            You should see Pro plan with 0/100 FAQs.<br>
+                            You can now test FAQ generation with the Pro plan limits.
+                        </div>
+                    </div>
+                `;
+
+                updateResults(html);
+
+            } catch (error) {
+                updateResults(`<div class="status error">❌ Exception: ${error.message}</div>`);
+            }
+        }
+
+        // Auto-check current user on page load
+        window.addEventListener('load', () => {
+            setTimeout(checkCurrentUser, 1000);
+        });
+    </script>
+</body>
+</html>

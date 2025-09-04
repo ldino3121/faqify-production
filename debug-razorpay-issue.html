@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Razorpay Issue</title>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .warning { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        .info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #6c757d; cursor: not-allowed; }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .test-results {
+            margin-top: 20px;
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 10px;
+            background: #f8f9fa;
+        }
+        input {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Debug Razorpay Payment Issue</h1>
+        <p>This tool helps debug the "Failed to start payment process" error.</p>
+
+        <!-- Configuration Section -->
+        <div class="test-section">
+            <h3>📋 Configuration</h3>
+            <div>
+                <label>Supabase URL:</label>
+                <input type="text" id="supabaseUrl" placeholder="https://your-project.supabase.co">
+            </div>
+            <div>
+                <label>Supabase Anon Key:</label>
+                <input type="text" id="supabaseKey" placeholder="Your anon key">
+            </div>
+            <div>
+                <label>User Email (for login):</label>
+                <input type="email" id="userEmail" placeholder="your-email@example.com">
+            </div>
+            <div>
+                <label>User Password:</label>
+                <input type="password" id="userPassword" placeholder="your-password">
+            </div>
+            <button onclick="initializeAndLogin()">Initialize & Login</button>
+        </div>
+
+        <!-- Debug Tests -->
+        <div class="test-section">
+            <h3>🔍 Debug Tests</h3>
+            <button onclick="testDatabasePlans()">1. Check Database Plans</button>
+            <button onclick="testRazorpayOrder()">2. Test Razorpay Order Creation</button>
+            <button onclick="testEnvironmentVars()">3. Test Environment Variables</button>
+            <button onclick="testFullFlow()">4. Test Complete Flow</button>
+        </div>
+
+        <!-- Results -->
+        <div class="test-results" id="results">
+            <div class="info">Debug results will appear here...</div>
+        </div>
+    </div>
+
+    <script>
+        let supabase = null;
+        let testResults = [];
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            testResults.push({ timestamp, message, type });
+            updateResults();
+        }
+
+        function updateResults() {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = testResults.map(result => 
+                `<div class="${result.type}">[${result.timestamp}] ${result.message}</div>`
+            ).join('');
+            resultsDiv.scrollTop = resultsDiv.scrollHeight;
+        }
+
+        async function initializeAndLogin() {
+            const url = document.getElementById('supabaseUrl').value;
+            const key = document.getElementById('supabaseKey').value;
+            const email = document.getElementById('userEmail').value;
+            const password = document.getElementById('userPassword').value;
+
+            if (!url || !key || !email || !password) {
+                log('Please fill in all configuration fields', 'error');
+                return;
+            }
+
+            try {
+                supabase = window.supabase.createClient(url, key);
+                log('✅ Supabase client initialized', 'success');
+
+                // Login user
+                const { data, error } = await supabase.auth.signInWithPassword({
+                    email: email,
+                    password: password
+                });
+
+                if (error) {
+                    log(`❌ Login failed: ${error.message}`, 'error');
+                    return;
+                }
+
+                log(`✅ Logged in successfully as ${data.user.email}`, 'success');
+                log(`   User ID: ${data.user.id}`, 'info');
+
+            } catch (error) {
+                log(`❌ Initialization failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testDatabasePlans() {
+            if (!supabase) {
+                log('❌ Please initialize and login first', 'error');
+                return;
+            }
+
+            log('🔍 Testing database plans...', 'info');
+
+            try {
+                const { data: plans, error } = await supabase
+                    .from('subscription_plans')
+                    .select('*');
+
+                if (error) {
+                    log(`❌ Database error: ${error.message}`, 'error');
+                    return;
+                }
+
+                log(`✅ Found ${plans.length} plans in database:`, 'success');
+                plans.forEach(plan => {
+                    log(`   - ${plan.name}: $${plan.price_monthly/100}/month (${plan.faq_limit} FAQs)`, 'info');
+                });
+
+                // Check for Business plan specifically
+                const businessPlan = plans.find(p => p.name === 'Business');
+                if (businessPlan) {
+                    log(`✅ Business plan found with correct name`, 'success');
+                    log(`   Price: $${businessPlan.price_monthly/100}`, 'info');
+                    log(`   FAQ Limit: ${businessPlan.faq_limit}`, 'info');
+                } else {
+                    log(`❌ Business plan not found!`, 'error');
+                    log(`   Available plan names: ${plans.map(p => p.name).join(', ')}`, 'warning');
+                }
+
+            } catch (error) {
+                log(`❌ Database test failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testRazorpayOrder() {
+            if (!supabase) {
+                log('❌ Please initialize and login first', 'error');
+                return;
+            }
+
+            log('🔍 Testing Razorpay order creation...', 'info');
+
+            try {
+                const { data, error } = await supabase.functions.invoke('create-razorpay-order', {
+                    body: {
+                        planId: 'Business',
+                        currency: 'usd',
+                        userCountry: 'US'
+                    }
+                });
+
+                if (error) {
+                    log(`❌ Function error: ${error.message}`, 'error');
+                    log(`   Error details: ${JSON.stringify(error, null, 2)}`, 'error');
+                    return;
+                }
+
+                if (data.success) {
+                    log('✅ Razorpay order created successfully!', 'success');
+                    log(`   Order ID: ${data.order.id}`, 'info');
+                    log(`   Amount: ${data.order.amount} ${data.order.currency}`, 'info');
+                    log(`   Plan: ${data.plan.name}`, 'info');
+                } else {
+                    log(`❌ Order creation failed: ${data.error}`, 'error');
+                    if (data.details) {
+                        log(`   Details: ${data.details}`, 'error');
+                    }
+                    if (data.availablePlans) {
+                        log(`   Available plans: ${data.availablePlans.join(', ')}`, 'warning');
+                    }
+                }
+
+            } catch (error) {
+                log(`❌ Razorpay test failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testEnvironmentVars() {
+            if (!supabase) {
+                log('❌ Please initialize and login first', 'error');
+                return;
+            }
+
+            log('🔍 Testing environment variables...', 'info');
+
+            try {
+                // Create a simple test function call to check env vars
+                const { data, error } = await supabase.functions.invoke('create-razorpay-order', {
+                    body: {
+                        planId: 'NonExistentPlan', // This will fail but show us env var status
+                        currency: 'usd',
+                        userCountry: 'US'
+                    }
+                });
+
+                if (error) {
+                    if (error.message.includes('Razorpay configuration missing')) {
+                        log('❌ Razorpay environment variables not configured!', 'error');
+                        log('   Please set RAZORPAY_KEY_ID and RAZORPAY_SECRET_KEY', 'warning');
+                    } else {
+                        log(`✅ Environment variables seem to be configured`, 'success');
+                        log(`   Error was about plan lookup, not env vars`, 'info');
+                    }
+                } else if (data.error && data.error.includes('configuration missing')) {
+                    log('❌ Razorpay environment variables not configured!', 'error');
+                } else {
+                    log('✅ Environment variables are configured', 'success');
+                }
+
+            } catch (error) {
+                log(`❌ Environment test failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testFullFlow() {
+            if (!supabase) {
+                log('❌ Please initialize and login first', 'error');
+                return;
+            }
+
+            log('🔍 Testing complete payment flow...', 'info');
+
+            // Test 1: Check user subscription
+            try {
+                const { data: subscription, error: subError } = await supabase
+                    .from('user_subscriptions')
+                    .select('*')
+                    .single();
+
+                if (subError) {
+                    log(`❌ User subscription error: ${subError.message}`, 'error');
+                } else {
+                    log(`✅ Current plan: ${subscription.plan_tier}`, 'success');
+                    log(`   Usage: ${subscription.faq_usage_current}/${subscription.faq_usage_limit}`, 'info');
+                }
+            } catch (error) {
+                log(`❌ Subscription check failed: ${error.message}`, 'error');
+            }
+
+            // Test 2: Try to create order for each plan
+            const plansToTest = ['Pro', 'Business'];
+            
+            for (const planName of plansToTest) {
+                log(`🔍 Testing ${planName} plan order creation...`, 'info');
+                
+                try {
+                    const { data, error } = await supabase.functions.invoke('create-razorpay-order', {
+                        body: {
+                            planId: planName,
+                            currency: 'usd',
+                            userCountry: 'US'
+                        }
+                    });
+
+                    if (error) {
+                        log(`❌ ${planName} order failed: ${error.message}`, 'error');
+                    } else if (data.success) {
+                        log(`✅ ${planName} order created successfully`, 'success');
+                    } else {
+                        log(`❌ ${planName} order failed: ${data.error}`, 'error');
+                    }
+                } catch (error) {
+                    log(`❌ ${planName} test failed: ${error.message}`, 'error');
+                }
+            }
+        }
+
+        // Clear results
+        function clearResults() {
+            testResults = [];
+            updateResults();
+        }
+
+        // Add clear button
+        document.addEventListener('DOMContentLoaded', function() {
+            const container = document.querySelector('.container');
+            const clearButton = document.createElement('button');
+            clearButton.textContent = 'Clear Results';
+            clearButton.onclick = clearResults;
+            clearButton.style.background = '#6c757d';
+            container.appendChild(clearButton);
+        });
+    </script>
+</body>
+</html>

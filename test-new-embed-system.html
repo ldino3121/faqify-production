@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚀 New Self-Contained Embed System Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .status {
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        .warning { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        .embed-code {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 5px;
+            padding: 15px;
+            font-family: monospace;
+            font-size: 11px;
+            white-space: pre-wrap;
+            overflow-x: auto;
+            margin: 10px 0;
+            max-height: 300px;
+        }
+        .copy-btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .copy-btn:hover { background: #0056b3; }
+        .widget-container {
+            border: 2px dashed #007bff;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            background: #f8f9ff;
+            min-height: 100px;
+        }
+        .test-section {
+            margin: 30px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        h1 { color: #333; text-align: center; }
+        h3 { color: #007bff; border-bottom: 2px solid #007bff; padding-bottom: 5px; }
+        h4 { color: #28a745; }
+    </style>
+</head>
+<body>
+    <h1>🚀 New Self-Contained Embed System Test</h1>
+    
+    <div class="container">
+        <h3>✅ Production-Ready Embed Code</h3>
+        <p><strong>Collection ID:</strong> 97d2aa8e-0ec8-4845-b11f-7b16390251cd</p>
+        <p>This is the new self-contained embed code that your FAQify tool will generate:</p>
+        
+        <div class="embed-code" id="new-embed-code">
+<!-- 🚀 FAQify Widget - Production Ready (No External Dependencies) -->
+<div id="faqify-widget-97d2aa8e" style="font-family: Arial, sans-serif; max-width: 100%; margin: 0 auto;"></div>
+<script>
+(function() {
+  'use strict';
+  
+  // Configuration
+  const config = {
+    collectionId: '97d2aa8e-0ec8-4845-b11f-7b16390251cd',
+    theme: 'light',
+    showPoweredBy: true,
+    animation: true,
+    collapsible: true,
+    apiUrl: 'https://dlzshcshqjdghmtzlbma.supabase.co'
+  };
+  
+  const container = document.getElementById('faqify-widget-97d2aa8e');
+  if (!container) {
+    console.error('FAQify: Container not found');
+    return;
+  }
+  
+  // Theme styles
+  const styles = `
+      .faqify-widget {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        line-height: 1.6;
+        color: #333;
+      }
+      .faqify-container {
+        max-width: 100%;
+      }
+      .faqify-item {
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        margin-bottom: 10px;
+        overflow: hidden;
+        background: #fff;
+      }
+      .faqify-question {
+        padding: 15px;
+        cursor: pointer;
+        font-weight: 600;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        user-select: none;
+        transition: background-color 0.2s ease;
+      }
+      .faqify-question:hover {
+        background-color: #f8f9fa;
+      }
+      .faqify-question-text {
+        flex: 1;
+        margin-right: 10px;
+      }
+      .faqify-icon {
+        font-size: 12px;
+        transition: transform 0.3s ease;
+        color: #666;
+      }
+      .faqify-answer {
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.3s ease;
+      }
+      .faqify-answer.expanded {
+        max-height: 1000px;
+      }
+      .faqify-answer-content {
+        padding: 15px;
+        color: #555;
+        border-top: 1px solid #f0f0f0;
+      }
+      .faqify-powered-by {
+        text-align: center;
+        margin-top: 20px;
+        font-size: 12px;
+        color: #888;
+      }
+      .faqify-link {
+        color: #007bff;
+        text-decoration: none;
+      }
+      .faqify-link:hover {
+        text-decoration: underline;
+      }
+      .faqify-loading, .faqify-error, .faqify-empty {
+        padding: 20px;
+        text-align: center;
+        color: #666;
+        font-style: italic;
+      }
+      .faqify-error {
+        color: #d32f2f;
+      }
+        .faqify-widget.theme-light .faqify-question {
+          background-color: #f8f9fa;
+        }
+        .faqify-widget.theme-light .faqify-question:hover {
+          background-color: #e9ecef;
+        }
+  `;
+  
+  // Inject styles
+  if (!document.getElementById('faqify-styles-light')) {
+    const styleSheet = document.createElement('style');
+    styleSheet.id = 'faqify-styles-light';
+    styleSheet.textContent = styles;
+    document.head.appendChild(styleSheet);
+  }
+  
+  // Show loading state
+  container.innerHTML = '<div class="faqify-loading">Loading FAQs...</div>';
+  
+  // Fetch and render FAQs
+  fetch(`${config.apiUrl}/functions/v1/get-faq-widget?collection_id=${config.collectionId}`)
+    .then(response => {
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      return response.json();
+    })
+    .then(data => {
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
+      renderWidget(container, data, config);
+    })
+    .catch(error => {
+      console.error('FAQify Error:', error);
+      container.innerHTML = '<div class="faqify-error">Failed to load FAQs. Please try again later.</div>';
+    });
+  
+  // Render widget function
+  function renderWidget(container, data, config) {
+    const faqs = data.faqs || [];
+    
+    if (faqs.length === 0) {
+      container.innerHTML = '<div class="faqify-empty">No FAQs available.</div>';
+      return;
+    }
+    
+    const faqsHtml = faqs.map((faq, index) => `
+      <div class="faqify-item">
+        <div class="faqify-question" onclick="toggleFAQ_${config.collectionId.replace(/-/g, '_')}(${index})" data-index="${index}">
+          <span class="faqify-question-text">${escapeHtml(faq.question)}</span>
+          <span class="faqify-icon" id="icon_${config.collectionId.replace(/-/g, '_')}_${index}">▼</span>
+        </div>
+        <div class="faqify-answer" id="answer_${config.collectionId.replace(/-/g, '_')}_${index}">
+          <div class="faqify-answer-content">${escapeHtml(faq.answer)}</div>
+        </div>
+      </div>
+    `).join('');
+    
+    const poweredByHtml = config.showPoweredBy ? 
+      '<div class="faqify-powered-by">Powered by <a href="#" class="faqify-link">FAQify</a></div>' : '';
+    
+    container.innerHTML = `
+      <div class="faqify-widget theme-${config.theme}">
+        <div class="faqify-container">
+          ${faqsHtml}
+          ${poweredByHtml}
+        </div>
+      </div>
+    `;
+    
+    // Add toggle functionality
+    window[`toggleFAQ_${config.collectionId.replace(/-/g, '_')}`] = function(index) {
+      const answer = document.getElementById(`answer_${config.collectionId.replace(/-/g, '_')}_${index}`);
+      const icon = document.getElementById(`icon_${config.collectionId.replace(/-/g, '_')}_${index}`);
+      
+      if (!answer || !icon) return;
+      
+      const isExpanded = answer.classList.contains('expanded');
+      
+      if (config.animation) {
+        answer.style.transition = 'all 0.3s ease';
+        icon.style.transition = 'transform 0.3s ease';
+      }
+      
+      if (isExpanded) {
+        answer.classList.remove('expanded');
+        icon.style.transform = 'rotate(0deg)';
+      } else {
+        answer.classList.add('expanded');
+        icon.style.transform = 'rotate(180deg)';
+      }
+    };
+  }
+  
+  // Escape HTML to prevent XSS
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+  
+})();
+</script>
+        </div>
+        <button class="copy-btn" onclick="copyNewEmbedCode()">📋 Copy New Embed Code</button>
+        
+        <div class="test-section">
+            <h4>🎯 Live Widget Test</h4>
+            <p>Testing the new self-contained widget:</p>
+            <div class="widget-container" id="widget-test-area">
+                <!-- Widget will be loaded here by the script above -->
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <h3>🎉 Benefits of New System</h3>
+        <div class="status success">
+            <strong>✅ Self-Contained:</strong> No external dependencies<br>
+            <strong>✅ Always Works:</strong> No CDN or hosting issues<br>
+            <strong>✅ Professional Styling:</strong> Beautiful, responsive design<br>
+            <strong>✅ Elementor Compatible:</strong> Works in any HTML widget<br>
+            <strong>✅ Production Ready:</strong> Perfect for client testing<br>
+            <strong>✅ Customizable:</strong> Supports themes and options
+        </div>
+    </div>
+    
+    <script>
+        function copyNewEmbedCode() {
+            const embedCode = document.getElementById('new-embed-code').textContent;
+            navigator.clipboard.writeText(embedCode).then(() => {
+                alert('✅ New embed code copied! This is what your FAQify tool will now generate.');
+            }).catch(() => {
+                alert('❌ Failed to copy. Please copy manually.');
+            });
+        }
+
+        // The widget script above will automatically run and load the FAQs
+        console.log('🚀 New embed system test page loaded');
+    </script>
+</body>
+</html>

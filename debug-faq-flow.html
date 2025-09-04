@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug FAQ Flow - FAQify</title>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f8fafc;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        .status {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            font-weight: 500;
+        }
+        .status.success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+        .status.error { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+        .status.warning { background: #fefce8; color: #ca8a04; border: 1px solid #fef08a; }
+        .status.info { background: #eff6ff; color: #2563eb; border: 1px solid #dbeafe; }
+        .btn {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px;
+            transition: background 0.2s;
+        }
+        .btn:hover { background: #2563eb; }
+        .btn.danger { background: #dc2626; }
+        .btn.danger:hover { background: #b91c1c; }
+        .data-table {
+            background: #f9fafb;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 12px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .step {
+            border-left: 4px solid #3b82f6;
+            padding-left: 15px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Debug Complete FAQ Flow</h1>
+        <p>Test the entire FAQ generation and storage pipeline to find where the issue occurs.</p>
+        
+        <button class="btn" onclick="testCompleteFlow()">🚀 Test Complete FAQ Flow</button>
+        <button class="btn" onclick="checkExistingCollections()">📋 Check Existing Collections</button>
+        <button class="btn danger" onclick="cleanupTestData()">🧹 Cleanup Test Data</button>
+        
+        <div id="results"></div>
+    </div>
+
+    <script>
+        const supabaseUrl = 'https://dlzshcshqjdghmtzlbma.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRsenNoY3NocWpkZ2htdHpsYm1hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTExODUzODgsImV4cCI6MjA2Njc2MTM4OH0.EL4By0nom419JiorSHKiFckLqnh1sqmFvYnWTylB9Gk';
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+        function updateResults(html) {
+            document.getElementById('results').innerHTML = html;
+        }
+
+        function log(message) {
+            console.log(message);
+        }
+
+        async function testCompleteFlow() {
+            updateResults('<div class="status info">🚀 Starting complete FAQ flow test...</div>');
+
+            try {
+                // Get current user
+                const { data: { user }, error: userError } = await supabase.auth.getUser();
+                if (userError || !user) {
+                    updateResults('<div class="status error">❌ Please sign in first</div>');
+                    return;
+                }
+
+                let html = `
+                    <div class="container">
+                        <h3>🚀 Complete FAQ Flow Test</h3>
+                        <div class="status info">User: ${user.email}</div>
+                `;
+
+                // Step 1: Generate FAQs from PRNewswire URL
+                html += `
+                    <div class="step">
+                        <h4>Step 1: Generate FAQs from PRNewswire URL</h4>
+                `;
+
+                const testUrl = 'https://www.prnewswire.com/news-releases/suntory-global-spirits-chooses-globant-to-build-a-commercial-insights-ai-agent-and-unlock-business-intelligence-at-scale-302499196.html';
+                
+                log('Step 1: Generating FAQs...');
+                const { data: generateData, error: generateError } = await supabase.functions.invoke('analyze-content', {
+                    body: {
+                        url: testUrl,
+                        type: 'url'
+                    }
+                });
+
+                if (generateError) {
+                    html += `<div class="status error">❌ Generation failed: ${generateError.message}</div>`;
+                    updateResults(html + '</div></div>');
+                    return;
+                }
+
+                const isDemoContent = generateData?.faqs?.some(faq => 
+                    faq.question.includes("What is this content about?") ||
+                    faq.answer.includes("This content discusses various topics")
+                );
+
+                html += `
+                        <div class="status ${isDemoContent ? 'warning' : 'success'}">
+                            ${isDemoContent ? '⚠️ Demo Content Generated' : '✅ Real AI Content Generated'}
+                        </div>
+                        <div class="data-table">
+Generated FAQs: ${generateData?.faqs?.length || 0}
+Is Demo: ${isDemoContent}
+
+First FAQ:
+Q: ${generateData?.faqs?.[0]?.question || 'N/A'}
+A: ${generateData?.faqs?.[0]?.answer?.substring(0, 200) || 'N/A'}...
+                        </div>
+                    </div>
+                `;
+
+                if (isDemoContent) {
+                    html += '<div class="status error">❌ Test failed: AI generation is not working properly</div>';
+                    updateResults(html + '</div>');
+                    return;
+                }
+
+                // Step 2: Save to Database
+                html += `
+                    <div class="step">
+                        <h4>Step 2: Save FAQs to Database</h4>
+                `;
+
+                const title = `Test PRNewswire FAQs - ${new Date().toISOString()}`;
+                
+                log('Step 2: Creating collection...');
+                const { data: collection, error: collectionError } = await supabase
+                    .from('faq_collections')
+                    .insert({
+                        user_id: user.id,
+                        title: title,
+                        source_url: testUrl,
+                        source_content: 'PRNewswire article content',
+                        status: 'published'
+                    })
+                    .select('id')
+                    .single();
+
+                if (collectionError) {
+                    html += `<div class="status error">❌ Collection creation failed: ${collectionError.message}</div>`;
+                    updateResults(html + '</div></div>');
+                    return;
+                }
+
+                html += `<div class="status success">✅ Collection created: ${collection.id}</div>`;
+
+                log('Step 2: Inserting FAQs...');
+                const faqsToInsert = generateData.faqs.map((faq, index) => ({
+                    collection_id: collection.id,
+                    question: faq.question,
+                    answer: faq.answer,
+                    order_index: index,
+                    is_published: true
+                }));
+
+                const { error: faqsError } = await supabase
+                    .from('faqs')
+                    .insert(faqsToInsert);
+
+                if (faqsError) {
+                    html += `<div class="status error">❌ FAQ insertion failed: ${faqsError.message}</div>`;
+                    updateResults(html + '</div></div>');
+                    return;
+                }
+
+                html += `
+                        <div class="status success">✅ FAQs saved to database</div>
+                        <div class="data-table">
+Collection ID: ${collection.id}
+FAQs Inserted: ${faqsToInsert.length}
+Title: ${title}
+                        </div>
+                    </div>
+                `;
+
+                // Step 3: Verify Database Storage
+                html += `
+                    <div class="step">
+                        <h4>Step 3: Verify Database Storage</h4>
+                `;
+
+                log('Step 3: Verifying storage...');
+                const { data: storedCollection, error: verifyError } = await supabase
+                    .from('faq_collections')
+                    .select(`
+                        *,
+                        faqs (*)
+                    `)
+                    .eq('id', collection.id)
+                    .single();
+
+                if (verifyError) {
+                    html += `<div class="status error">❌ Verification failed: ${verifyError.message}</div>`;
+                } else {
+                    html += `
+                        <div class="status success">✅ Data verified in database</div>
+                        <div class="data-table">
+Collection: ${storedCollection.title}
+FAQs Count: ${storedCollection.faqs?.length || 0}
+Status: ${storedCollection.status}
+Created: ${storedCollection.created_at}
+
+First Stored FAQ:
+Q: ${storedCollection.faqs?.[0]?.question || 'N/A'}
+A: ${storedCollection.faqs?.[0]?.answer?.substring(0, 200) || 'N/A'}...
+                        </div>
+                    `;
+                }
+
+                html += `
+                    </div>
+                `;
+
+                // Step 4: Test Frontend Retrieval
+                html += `
+                    <div class="step">
+                        <h4>Step 4: Test Frontend Retrieval (Manage FAQs)</h4>
+                `;
+
+                log('Step 4: Testing frontend retrieval...');
+                const { data: allCollections, error: retrieveError } = await supabase
+                    .from('faq_collections')
+                    .select(`
+                        *,
+                        faqs (*)
+                    `)
+                    .eq('user_id', user.id)
+                    .order('created_at', { ascending: false });
+
+                if (retrieveError) {
+                    html += `<div class="status error">❌ Frontend retrieval failed: ${retrieveError.message}</div>`;
+                } else {
+                    const ourCollection = allCollections.find(c => c.id === collection.id);
+                    html += `
+                        <div class="status success">✅ Frontend retrieval successful</div>
+                        <div class="data-table">
+Total Collections: ${allCollections.length}
+Our Collection Found: ${!!ourCollection}
+Our Collection FAQs: ${ourCollection?.faqs?.length || 0}
+
+All Collections:
+${allCollections.map(c => `- ${c.title} (${c.faqs?.length || 0} FAQs) - ${c.created_at}`).join('\n')}
+                        </div>
+                    `;
+                }
+
+                html += `
+                    </div>
+                `;
+
+                html += `
+                        <div class="status success">
+                            <strong>✅ Complete Flow Test Successful!</strong><br>
+                            The FAQ generation, storage, and retrieval pipeline is working correctly.<br>
+                            If you're seeing different content in the dashboard, it might be a frontend caching issue.
+                        </div>
+                    </div>
+                `;
+
+                updateResults(html);
+
+            } catch (error) {
+                updateResults(`<div class="status error">❌ Exception: ${error.message}</div>`);
+            }
+        }
+
+        async function checkExistingCollections() {
+            updateResults('<div class="status info">📋 Checking existing collections...</div>');
+
+            try {
+                const { data: { user }, error: userError } = await supabase.auth.getUser();
+                if (userError || !user) {
+                    updateResults('<div class="status error">❌ Please sign in first</div>');
+                    return;
+                }
+
+                const { data: collections, error } = await supabase
+                    .from('faq_collections')
+                    .select(`
+                        *,
+                        faqs (*)
+                    `)
+                    .eq('user_id', user.id)
+                    .order('created_at', { ascending: false });
+
+                if (error) {
+                    updateResults(`<div class="status error">❌ Error: ${error.message}</div>`);
+                    return;
+                }
+
+                let html = `
+                    <div class="container">
+                        <h3>📋 Existing Collections</h3>
+                        <div class="status info">Found ${collections.length} collections</div>
+                `;
+
+                collections.forEach((collection, index) => {
+                    const isDemoContent = collection.faqs?.some(faq => 
+                        faq.question.includes("What is this content about?") ||
+                        faq.answer.includes("This content discusses various topics")
+                    );
+
+                    html += `
+                        <div class="data-table">
+Collection ${index + 1}:
+ID: ${collection.id}
+Title: ${collection.title}
+Source URL: ${collection.source_url || 'N/A'}
+Status: ${collection.status}
+Created: ${collection.created_at}
+FAQs Count: ${collection.faqs?.length || 0}
+Contains Demo Content: ${isDemoContent}
+
+${collection.faqs?.length > 0 ? `First FAQ:
+Q: ${collection.faqs[0].question}
+A: ${collection.faqs[0].answer.substring(0, 200)}...` : 'No FAQs'}
+                        </div>
+                    `;
+                });
+
+                html += '</div>';
+                updateResults(html);
+
+            } catch (error) {
+                updateResults(`<div class="status error">❌ Exception: ${error.message}</div>`);
+            }
+        }
+
+        async function cleanupTestData() {
+            updateResults('<div class="status info">🧹 Cleaning up test data...</div>');
+
+            try {
+                const { data: { user }, error: userError } = await supabase.auth.getUser();
+                if (userError || !user) {
+                    updateResults('<div class="status error">❌ Please sign in first</div>');
+                    return;
+                }
+
+                // Delete test collections (those with "Test" in the title)
+                const { error: deleteError } = await supabase
+                    .from('faq_collections')
+                    .delete()
+                    .eq('user_id', user.id)
+                    .ilike('title', '%Test%');
+
+                if (deleteError) {
+                    updateResults(`<div class="status error">❌ Cleanup failed: ${deleteError.message}</div>`);
+                } else {
+                    updateResults('<div class="status success">✅ Test data cleaned up successfully</div>');
+                }
+
+            } catch (error) {
+                updateResults(`<div class="status error">❌ Exception: ${error.message}</div>`);
+            }
+        }
+    </script>
+</body>
+</html>

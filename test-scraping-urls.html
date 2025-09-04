@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FAQify - Web Scraping Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #0f172a;
+            color: #e2e8f0;
+        }
+        .container {
+            background: #1e293b;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 20px;
+            border: 1px solid #334155;
+        }
+        .test-result {
+            margin: 10px 0;
+            padding: 12px;
+            border-radius: 8px;
+            border-left: 4px solid;
+        }
+        .success {
+            background: #064e3b;
+            border-color: #10b981;
+            color: #d1fae5;
+        }
+        .error {
+            background: #7f1d1d;
+            border-color: #ef4444;
+            color: #fecaca;
+        }
+        .testing {
+            background: #1e3a8a;
+            border-color: #3b82f6;
+            color: #dbeafe;
+        }
+        .url-input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #475569;
+            border-radius: 8px;
+            background: #334155;
+            color: #e2e8f0;
+            margin-bottom: 12px;
+        }
+        .btn {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            margin-right: 12px;
+            margin-bottom: 12px;
+        }
+        .btn:hover {
+            background: #2563eb;
+        }
+        .btn-test-all {
+            background: #059669;
+        }
+        .btn-test-all:hover {
+            background: #047857;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            background: #334155;
+            padding: 16px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .stat-number {
+            font-size: 2rem;
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+        .stat-label {
+            color: #94a3b8;
+            font-size: 0.875rem;
+        }
+        .url-list {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #475569;
+            border-radius: 8px;
+            padding: 12px;
+            background: #334155;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 FAQify Web Scraping Test Suite</h1>
+        <p>Test the enhanced web scraping capabilities with various website types.</p>
+        
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-number" id="total-tests">0</div>
+                <div class="stat-label">Total Tests</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="successful-tests">0</div>
+                <div class="stat-label">Successful</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="failed-tests">0</div>
+                <div class="stat-label">Failed</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="success-rate">0%</div>
+                <div class="stat-label">Success Rate</div>
+            </div>
+        </div>
+
+        <div>
+            <h3>🎯 Test Custom URL</h3>
+            <input type="url" id="custom-url" class="url-input" placeholder="Enter URL to test...">
+            <button class="btn" onclick="testCustomUrl()">Test URL</button>
+            <button class="btn btn-test-all" onclick="testAllUrls()">Test All Sample URLs</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <h3>📊 Test Results</h3>
+        <div id="results"></div>
+    </div>
+
+    <div class="container">
+        <h3>🔗 Sample URLs for Testing</h3>
+        <div class="url-list">
+            <div><strong>News Sites:</strong></div>
+            <div>• https://www.bbc.com/news/technology-67890123</div>
+            <div>• https://techcrunch.com/2024/01/15/openai-gpt-store/</div>
+            <div>• https://www.moneycontrol.com/news/business/indias-oil-imports-from-russia-helps-save-rs-2-5-lakh-crore-in-fy24-11525476.html</div>
+            <br>
+            <div><strong>Simple Sites:</strong></div>
+            <div>• https://groww.in/p/what-is-ipo</div>
+            <div>• https://example.com</div>
+            <div>• https://httpbin.org/html</div>
+            <br>
+            <div><strong>E-commerce:</strong></div>
+            <div>• https://www.amazon.com/dp/B08N5WRWNW</div>
+            <div>• https://www.flipkart.com/mobiles</div>
+            <br>
+            <div><strong>Documentation:</strong></div>
+            <div>• https://docs.github.com/en/get-started</div>
+            <div>• https://developer.mozilla.org/en-US/docs/Web/JavaScript</div>
+        </div>
+    </div>
+
+    <script>
+        const supabase = window.supabase.createClient(
+            'https://dlzshcshqjdghmtzlbma.supabase.co',
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRsenNoY3NocWpkZ2htdHpsYm1hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzU5NzY4NzQsImV4cCI6MjA1MTU1Mjg3NH0.Qs8Qs_Qs8Qs_Qs_Qs_Qs_Qs8Qs_Qs8Qs_Qs8Qs8'
+        );
+
+        let testStats = {
+            total: 0,
+            successful: 0,
+            failed: 0
+        };
+
+        const sampleUrls = [
+            'https://groww.in/p/what-is-ipo',
+            'https://example.com',
+            'https://httpbin.org/html',
+            'https://www.bbc.com/news/technology-67890123',
+            'https://techcrunch.com/2024/01/15/openai-gpt-store/',
+            'https://www.moneycontrol.com/news/business/indias-oil-imports-from-russia-helps-save-rs-2-5-lakh-crore-in-fy24-11525476.html',
+            'https://docs.github.com/en/get-started',
+            'https://developer.mozilla.org/en-US/docs/Web/JavaScript'
+        ];
+
+        function updateStats() {
+            document.getElementById('total-tests').textContent = testStats.total;
+            document.getElementById('successful-tests').textContent = testStats.successful;
+            document.getElementById('failed-tests').textContent = testStats.failed;
+            
+            const successRate = testStats.total > 0 ? Math.round((testStats.successful / testStats.total) * 100) : 0;
+            document.getElementById('success-rate').textContent = successRate + '%';
+        }
+
+        function addResult(url, success, message, details = '') {
+            const resultsDiv = document.getElementById('results');
+            const resultDiv = document.createElement('div');
+            resultDiv.className = `test-result ${success ? 'success' : 'error'}`;
+            
+            const timestamp = new Date().toLocaleTimeString();
+            resultDiv.innerHTML = `
+                <div><strong>${success ? '✅' : '❌'} ${url}</strong></div>
+                <div>${message}</div>
+                ${details ? `<div style="font-size: 0.875rem; margin-top: 8px; opacity: 0.8;">${details}</div>` : ''}
+                <div style="font-size: 0.75rem; opacity: 0.6; margin-top: 4px;">${timestamp}</div>
+            `;
+            
+            resultsDiv.insertBefore(resultDiv, resultsDiv.firstChild);
+            
+            testStats.total++;
+            if (success) {
+                testStats.successful++;
+            } else {
+                testStats.failed++;
+            }
+            updateStats();
+        }
+
+        function addTestingResult(url) {
+            const resultsDiv = document.getElementById('results');
+            const resultDiv = document.createElement('div');
+            resultDiv.className = 'test-result testing';
+            resultDiv.id = `testing-${Date.now()}`;
+            
+            resultDiv.innerHTML = `
+                <div><strong>🔄 Testing: ${url}</strong></div>
+                <div>Attempting to scrape content...</div>
+            `;
+            
+            resultsDiv.insertBefore(resultDiv, resultsDiv.firstChild);
+            return resultDiv.id;
+        }
+
+        async function testUrl(url) {
+            const testingId = addTestingResult(url);
+            
+            try {
+                const startTime = Date.now();
+                const { data, error } = await supabase.functions.invoke('analyze-content', {
+                    body: {
+                        url: url,
+                        type: 'url'
+                    }
+                });
+
+                const endTime = Date.now();
+                const duration = endTime - startTime;
+
+                // Remove testing indicator
+                const testingElement = document.getElementById(testingId);
+                if (testingElement) {
+                    testingElement.remove();
+                }
+
+                if (error) {
+                    addResult(url, false, `Failed: ${error.message}`, `Duration: ${duration}ms`);
+                } else if (data && data.faqs && data.faqs.length > 0) {
+                    const faqCount = data.faqs.length;
+                    const contentLength = data.contentLength || 0;
+                    addResult(url, true, `Success: Generated ${faqCount} FAQs`, `Content: ${contentLength} chars, Duration: ${duration}ms`);
+                } else {
+                    addResult(url, false, 'No FAQs generated', `Duration: ${duration}ms`);
+                }
+            } catch (error) {
+                // Remove testing indicator
+                const testingElement = document.getElementById(testingId);
+                if (testingElement) {
+                    testingElement.remove();
+                }
+                
+                addResult(url, false, `Error: ${error.message}`);
+            }
+        }
+
+        async function testCustomUrl() {
+            const url = document.getElementById('custom-url').value.trim();
+            if (!url) {
+                alert('Please enter a URL to test');
+                return;
+            }
+            
+            await testUrl(url);
+        }
+
+        async function testAllUrls() {
+            for (const url of sampleUrls) {
+                await testUrl(url);
+                // Add delay between tests to avoid rate limiting
+                await new Promise(resolve => setTimeout(resolve, 2000));
+            }
+        }
+
+        // Initialize
+        updateStats();
+    </script>
+</body>
+</html>

@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug API Key - FAQify</title>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f8fafc;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        .status {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            font-weight: 500;
+        }
+        .status.success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+        .status.error { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+        .status.warning { background: #fefce8; color: #ca8a04; border: 1px solid #fef08a; }
+        .status.info { background: #eff6ff; color: #2563eb; border: 1px solid #dbeafe; }
+        .btn {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px;
+            transition: background 0.2s;
+        }
+        .btn:hover { background: #2563eb; }
+        .data-table {
+            background: #f9fafb;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 12px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Debug API Key Configuration</h1>
+        <p>Check why FAQ generation is falling back to demo mode for certain URLs.</p>
+        
+        <button class="btn" onclick="testGrowwURL()">✅ Test Groww URL (Working)</button>
+        <button class="btn" onclick="testPRNewswireURL()">❌ Test PRNewswire URL (Failing)</button>
+        <button class="btn" onclick="testAPIKeyStatus()">🔑 Check API Key Status</button>
+        
+        <div id="results"></div>
+    </div>
+
+    <script>
+        const supabaseUrl = 'https://dlzshcshqjdghmtzlbma.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRsenNoY3NocWpkZ2htdHpsYm1hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTExODUzODgsImV4cCI6MjA2Njc2MTM4OH0.EL4By0nom419JiorSHKiFckLqnh1sqmFvYnWTylB9Gk';
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+        function updateResults(html) {
+            document.getElementById('results').innerHTML = html;
+        }
+
+        async function testURL(url, urlName) {
+            updateResults(`<div class="status info">🔍 Testing ${urlName}...</div>`);
+
+            try {
+                console.log(`Testing URL: ${url}`);
+                
+                const { data, error } = await supabase.functions.invoke('analyze-content', {
+                    body: {
+                        url: url,
+                        type: 'url'
+                    }
+                });
+
+                let html = `
+                    <div class="container">
+                        <h3>🔍 ${urlName} Test Results</h3>
+                        <div class="data-table">
+URL: ${url}
+Status: ${error ? 'Failed' : 'Success'}
+                        </div>
+                `;
+
+                if (error) {
+                    html += `
+                        <div class="status error">❌ Error: ${error.message}</div>
+                        <div class="data-table">
+Error Details: ${JSON.stringify(error, null, 2)}
+                        </div>
+                    `;
+                } else {
+                    const isDemoContent = data?.faqs?.some(faq => 
+                        faq.question.includes("What is this content about?") ||
+                        faq.answer.includes("This content discusses various topics")
+                    );
+
+                    html += `
+                        <div class="status ${isDemoContent ? 'warning' : 'success'}">
+                            ${isDemoContent ? '⚠️ Demo Content Detected' : '✅ Real AI Content Generated'}
+                        </div>
+                        <div class="data-table">
+FAQs Generated: ${data?.faqs?.length || 0}
+Is Demo Content: ${isDemoContent}
+
+First FAQ:
+Q: ${data?.faqs?.[0]?.question || 'N/A'}
+A: ${data?.faqs?.[0]?.answer?.substring(0, 200) || 'N/A'}...
+                        </div>
+                    `;
+
+                    if (isDemoContent) {
+                        html += `
+                            <div class="status warning">
+                                <strong>⚠️ This URL is falling back to demo mode!</strong><br>
+                                This means either:<br>
+                                • API key is not configured properly<br>
+                                • Content extraction failed<br>
+                                • AI API call failed
+                            </div>
+                        `;
+                    }
+                }
+
+                html += '</div>';
+                updateResults(html);
+
+            } catch (error) {
+                updateResults(`<div class="status error">❌ Exception: ${error.message}</div>`);
+            }
+        }
+
+        async function testGrowwURL() {
+            await testURL('https://groww.in/p/what-is-ipo', 'Groww URL');
+        }
+
+        async function testPRNewswireURL() {
+            await testURL('https://www.prnewswire.com/news-releases/suntory-global-spirits-chooses-globant-to-build-a-commercial-insights-ai-agent-and-unlock-business-intelligence-at-scale-302499196.html', 'PRNewswire URL');
+        }
+
+        async function testAPIKeyStatus() {
+            updateResults('<div class="status info">🔑 Checking API key configuration...</div>');
+
+            try {
+                // Test with a simple text input to see if AI is working
+                const { data, error } = await supabase.functions.invoke('analyze-content', {
+                    body: {
+                        text: 'This is a test content about artificial intelligence and machine learning. AI is transforming how we work and live.',
+                        type: 'text'
+                    }
+                });
+
+                let html = `
+                    <div class="container">
+                        <h3>🔑 API Key Status Check</h3>
+                `;
+
+                if (error) {
+                    html += `
+                        <div class="status error">❌ API Error: ${error.message}</div>
+                        <div class="data-table">
+Error Details: ${JSON.stringify(error, null, 2)}
+                        </div>
+                    `;
+                } else {
+                    const isDemoContent = data?.faqs?.some(faq => 
+                        faq.question.includes("What is this content about?") ||
+                        faq.answer.includes("This content discusses various topics")
+                    );
+
+                    html += `
+                        <div class="status ${isDemoContent ? 'error' : 'success'}">
+                            ${isDemoContent ? '❌ API Key NOT Working - Demo Mode Active' : '✅ API Key Working - Real AI Active'}
+                        </div>
+                        <div class="data-table">
+Test Input: Simple text about AI
+FAQs Generated: ${data?.faqs?.length || 0}
+Is Demo Content: ${isDemoContent}
+
+Sample FAQ:
+Q: ${data?.faqs?.[0]?.question || 'N/A'}
+A: ${data?.faqs?.[0]?.answer?.substring(0, 200) || 'N/A'}...
+                        </div>
+                    `;
+
+                    if (isDemoContent) {
+                        html += `
+                            <div class="status error">
+                                <strong>❌ DEEPSEEK_API_KEY Environment Variable Missing!</strong><br>
+                                The edge function is falling back to demo mode because the API key is not configured.<br>
+                                This affects ALL FAQ generation, not just specific URLs.
+                            </div>
+                        `;
+                    } else {
+                        html += `
+                            <div class="status success">
+                                <strong>✅ API Key is properly configured!</strong><br>
+                                The issue with PRNewswire URL is likely due to content extraction problems, not API key issues.
+                            </div>
+                        `;
+                    }
+                }
+
+                html += '</div>';
+                updateResults(html);
+
+            } catch (error) {
+                updateResults(`<div class="status error">❌ Exception: ${error.message}</div>`);
+            }
+        }
+
+        // Auto-check API key status on page load
+        window.addEventListener('load', () => {
+            setTimeout(testAPIKeyStatus, 1000);
+        });
+    </script>
+</body>
+</html>
