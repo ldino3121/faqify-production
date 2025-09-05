@@ -213,10 +213,15 @@ serve(async (req) => {
     }
 
     // Create Razorpay order
+    // Generate short receipt (max 40 chars for Razorpay)
+    const timestamp = Date.now().toString().slice(-8); // Last 8 digits
+    const userIdShort = user.id.slice(-8); // Last 8 chars of user ID
+    const receipt = `ord_${userIdShort}_${timestamp}`; // Format: ord_12345678_87654321 (max 24 chars)
+
     const orderData = {
       amount: amount, // Amount in smallest currency unit
       currency: targetCurrency.toUpperCase(),
-      receipt: `order_${user.id}_${Date.now()}`,
+      receipt: receipt,
       notes: {
         user_id: user.id,
         plan_id: planId,

@@ -15,29 +15,15 @@ export const FAQifyIcon: React.FC<FAQifyIconProps> = ({
     <svg
       width={iconSize}
       height={iconSize}
-      viewBox="0 0 100 100"
+      viewBox="0 0 24 24"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       className={className}
     >
-      {/* Outer Circle */}
-      <circle cx="50" cy="50" r="45" fill="currentColor" stroke="currentColor" strokeWidth="6"/>
-
-      {/* Inner Circle (Background) */}
-      <circle cx="50" cy="50" r="35" fill="white"/>
-
-      {/* Wave Pattern */}
-      <path
-        d="M20 50 C25 40, 35 40, 40 50 C45 60, 55 60, 60 50 C65 40, 75 40, 80 50"
-        stroke="currentColor"
-        strokeWidth="8"
-        strokeLinecap="round"
-        fill="none"
-      />
-
-      {/* Side connectors */}
-      <rect x="10" y="45" width="8" height="10" rx="2" fill="currentColor"/>
-      <rect x="82" y="45" width="8" height="10" rx="2" fill="currentColor"/>
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" fill="none"/>
+      <rect x="0" y="11" width="3" height="2" fill="currentColor"/>
+      <rect x="21" y="11" width="3" height="2" fill="currentColor"/>
+      <path d="M7.5 12c1.5-2 3-2 4.5 0s3 2 4.5 0" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round"/>
     </svg>
   );
 };
@@ -48,25 +34,15 @@ export const FAQifyIconSimple: React.FC<FAQifyIconProps> = ({
 }) => {
   return (
     <svg
-      viewBox="0 0 100 100"
+      viewBox="0 0 24 24"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       className={className}
     >
-      {/* Outer Circle */}
-      <circle cx="50" cy="50" r="45" fill="currentColor" stroke="currentColor" strokeWidth="6"/>
-
-      {/* Inner Circle (Background) */}
-      <circle cx="50" cy="50" r="35" fill="white"/>
-
-      {/* Wave Pattern */}
-      <path
-        d="M20 50 C25 40, 35 40, 40 50 C45 60, 55 60, 60 50 C65 40, 75 40, 80 50"
-        stroke="currentColor"
-        strokeWidth="8"
-        strokeLinecap="round"
-        fill="none"
-      />
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" fill="none"/>
+      <rect x="0" y="11" width="3" height="2" fill="currentColor"/>
+      <rect x="21" y="11" width="3" height="2" fill="currentColor"/>
+      <path d="M7.5 12c1.5-2 3-2 4.5 0s3 2 4.5 0" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round"/>
 
       {/* Side connectors */}
       <rect x="10" y="45" width="8" height="10" rx="2" fill="currentColor"/>
