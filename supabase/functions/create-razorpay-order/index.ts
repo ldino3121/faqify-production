@@ -165,9 +165,18 @@ serve(async (req) => {
     const targetCurrency = currency.toLowerCase();
     let amount: number;
 
+    console.log('Plan pricing details:', {
+      planName: plan.name,
+      price_monthly: plan.price_monthly,
+      price_inr: plan.price_inr,
+      price_eur: plan.price_eur,
+      price_gbp: plan.price_gbp,
+      targetCurrency
+    });
+
     switch (targetCurrency) {
       case 'inr':
-        amount = plan.price_inr || plan.price_monthly * 83; // Fallback conversion
+        amount = plan.price_inr || (plan.price_monthly * 83); // Fallback conversion
         break;
       case 'eur':
         amount = plan.price_eur || Math.round(plan.price_monthly * 0.85);
@@ -181,8 +190,23 @@ serve(async (req) => {
         break;
     }
 
+    console.log('Calculated amount:', { amount, targetCurrency, planName: plan.name });
+
     if (amount <= 0) {
-      return new Response(JSON.stringify({ error: 'Invalid plan amount' }), {
+      return new Response(JSON.stringify({
+        error: 'Invalid plan amount',
+        details: {
+          planName: plan.name,
+          targetCurrency,
+          calculatedAmount: amount,
+          planPricing: {
+            price_monthly: plan.price_monthly,
+            price_inr: plan.price_inr,
+            price_eur: plan.price_eur,
+            price_gbp: plan.price_gbp
+          }
+        }
+      }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });

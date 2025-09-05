@@ -45,7 +45,7 @@ export const Hero = () => {
         <div className="flex justify-center items-center space-x-8 text-sm text-gray-500">
           <div className="flex items-center space-x-2">
             <Zap className="h-4 w-4 text-green-500" />
-            <span>5 Free FAQs</span>
+            <span>10 Free FAQs</span>
           </div>
           <div className="flex items-center space-x-2">
             <Zap className="h-4 w-4 text-green-500" />

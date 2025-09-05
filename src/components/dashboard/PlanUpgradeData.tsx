@@ -477,7 +477,7 @@ export const PlanUpgradeData = () => {
               <tbody className="text-sm">
                 <tr className="border-b border-gray-800">
                   <td className="py-3 text-gray-300">FAQ Generations per Month</td>
-                  <td className="text-center py-3 text-white">5</td>
+                  <td className="text-center py-3 text-white">10</td>
                   <td className="text-center py-3 text-white">100</td>
                   <td className="text-center py-3 text-white">500</td>
                 </tr>
