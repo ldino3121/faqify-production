@@ -377,7 +377,7 @@ export const Pricing = () => {
                     })()}
                   </div>
                   <CardDescription className="text-gray-400">
-                    {plan.faq_limit} FAQ generations per month
+                    <strong>{plan.faq_limit} FAQ generations</strong> per month
                   </CardDescription>
                 </CardHeader>
 
