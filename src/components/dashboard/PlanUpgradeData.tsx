@@ -109,10 +109,10 @@ export const PlanUpgradeData = () => {
         "Email support"
       ],
       limitations: [],
-      cta: currentPlan === "Free" ? "Current Plan" : "Downgrade",
+      cta: "Current Plan",
       popular: false,
       current: currentPlan === "Free",
-      disabled: currentPlan === "Free"
+      disabled: true
     },
     {
       name: "Pro",

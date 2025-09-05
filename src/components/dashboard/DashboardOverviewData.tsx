@@ -198,12 +198,12 @@ export const DashboardOverviewData = () => {
                     {subscription?.plan_tier || 'Free'}
                   </Badge>
                   <Badge className={`${
-                    subscription?.status === 'active' ? 'bg-green-600/20 text-green-400 border-green-600/30' :
-                    subscription?.status === 'expired' ? 'bg-red-600/20 text-red-400 border-red-600/30' :
-                    subscription?.status === 'cancelled' ? 'bg-yellow-600/20 text-yellow-400 border-yellow-600/30' :
-                    'bg-gray-600/20 text-gray-400 border-gray-600/30'
+                    subscription?.is_expired ? 'bg-red-600/20 text-red-400 border-red-600/30' :
+                    subscription?.expires_soon ? 'bg-yellow-600/20 text-yellow-400 border-yellow-600/30' :
+                    'bg-green-600/20 text-green-400 border-green-600/30'
                   }`}>
-                    {subscription?.status || 'active'}
+                    {subscription?.is_expired ? 'EXPIRED' :
+                     subscription?.expires_soon ? 'EXPIRES SOON' : 'ACTIVE'}
                   </Badge>
                 </div>
               </div>
