@@ -206,6 +206,14 @@ export const PlanUpgradeData = () => {
     try {
       setProcessingPlan(planName);
 
+      console.log('Starting Razorpay payment for:', {
+        planName,
+        preferredCurrency,
+        userCountry,
+        razorpayLoaded,
+        hasRazorpay: !!window.Razorpay
+      });
+
       // Create Razorpay order
       const { data, error } = await supabase.functions.invoke('create-razorpay-order', {
         body: {
@@ -215,11 +223,19 @@ export const PlanUpgradeData = () => {
         }
       });
 
-      if (error) throw error;
+      console.log('Razorpay order response:', { data, error });
+
+      if (error) {
+        console.error('Razorpay order creation error:', error);
+        throw error;
+      }
 
       if (!data.success || !data.order) {
+        console.error('Invalid order response:', data);
         throw new Error('Failed to create payment order');
       }
+
+      console.log('Order created successfully:', data.order);
 
       // Configure Razorpay options
       const options = {
@@ -278,8 +294,11 @@ export const PlanUpgradeData = () => {
         }
       };
 
+      console.log('Razorpay options configured:', options);
+
       // Open Razorpay checkout
       const rzp = new window.Razorpay(options);
+      console.log('Opening Razorpay checkout...');
       rzp.open();
 
     } catch (error) {
