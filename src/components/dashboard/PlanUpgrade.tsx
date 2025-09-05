@@ -45,17 +45,18 @@ export const PlanUpgrade = () => {
       period: isAnnual ? "per year" : "forever",
       description: "Perfect for trying out FAQify",
       features: [
-        "10 FAQ generations (one-time)",
+        "10 FAQ generations per month",
         "Website URL analysis",
-        "Text input support",
-        "Basic embedding widget",
+        "Text content analysis",
+        "Document upload (PDF, DOCX)",
+        "AI-powered FAQ generation",
+        "Embed widget",
+        "WordPress integration",
+        "Analytics dashboard",
+        "Export functionality",
         "Email support"
       ],
-      limitations: [
-        "Limited to 10 FAQs total",
-        "Basic support only",
-        "No advanced features"
-      ],
+      limitations: [],
       cta: currentPlan === "Free" ? "Current Plan" : "Downgrade",
       popular: false,
       current: currentPlan === "Free",

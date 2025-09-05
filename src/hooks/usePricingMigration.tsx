@@ -29,8 +29,8 @@ export const usePricingMigration = () => {
       const proPlan = plans?.find(p => p.name === 'Pro');
       const businessPlan = plans?.find(p => p.name === 'Business');
 
-      const needsMigration = 
-        !freePlan || freePlan.faq_limit !== 5 ||
+      const needsMigration =
+        !freePlan || freePlan.faq_limit !== 10 ||
         !proPlan || proPlan.faq_limit !== 100 ||
         !businessPlan || businessPlan.faq_limit !== 500;
 

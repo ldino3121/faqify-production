@@ -97,7 +97,7 @@ export const PlanUpgradeData = () => {
       period: "forever",
       description: "Perfect for trying out FAQify",
       features: [
-        "5 FAQ generations per month",
+        "10 FAQ generations per month",
         "Website URL analysis",
         "Text content analysis",
         "Document upload (PDF, DOCX)",

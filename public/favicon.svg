@@ -8,13 +8,13 @@
   <!-- Wave Pattern -->
   <path
     d="M20 50 C25 40, 35 40, 40 50 C45 60, 55 60, 60 50 C65 40, 75 40, 80 50"
-    stroke="#1e293b"
+    stroke="#000000"
     strokeWidth="8"
     strokeLinecap="round"
     fill="none"
   />
 
   <!-- Side connectors -->
-  <rect x="10" y="45" width="8" height="10" rx="2" fill="#1e293b"/>
-  <rect x="82" y="45" width="8" height="10" rx="2" fill="#1e293b"/>
+  <rect x="10" y="45" width="8" height="10" rx="2" fill="#000000"/>
+  <rect x="82" y="45" width="8" height="10" rx="2" fill="#000000"/>
 </svg>

@@ -193,9 +193,19 @@ export const DashboardOverviewData = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-400">Plan Status</p>
-                <Badge className="bg-blue-600/20 text-blue-400 border-blue-600/30">
-                  {subscription?.plan_tier || 'Free'}
-                </Badge>
+                <div className="flex items-center space-x-2">
+                  <Badge className="bg-blue-600/20 text-blue-400 border-blue-600/30">
+                    {subscription?.plan_tier || 'Free'}
+                  </Badge>
+                  <Badge className={`${
+                    subscription?.status === 'active' ? 'bg-green-600/20 text-green-400 border-green-600/30' :
+                    subscription?.status === 'expired' ? 'bg-red-600/20 text-red-400 border-red-600/30' :
+                    subscription?.status === 'cancelled' ? 'bg-yellow-600/20 text-yellow-400 border-yellow-600/30' :
+                    'bg-gray-600/20 text-gray-400 border-gray-600/30'
+                  }`}>
+                    {subscription?.status || 'active'}
+                  </Badge>
+                </div>
               </div>
               <div className="h-12 w-12 bg-yellow-600/10 rounded-lg flex items-center justify-center">
                 <Zap className="h-6 w-6 text-yellow-500" />
@@ -267,15 +277,18 @@ export const DashboardOverviewData = () => {
               </div>
               <div>
                 <p className="text-sm text-gray-400">Plan Expires</p>
-                <p className="text-white font-medium">
-                  {subscription?.plan_tier === 'Free'
-                    ? 'Never expires'
-                    : subscription?.plan_expires_at
-                      ? formatFullDate(subscription.plan_expires_at)
-                      : subscription?.current_period_end
-                        ? formatFullDate(subscription.current_period_end)
-                        : 'Not available'
+                <p className={`font-medium ${
+                  subscription?.is_expired ? 'text-red-400' :
+                  subscription?.expires_soon ? 'text-yellow-400' : 'text-white'
+                }`}>
+                  {subscription?.plan_expires_at
+                    ? formatFullDate(subscription.plan_expires_at)
+                    : subscription?.current_period_end
+                      ? formatFullDate(subscription.current_period_end)
+                      : 'Not available'
                   }
+                  {subscription?.is_expired && ' (Expired)'}
+                  {subscription?.expires_soon && !subscription?.is_expired && ' (Expires Soon)'}
                 </p>
               </div>
             </div>

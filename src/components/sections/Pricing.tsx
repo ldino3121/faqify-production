@@ -100,7 +100,7 @@ export const Pricing = () => {
       id: 'free',
       name: 'Free',
       price_monthly: 0,
-      faq_limit: 5,
+      faq_limit: 10,
       features: [
         'Website URL analysis',
         'Text content analysis',

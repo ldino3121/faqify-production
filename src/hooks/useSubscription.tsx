@@ -6,7 +6,7 @@ import { useAuth } from './useAuth';
 interface Subscription {
   id: string;
   plan_tier: 'Free' | 'Pro' | 'Business';
-  status: string;
+  status: 'active' | 'expired' | 'cancelled' | 'past_due' | 'incomplete' | 'trialing';
   faq_usage_current: number;
   faq_usage_limit: number;
   is_annual: boolean;
@@ -16,6 +16,9 @@ interface Subscription {
   last_reset_date: string;
   previous_plan_tier: 'Free' | 'Pro' | 'Business' | null;
   plan_changed_at: string;
+  days_remaining: number;
+  is_expired: boolean;
+  expires_soon: boolean;
 }
 
 export const useSubscription = () => {
@@ -69,23 +72,48 @@ export const useSubscription = () => {
     if (!user) return;
 
     try {
-      // First check and reset monthly usage if needed
+      // First check and handle expired subscriptions
+      await supabase.rpc('check_and_handle_expired_subscriptions');
+
+      // Then check and reset monthly usage if needed
       await supabase.rpc('check_and_reset_user_usage', {
         user_uuid: user.id
       });
 
-      const { data, error } = await supabase
-        .from('user_subscriptions')
-        .select('*')
-        .eq('user_id', user.id)
-        .single();
+      // Get subscription with expiry information
+      const { data: subscriptionData, error: subscriptionError } = await supabase
+        .rpc('get_subscription_with_expiry', {
+          user_uuid: user.id
+        });
 
-      if (error && error.code !== 'PGRST116') {
-        console.error('Error fetching subscription:', error);
-        return;
+      if (subscriptionError) {
+        console.error('Error fetching subscription with expiry:', subscriptionError);
+        // Fallback to regular subscription fetch
+        const { data, error } = await supabase
+          .from('user_subscriptions')
+          .select('*')
+          .eq('user_id', user.id)
+          .single();
+
+        if (error && error.code !== 'PGRST116') {
+          console.error('Error fetching subscription:', error);
+          return;
+        }
+
+        // Calculate expiry info manually if function fails
+        const now = new Date();
+        const expiryDate = data?.plan_expires_at ? new Date(data.plan_expires_at) : null;
+        const daysRemaining = expiryDate ? Math.max(0, Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))) : 0;
+
+        setSubscription({
+          ...data,
+          days_remaining: daysRemaining,
+          is_expired: expiryDate ? now > expiryDate : false,
+          expires_soon: daysRemaining <= 7 && daysRemaining > 0
+        });
+      } else {
+        setSubscription(subscriptionData);
       }
-
-      setSubscription(data);
     } catch (error) {
       console.error('Error fetching subscription:', error);
     } finally {
