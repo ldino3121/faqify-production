@@ -33,10 +33,17 @@ export const useSubscriptionManagement = () => {
 
     setLoading(true);
     try {
+      // Check if the function exists (backward compatibility)
       const { data, error } = await supabase.rpc('cancel_subscription', {
         p_user_id: user.id,
         p_reason: reason || 'User requested cancellation',
         p_immediate: immediate
+      }).catch((err) => {
+        // If function doesn't exist, return a fallback error
+        if (err.message?.includes('function') || err.message?.includes('does not exist')) {
+          return { data: null, error: { message: 'Subscription management not available yet. Please contact support.' } };
+        }
+        throw err;
       });
 
       if (error) throw error;

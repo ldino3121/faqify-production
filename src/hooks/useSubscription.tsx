@@ -120,7 +120,7 @@ export const useSubscription = () => {
           days_remaining: daysRemaining,
           is_expired: expiryDate ? now > expiryDate : false,
           expires_soon: daysRemaining <= 7 && daysRemaining > 0,
-          // Add default values for new fields if not present
+          // Add default values for new fields if not present (backward compatibility)
           auto_renewal: data?.auto_renewal ?? (data?.plan_tier !== 'Free'),
           cancelled_at: data?.cancelled_at ?? null,
           cancellation_reason: data?.cancellation_reason ?? null,
@@ -128,8 +128,8 @@ export const useSubscription = () => {
           next_billing_date: data?.next_billing_date ?? null,
           billing_cycle: data?.billing_cycle ?? 'monthly',
           subscription_source: data?.subscription_source ?? 'manual',
-          is_cancelled: !!data?.cancelled_at,
-          continues_until: data?.cancelled_at ? data?.plan_expires_at : null
+          is_cancelled: !!(data?.cancelled_at),
+          continues_until: (data?.cancelled_at && data?.plan_expires_at) ? data.plan_expires_at : null
         });
       } else {
         setSubscription(subscriptionData);

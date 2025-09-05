@@ -21,13 +21,29 @@ import { Textarea } from '@/components/ui/textarea';
 
 export const SubscriptionManagement: React.FC = () => {
   const { subscription, loading: subscriptionLoading } = useSubscription();
+
+  // Safely initialize subscription management hook
+  let managementHook;
+  try {
+    managementHook = useSubscriptionManagement();
+  } catch (error) {
+    console.error('Error initializing subscription management:', error);
+    managementHook = {
+      loading: false,
+      cancelSubscription: async () => ({ success: false, error: 'Feature not available' }),
+      reactivateSubscription: async () => ({ success: false, error: 'Feature not available' }),
+      updateAutoRenewal: async () => false,
+      getSubscriptionManagement: async () => null
+    };
+  }
+
   const {
     loading: managementLoading,
     cancelSubscription,
     reactivateSubscription,
     updateAutoRenewal,
     getSubscriptionManagement
-  } = useSubscriptionManagement();
+  } = managementHook;
 
   const [managementData, setManagementData] = useState<any>(null);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
