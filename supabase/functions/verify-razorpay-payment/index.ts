@@ -154,7 +154,15 @@ serve(async (req) => {
         plan_activated_at: now.toISOString(),
         plan_expires_at: planExpiresAt.toISOString(),
         plan_changed_at: now.toISOString(),
-        updated_at: now.toISOString()
+        updated_at: now.toISOString(),
+        // Set auto-renewal and payment type for paid plans
+        auto_renewal: true,
+        payment_type: 'recurring',
+        billing_cycle: 'monthly',
+        subscription_source: 'razorpay',
+        next_billing_date: planExpiresAt.toISOString(),
+        cancelled_at: null,
+        cancellation_reason: null
       })
       .eq('user_id', user.id);
 

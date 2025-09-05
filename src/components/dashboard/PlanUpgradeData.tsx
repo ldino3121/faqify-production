@@ -582,10 +582,6 @@ export const PlanUpgradeData = () => {
             <h4 className="text-white font-medium mb-2">Do all plans have the same features?</h4>
             <p className="text-gray-400 text-sm">Yes! All plans include the same powerful features. The only difference is the number of FAQs you can generate per month and support level.</p>
           </div>
-          <div>
-            <h4 className="text-white font-medium mb-2">Do you offer refunds?</h4>
-            <p className="text-gray-400 text-sm">Yes, we offer a 30-day money-back guarantee for all paid plans.</p>
-          </div>
         </CardContent>
       </Card>
     </div>

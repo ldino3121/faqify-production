@@ -319,10 +319,7 @@ export const PlanUpgrade = () => {
             <h4 className="text-white font-medium mb-2">What happens to my FAQs if I downgrade?</h4>
             <p className="text-gray-400 text-sm">Your existing FAQs remain accessible, but you'll be limited to your new plan's monthly generation limits.</p>
           </div>
-          <div>
-            <h4 className="text-white font-medium mb-2">Do you offer refunds?</h4>
-            <p className="text-gray-400 text-sm">Yes, we offer a 30-day money-back guarantee for all paid plans.</p>
-          </div>
+
         </CardContent>
       </Card>
     </div>

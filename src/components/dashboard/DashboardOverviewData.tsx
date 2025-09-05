@@ -20,6 +20,7 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { useSubscription } from "@/hooks/useSubscription";
 import { supabase } from "@/integrations/supabase/client";
+import { SubscriptionManagement } from "./SubscriptionManagement";
 
 interface DashboardStats {
   totalCollections: number;
@@ -364,6 +365,12 @@ export const DashboardOverviewData = () => {
             )}
           </CardContent>
         </Card>
+      </div>
+
+      {/* Subscription Management Section */}
+      <div>
+        <h2 className="text-2xl font-bold text-white mb-4">Subscription Management</h2>
+        <SubscriptionManagement />
       </div>
     </div>
   );

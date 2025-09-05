@@ -292,7 +292,9 @@ serve(async (req) => {
         plan_duration: 'monthly',
         metadata: {
           razorpay_order: razorpayOrder,
-          user_country: userCountry
+          user_country: userCountry,
+          payment_type: 'recurring',
+          auto_renewal: true
         }
       });
 

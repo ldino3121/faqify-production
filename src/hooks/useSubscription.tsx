@@ -19,6 +19,16 @@ interface Subscription {
   days_remaining: number;
   is_expired: boolean;
   expires_soon: boolean;
+  // New subscription management fields
+  auto_renewal: boolean;
+  cancelled_at: string | null;
+  cancellation_reason: string | null;
+  payment_type: 'one_time' | 'recurring';
+  next_billing_date: string | null;
+  billing_cycle: 'monthly' | 'yearly';
+  subscription_source: 'manual' | 'stripe' | 'razorpay';
+  is_cancelled: boolean;
+  continues_until: string | null;
 }
 
 export const useSubscription = () => {
@@ -109,7 +119,17 @@ export const useSubscription = () => {
           ...data,
           days_remaining: daysRemaining,
           is_expired: expiryDate ? now > expiryDate : false,
-          expires_soon: daysRemaining <= 7 && daysRemaining > 0
+          expires_soon: daysRemaining <= 7 && daysRemaining > 0,
+          // Add default values for new fields if not present
+          auto_renewal: data?.auto_renewal ?? (data?.plan_tier !== 'Free'),
+          cancelled_at: data?.cancelled_at ?? null,
+          cancellation_reason: data?.cancellation_reason ?? null,
+          payment_type: data?.payment_type ?? (data?.plan_tier === 'Free' ? 'one_time' : 'recurring'),
+          next_billing_date: data?.next_billing_date ?? null,
+          billing_cycle: data?.billing_cycle ?? 'monthly',
+          subscription_source: data?.subscription_source ?? 'manual',
+          is_cancelled: !!data?.cancelled_at,
+          continues_until: data?.cancelled_at ? data?.plan_expires_at : null
         });
       } else {
         setSubscription(subscriptionData);
