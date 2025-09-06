@@ -51,12 +51,10 @@ export const Pricing = () => {
   const [razorpayLoaded, setRazorpayLoaded] = useState(false);
   const [userCountry, setUserCountry] = useState('US');
   const [preferredCurrency, setPreferredCurrency] = useState('usd');
-  const [paymentType, setPaymentType] = useState<'one_time' | 'subscription'>('subscription');
   const [locationData, setLocationData] = useState<any>(null);
   const [paymentMethods, setPaymentMethods] = useState<string[]>([]);
   const { user } = useAuth();
   const { toast } = useToast();
-  const { createAndOpenSubscription, loading: subscriptionLoading } = useRazorpaySubscription();
 
   // Load Razorpay script
   useEffect(() => {
@@ -137,7 +135,7 @@ export const Pricing = () => {
       id: 'free',
       name: 'Free',
       price_monthly: 0,
-      faq_limit: 5, // Free plan: 5 FAQs per month
+      faq_limit: 10, // Free plan: 10 FAQs per month
       features: [
         'Website URL analysis',
         'Text content analysis',
@@ -209,15 +207,7 @@ export const Pricing = () => {
     try {
       setProcessingPlan(planId);
 
-      // Handle subscription vs one-time payment
-      if (paymentType === 'subscription') {
-        // Use Razorpay subscription
-        const result = await createAndOpenSubscription(planId as 'Pro' | 'Business');
-        if (!result.success) {
-          throw new Error(result.error || 'Failed to create subscription');
-        }
-        return; // Subscription flow handles the rest
-      }
+
 
       // Create Razorpay order
       const { data, error } = await supabase.functions.invoke('create-razorpay-order', {
@@ -240,7 +230,7 @@ export const Pricing = () => {
         amount: data.order.amount,
         currency: data.order.currency.toUpperCase(),
         name: 'FAQify',
-        description: `${data.plan.name} Plan ${paymentType === 'subscription' ? 'Subscription' : 'Upgrade'}`,
+        description: `${data.plan.name} Plan Upgrade`,
         order_id: data.order.id,
         // Location-specific payment method preferences
         method: userCountry === 'IN' ? {
@@ -398,99 +388,9 @@ export const Pricing = () => {
             Choose the perfect plan for your FAQ generation needs. Start free, upgrade anytime.
           </p>
 
-          {/* Payment Type Toggle */}
-          <div className="mt-8 flex items-center justify-center space-x-4">
-            <span className="text-gray-400">Payment Type:</span>
-            <div className="flex items-center space-x-2 bg-gray-800 rounded-lg p-1">
-              <button
-                onClick={() => setPaymentType('subscription')}
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                  paymentType === 'subscription'
-                    ? 'bg-blue-600 text-white'
-                    : 'text-gray-400 hover:text-white'
-                }`}
-              >
-                🔄 Auto-Renewal Subscription
-              </button>
-              <button
-                onClick={() => setPaymentType('one_time')}
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                  paymentType === 'one_time'
-                    ? 'bg-blue-600 text-white'
-                    : 'text-gray-400 hover:text-white'
-                }`}
-              >
-                💳 One-Time Payment
-              </button>
-            </div>
-          </div>
 
-          {/* Payment Type Description */}
-          <div className="mt-4 text-sm text-gray-500 max-w-lg mx-auto">
-            {paymentType === 'subscription' ? (
-              <p>✅ Automatic monthly renewal • Cancel anytime • Managed via Razorpay</p>
-            ) : (
-              <p>💡 Pay once for 30 days • Manual renewal required • No auto-billing</p>
-            )}
-          </div>
 
-          {/* Location-Based Payment Methods */}
-          {locationData && paymentMethods.length > 0 && (
-            <div className="mt-6 p-4 bg-gray-800/50 rounded-lg max-w-2xl mx-auto">
-              <div className="flex items-center justify-center space-x-2 mb-3">
-                <span className="text-sm text-gray-400">
-                  Available in {locationData.country_name || userCountry}:
-                </span>
-              </div>
-              <div className="flex items-center justify-center space-x-4 flex-wrap gap-2">
-                {paymentMethods.map((method) => {
-                  const methodIcons: { [key: string]: string } = {
-                    'cards': '💳',
-                    'upi': '📱',
-                    'netbanking': '🏦',
-                    'wallets': '👛',
-                    'emi': '📊',
-                    'paypal': '🅿️',
-                    'apple_pay': '🍎',
-                    'google_pay': '🔵',
-                    'sofort': '⚡',
-                    'giropay': '🇩🇪',
-                    'grabpay': '🚗',
-                    'fpx': '🏦',
-                    'truemoney': '💰'
-                  };
 
-                  const methodNames: { [key: string]: string } = {
-                    'cards': 'Cards',
-                    'upi': 'UPI',
-                    'netbanking': 'Net Banking',
-                    'wallets': 'Wallets',
-                    'emi': 'EMI',
-                    'paypal': 'PayPal',
-                    'apple_pay': 'Apple Pay',
-                    'google_pay': 'Google Pay',
-                    'sofort': 'Sofort',
-                    'giropay': 'Giropay',
-                    'grabpay': 'GrabPay',
-                    'fpx': 'FPX',
-                    'truemoney': 'TrueMoney'
-                  };
-
-                  return (
-                    <div key={method} className="flex items-center space-x-1 text-xs text-gray-300 bg-gray-700 px-2 py-1 rounded">
-                      <span>{methodIcons[method] || '💳'}</span>
-                      <span>{methodNames[method] || method}</span>
-                    </div>
-                  );
-                })}
-              </div>
-              {userCountry === 'IN' && (
-                <div className="mt-2 text-xs text-blue-400 text-center">
-                  🇮🇳 Special support for Indian payment methods via Razorpay
-                </div>
-              )}
-            </div>
-          )}
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
@@ -561,19 +461,8 @@ export const Pricing = () => {
                         Secure payment via Razorpay
                       </div>
                       <div className="text-xs text-gray-500">
-                        {userCountry === 'IN' ? (
-                          'Cards, UPI, Net Banking, Wallets & EMI'
-                        ) : userCountry === 'US' ? (
-                          'Cards, PayPal, Apple Pay & Google Pay'
-                        ) : (
-                          'Cards, PayPal & local payment methods'
-                        )}
+                        Supports cards, UPI, wallets & international payments
                       </div>
-                      {locationData && (
-                        <div className="text-xs text-blue-400 mt-1">
-                          📍 {locationData.country_name} • {preferredCurrency.toUpperCase()}
-                        </div>
-                      )}
                     </div>
                   )}
 
@@ -604,9 +493,7 @@ export const Pricing = () => {
                           Loading Payment...
                         </>
                       ) : (
-                        paymentType === 'subscription'
-                          ? `Subscribe to ${plan.name}`
-                          : `Choose ${plan.name}`
+                        `Choose ${plan.name}`
                       )}
                     </Button>
                   )}
