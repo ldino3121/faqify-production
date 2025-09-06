@@ -21,6 +21,7 @@ interface Plan {
   id: string;
   name: string;
   price_monthly: number;
+  price_monthly_inr?: number;
   price_yearly: number;
   faq_limit: number;
   features: string[];
@@ -152,6 +153,7 @@ export const Pricing = () => {
       id: 'pro',
       name: 'Pro',
       price_monthly: 9,
+      price_monthly_inr: 199,
       faq_limit: 100,
       features: [
         'Website URL analysis',
@@ -169,6 +171,7 @@ export const Pricing = () => {
       id: 'business',
       name: 'Business',
       price_monthly: 29,
+      price_monthly_inr: 999,
       faq_limit: 500,
       features: [
         'Website URL analysis',
@@ -364,14 +367,21 @@ export const Pricing = () => {
     handleRazorpayPayment(planId);
   };
 
-  // Helper function to always show USD pricing
-  const getPriceInCurrency = (usdPrice: number) => {
-    // Always return USD pricing regardless of user location
-    return {
-      amount: usdPrice,
-      symbol: '$',
-      currency: 'USD'
-    };
+  // Helper function to show location-based pricing
+  const getPriceInCurrency = (plan: Plan) => {
+    if (userCountry === 'IN' && plan.price_monthly_inr) {
+      return {
+        amount: plan.price_monthly_inr,
+        symbol: '₹',
+        currency: 'INR'
+      };
+    } else {
+      return {
+        amount: plan.price_monthly,
+        symbol: '$',
+        currency: 'USD'
+      };
+    }
   };
 
 
@@ -388,9 +398,19 @@ export const Pricing = () => {
             Choose the perfect plan for your FAQ generation needs. Start free, upgrade anytime.
           </p>
 
-
-
-
+          {/* Location-based pricing indicator */}
+          {locationData && (
+            <div className="mt-6 inline-flex items-center space-x-2 bg-gray-800/50 px-4 py-2 rounded-lg">
+              <span className="text-sm text-gray-400">
+                📍 Pricing for {locationData.country_name || userCountry}
+              </span>
+              {userCountry === 'IN' && (
+                <span className="text-xs bg-green-600 text-white px-2 py-1 rounded">
+                  Special India Pricing
+                </span>
+              )}
+            </div>
+          )}
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
@@ -428,13 +448,18 @@ export const Pricing = () => {
                         );
                       }
 
-                      const price = getPriceInCurrency(plan.price_monthly);
+                      const price = getPriceInCurrency(plan);
                       return (
                         <>
                           <span className="text-4xl font-bold text-white">
-                            ${price.amount}
+                            {price.symbol}{price.amount}
                           </span>
                           <span className="text-gray-400 ml-2">/month</span>
+                          {userCountry === 'IN' && (
+                            <div className="text-xs text-blue-400 mt-1">
+                              🇮🇳 Special pricing for India
+                            </div>
+                          )}
                         </>
                       );
                     })()}

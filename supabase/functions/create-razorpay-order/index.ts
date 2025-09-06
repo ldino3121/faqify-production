@@ -176,7 +176,14 @@ serve(async (req) => {
 
     switch (targetCurrency) {
       case 'inr':
-        amount = plan.price_inr || (plan.price_monthly * 83); // Fallback conversion
+        // Use India-specific pricing: Pro ₹199, Business ₹999
+        if (plan.name === 'Pro') {
+          amount = 19900; // ₹199 in paise
+        } else if (plan.name === 'Business') {
+          amount = 99900; // ₹999 in paise
+        } else {
+          amount = plan.price_inr || (plan.price_monthly * 83); // Fallback conversion
+        }
         break;
       case 'eur':
         amount = plan.price_eur || Math.round(plan.price_monthly * 0.85);
