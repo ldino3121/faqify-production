@@ -1,12 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { 
-  Check, 
-  Star, 
-  Zap, 
+import {
+  Check,
+  Star,
+  Zap,
   CreditCard,
   Shield,
   Users,
@@ -36,7 +36,42 @@ export const PlanUpgrade = () => {
   const [isAnnual, setIsAnnual] = useState(false);
   const [currentPlan, setCurrentPlan] = useState<PlanType>("Free");
   const [paymentType, setPaymentType] = useState<'one_time' | 'subscription'>('subscription');
+  const [userCountry, setUserCountry] = useState('US');
   const { toast } = useToast();
+
+  // Detect user location for pricing
+  useEffect(() => {
+    const detectLocation = async () => {
+      try {
+        const response = await fetch('https://ipapi.co/json/');
+        const data = await response.json();
+        if (data.country_code) {
+          setUserCountry(data.country_code);
+        }
+      } catch (error) {
+        console.error('Error detecting location:', error);
+      }
+    };
+
+    detectLocation();
+  }, []);
+
+  // Helper function to get price based on location
+  const getPrice = (usdPrice: number, inrPrice: number) => {
+    if (userCountry === 'IN') {
+      return {
+        amount: inrPrice,
+        symbol: '₹',
+        currency: 'INR'
+      };
+    } else {
+      return {
+        amount: usdPrice,
+        symbol: '$',
+        currency: 'USD'
+      };
+    }
+  };
 
   const plans: Plan[] = [
     {
@@ -65,8 +100,17 @@ export const PlanUpgrade = () => {
     },
     {
       name: "Pro",
-      price: isAnnual ? "$90" : "$9",
-      originalPrice: isAnnual ? "$108" : null,
+      price: (() => {
+        const monthlyPrice = getPrice(9, 199);
+        const yearlyPrice = getPrice(90, 1990);
+        return isAnnual
+          ? `${yearlyPrice.symbol}${yearlyPrice.amount}`
+          : `${monthlyPrice.symbol}${monthlyPrice.amount}`;
+      })(),
+      originalPrice: isAnnual ? (() => {
+        const originalPrice = getPrice(108, 2388);
+        return `${originalPrice.symbol}${originalPrice.amount}`;
+      })() : null,
       period: isAnnual ? "per year" : "per month",
       description: "Ideal for small businesses and bloggers",
       features: [
@@ -87,8 +131,17 @@ export const PlanUpgrade = () => {
     },
     {
       name: "Business",
-      price: isAnnual ? "$290" : "$29",
-      originalPrice: isAnnual ? "$348" : null,
+      price: (() => {
+        const monthlyPrice = getPrice(29, 999);
+        const yearlyPrice = getPrice(290, 9990);
+        return isAnnual
+          ? `${yearlyPrice.symbol}${yearlyPrice.amount}`
+          : `${monthlyPrice.symbol}${monthlyPrice.amount}`;
+      })(),
+      originalPrice: isAnnual ? (() => {
+        const originalPrice = getPrice(348, 11988);
+        return `${originalPrice.symbol}${originalPrice.amount}`;
+      })() : null,
       period: isAnnual ? "per year" : "per month",
       description: "For agencies and large websites",
       features: [
@@ -135,7 +188,19 @@ export const PlanUpgrade = () => {
     <div className="space-y-8">
       <div className="text-center">
         <h1 className="text-3xl font-bold text-white mb-2">Upgrade Your Plan</h1>
-        <p className="text-gray-400 mb-6">Choose the perfect plan for your FAQ generation needs</p>
+        <p className="text-gray-400 mb-4">Choose the perfect plan for your FAQ generation needs</p>
+
+        {/* Location-based pricing indicator */}
+        <div className="mb-6 inline-flex items-center space-x-2 bg-gray-800/50 px-4 py-2 rounded-lg">
+          <span className="text-sm text-gray-400">
+            📍 Pricing for {userCountry === 'IN' ? 'India' : 'International'}
+          </span>
+          {userCountry === 'IN' && (
+            <span className="text-xs bg-green-600 text-white px-2 py-1 rounded">
+              Special India Pricing
+            </span>
+          )}
+        </div>
         
         {/* Annual/Monthly Toggle */}
         <div className="flex items-center justify-center space-x-4 mb-6">
