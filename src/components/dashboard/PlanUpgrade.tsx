@@ -35,6 +35,7 @@ interface Plan {
 export const PlanUpgrade = () => {
   const [isAnnual, setIsAnnual] = useState(false);
   const [currentPlan, setCurrentPlan] = useState<PlanType>("Free");
+  const [paymentType, setPaymentType] = useState<'one_time' | 'subscription'>('subscription');
   const { toast } = useToast();
 
   const plans: Plan[] = [
@@ -137,7 +138,7 @@ export const PlanUpgrade = () => {
         <p className="text-gray-400 mb-6">Choose the perfect plan for your FAQ generation needs</p>
         
         {/* Annual/Monthly Toggle */}
-        <div className="flex items-center justify-center space-x-4 mb-8">
+        <div className="flex items-center justify-center space-x-4 mb-6">
           <span className={`text-sm ${!isAnnual ? 'text-white' : 'text-gray-400'}`}>Monthly</span>
           <Switch
             checked={isAnnual}
@@ -150,6 +151,43 @@ export const PlanUpgrade = () => {
               {savings}
             </Badge>
           )}
+        </div>
+
+        {/* Payment Type Toggle */}
+        <div className="flex items-center justify-center space-x-4 mb-8">
+          <div className="flex items-center space-x-2 bg-gray-800 rounded-lg p-1">
+            <button
+              onClick={() => setPaymentType('subscription')}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                paymentType === 'subscription'
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              🔄 Auto-Renewal Subscription
+            </button>
+            <button
+              onClick={() => setPaymentType('one_time')}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                paymentType === 'one_time'
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              💳 One-Time Payment
+            </button>
+          </div>
+        </div>
+
+        {/* Payment Type Description */}
+        <div className="text-center mb-6">
+          <div className="text-sm text-gray-500 max-w-lg mx-auto">
+            {paymentType === 'subscription' ? (
+              <p>✅ Automatic monthly renewal • Cancel anytime • Managed via Razorpay</p>
+            ) : (
+              <p>💡 Pay once for 30 days • Manual renewal required • No auto-billing</p>
+            )}
+          </div>
         </div>
       </div>
 

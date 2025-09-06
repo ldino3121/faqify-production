@@ -54,6 +54,7 @@ export const Pricing = () => {
   const [preferredCurrency, setPreferredCurrency] = useState('usd');
   const [locationData, setLocationData] = useState<any>(null);
   const [paymentMethods, setPaymentMethods] = useState<string[]>([]);
+  const [countryOverride, setCountryOverride] = useState<string | null>(null);
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -217,7 +218,7 @@ export const Pricing = () => {
         body: {
           planId: planId,
           currency: preferredCurrency,
-          userCountry: userCountry
+          userCountry: countryOverride || userCountry
         }
       });
 
@@ -369,7 +370,8 @@ export const Pricing = () => {
 
   // Helper function to show location-based pricing
   const getPriceInCurrency = (plan: Plan) => {
-    if (userCountry === 'IN' && plan.price_monthly_inr) {
+    const effectiveCountry = countryOverride || userCountry;
+    if (effectiveCountry === 'IN' && plan.price_monthly_inr) {
       return {
         amount: plan.price_monthly_inr,
         symbol: '₹',
@@ -402,15 +404,52 @@ export const Pricing = () => {
           {locationData && (
             <div className="mt-6 inline-flex items-center space-x-2 bg-gray-800/50 px-4 py-2 rounded-lg">
               <span className="text-sm text-gray-400">
-                📍 Pricing for {locationData.country_name || userCountry}
+                📍 Pricing for {locationData.country_name || countryOverride || userCountry}
               </span>
-              {userCountry === 'IN' && (
+              {(countryOverride === 'IN' || userCountry === 'IN') && (
                 <span className="text-xs bg-green-600 text-white px-2 py-1 rounded">
                   Special India Pricing
                 </span>
               )}
             </div>
           )}
+
+          {/* Developer Testing Panel */}
+          <div className="mt-4 text-center">
+            <details className="inline-block">
+              <summary className="text-xs text-gray-500 cursor-pointer hover:text-gray-400">
+                🧪 Developer: Test International Pricing
+              </summary>
+              <div className="mt-2 space-x-2">
+                <button
+                  onClick={() => setCountryOverride('IN')}
+                  className={`text-xs px-3 py-1 rounded ${
+                    countryOverride === 'IN'
+                      ? 'bg-green-600 text-white'
+                      : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                  }`}
+                >
+                  🇮🇳 Test India (₹199/₹999)
+                </button>
+                <button
+                  onClick={() => setCountryOverride('US')}
+                  className={`text-xs px-3 py-1 rounded ${
+                    countryOverride === 'US'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                  }`}
+                >
+                  🇺🇸 Test USA ($9/$29)
+                </button>
+                <button
+                  onClick={() => setCountryOverride(null)}
+                  className="text-xs px-3 py-1 rounded bg-gray-700 text-gray-300 hover:bg-gray-600"
+                >
+                  🌍 Reset to Auto-Detect
+                </button>
+              </div>
+            </details>
+          </div>
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
@@ -455,7 +494,7 @@ export const Pricing = () => {
                             {price.symbol}{price.amount}
                           </span>
                           <span className="text-gray-400 ml-2">/month</span>
-                          {userCountry === 'IN' && (
+                          {(countryOverride === 'IN' || userCountry === 'IN') && (
                             <div className="text-xs text-blue-400 mt-1">
                               🇮🇳 Special pricing for India
                             </div>
