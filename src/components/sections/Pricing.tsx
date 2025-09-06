@@ -8,6 +8,7 @@ import { Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { useRazorpaySubscription } from "@/hooks/useRazorpaySubscription";
 
 // Declare Razorpay for TypeScript
 declare global {
@@ -50,8 +51,10 @@ export const Pricing = () => {
   const [razorpayLoaded, setRazorpayLoaded] = useState(false);
   const [userCountry, setUserCountry] = useState('US');
   const [preferredCurrency, setPreferredCurrency] = useState('usd');
+  const [paymentType, setPaymentType] = useState<'one_time' | 'subscription'>('subscription');
   const { user } = useAuth();
   const { toast } = useToast();
+  const { createAndOpenSubscription, loading: subscriptionLoading } = useRazorpaySubscription();
 
   // Load Razorpay script
   useEffect(() => {
@@ -171,6 +174,16 @@ export const Pricing = () => {
 
     try {
       setProcessingPlan(planId);
+
+      // Handle subscription vs one-time payment
+      if (paymentType === 'subscription') {
+        // Use Razorpay subscription
+        const result = await createAndOpenSubscription(planId as 'Pro' | 'Business');
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to create subscription');
+        }
+        return; // Subscription flow handles the rest
+      }
 
       // Create Razorpay order
       const { data, error } = await supabase.functions.invoke('create-razorpay-order', {
@@ -328,6 +341,42 @@ export const Pricing = () => {
           <p className="text-xl text-gray-400 max-w-2xl mx-auto">
             Choose the perfect plan for your FAQ generation needs. Start free, upgrade anytime.
           </p>
+
+          {/* Payment Type Toggle */}
+          <div className="mt-8 flex items-center justify-center space-x-4">
+            <span className="text-gray-400">Payment Type:</span>
+            <div className="flex items-center space-x-2 bg-gray-800 rounded-lg p-1">
+              <button
+                onClick={() => setPaymentType('subscription')}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  paymentType === 'subscription'
+                    ? 'bg-blue-600 text-white'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                🔄 Auto-Renewal Subscription
+              </button>
+              <button
+                onClick={() => setPaymentType('one_time')}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  paymentType === 'one_time'
+                    ? 'bg-blue-600 text-white'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                💳 One-Time Payment
+              </button>
+            </div>
+          </div>
+
+          {/* Payment Type Description */}
+          <div className="mt-4 text-sm text-gray-500 max-w-lg mx-auto">
+            {paymentType === 'subscription' ? (
+              <p>✅ Automatic monthly renewal • Cancel anytime • Managed via Razorpay</p>
+            ) : (
+              <p>💡 Pay once for 30 days • Manual renewal required • No auto-billing</p>
+            )}
+          </div>
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
@@ -430,7 +479,9 @@ export const Pricing = () => {
                           Loading Payment...
                         </>
                       ) : (
-                        `Choose ${plan.name}`
+                        paymentType === 'subscription'
+                          ? `Subscribe to ${plan.name}`
+                          : `Choose ${plan.name}`
                       )}
                     </Button>
                   )}

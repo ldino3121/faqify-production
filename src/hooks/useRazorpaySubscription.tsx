@@ -3,6 +3,35 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 
+// Add subscription-specific interfaces
+interface SubscriptionResult {
+  success: boolean;
+  subscription_id?: string;
+  short_url?: string;
+  error?: string;
+}
+
+interface RazorpaySubscriptionOptions {
+  key: string;
+  subscription_id: string;
+  name: string;
+  description: string;
+  handler: (response: any) => void;
+  prefill: {
+    name: string;
+    email: string;
+  };
+  theme: {
+    color: string;
+  };
+}
+
+declare global {
+  interface Window {
+    Razorpay: any;
+  }
+}
+
 interface SubscriptionData {
   id: string;
   plan_tier: string;
@@ -255,5 +284,185 @@ export const useRazorpaySubscription = () => {
     
     // Actions
     refresh,
+
+    // Subscription methods
+    createSubscription: async (planId: 'Pro' | 'Business'): Promise<SubscriptionResult> => {
+      if (!user) {
+        return { success: false, error: 'User not authenticated' };
+      }
+
+      setLoading(true);
+      try {
+        const { data, error } = await supabase.functions.invoke('create-razorpay-subscription', {
+          body: {
+            planId,
+            userEmail: user.email || '',
+            userName: user.user_metadata?.full_name || user.email || 'User'
+          }
+        });
+
+        if (error) throw error;
+
+        if (!data.success) {
+          throw new Error(data.error || 'Failed to create subscription');
+        }
+
+        toast({
+          title: "Subscription Created",
+          description: `${planId} plan subscription created successfully!`,
+        });
+
+        return {
+          success: true,
+          subscription_id: data.subscription_id,
+          short_url: data.short_url
+        };
+
+      } catch (error) {
+        console.error('Error creating subscription:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Failed to create subscription';
+
+        toast({
+          title: "Subscription Failed",
+          description: errorMessage,
+          variant: "destructive",
+        });
+
+        return { success: false, error: errorMessage };
+      } finally {
+        setLoading(false);
+      }
+    },
+
+    openRazorpaySubscriptionCheckout: (subscriptionId: string, planId: 'Pro' | 'Business') => {
+      if (!window.Razorpay) {
+        toast({
+          title: "Error",
+          description: "Razorpay SDK not loaded. Please refresh the page.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const options: RazorpaySubscriptionOptions = {
+        key: import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_your_key_id',
+        subscription_id: subscriptionId,
+        name: 'FAQify',
+        description: `${planId} Plan Subscription`,
+        handler: async (response: any) => {
+          console.log('Razorpay subscription response:', response);
+
+          toast({
+            title: "Subscription Activated!",
+            description: `Your ${planId} plan is now active. Redirecting to dashboard...`,
+          });
+
+          setTimeout(() => {
+            window.location.reload();
+          }, 2000);
+        },
+        prefill: {
+          name: user?.user_metadata?.full_name || user?.email || 'User',
+          email: user?.email || ''
+        },
+        theme: {
+          color: '#3b82f6'
+        }
+      };
+
+      const rzp = new window.Razorpay(options);
+
+      rzp.on('payment.failed', (response: any) => {
+        console.error('Razorpay payment failed:', response);
+        toast({
+          title: "Payment Failed",
+          description: response.error?.description || "Payment failed. Please try again.",
+          variant: "destructive",
+        });
+      });
+
+      rzp.open();
+    },
+
+    createAndOpenSubscription: async (planId: 'Pro' | 'Business') => {
+      const createSubscription = async (): Promise<SubscriptionResult> => {
+        if (!user) {
+          return { success: false, error: 'User not authenticated' };
+        }
+
+        setLoading(true);
+        try {
+          const { data, error } = await supabase.functions.invoke('create-razorpay-subscription', {
+            body: {
+              planId,
+              userEmail: user.email || '',
+              userName: user.user_metadata?.full_name || user.email || 'User'
+            }
+          });
+
+          if (error) throw error;
+          if (!data.success) throw new Error(data.error || 'Failed to create subscription');
+
+          return {
+            success: true,
+            subscription_id: data.subscription_id,
+            short_url: data.short_url
+          };
+
+        } catch (error) {
+          console.error('Error creating subscription:', error);
+          return { success: false, error: error instanceof Error ? error.message : 'Failed to create subscription' };
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      const result = await createSubscription();
+
+      if (result.success && result.subscription_id) {
+        setTimeout(() => {
+          // Use the openRazorpaySubscriptionCheckout method defined above
+          if (!window.Razorpay) {
+            toast({
+              title: "Error",
+              description: "Razorpay SDK not loaded. Please refresh the page.",
+              variant: "destructive",
+            });
+            return;
+          }
+
+          const options: RazorpaySubscriptionOptions = {
+            key: import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_your_key_id',
+            subscription_id: result.subscription_id!,
+            name: 'FAQify',
+            description: `${planId} Plan Subscription`,
+            handler: async (response: any) => {
+              console.log('Razorpay subscription response:', response);
+
+              toast({
+                title: "Subscription Activated!",
+                description: `Your ${planId} plan is now active. Redirecting to dashboard...`,
+              });
+
+              setTimeout(() => {
+                window.location.reload();
+              }, 2000);
+            },
+            prefill: {
+              name: user?.user_metadata?.full_name || user?.email || 'User',
+              email: user?.email || ''
+            },
+            theme: {
+              color: '#3b82f6'
+            }
+          };
+
+          const rzp = new window.Razorpay(options);
+          rzp.open();
+        }, 1000);
+      }
+
+      return result;
+    },
   };
 };

@@ -2,14 +2,16 @@
 -- Auto-renewal, cancellation, payment status tracking
 
 -- 1. Add new columns to user_subscriptions table
-ALTER TABLE public.user_subscriptions 
+ALTER TABLE public.user_subscriptions
 ADD COLUMN IF NOT EXISTS auto_renewal BOOLEAN DEFAULT true,
 ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMPTZ,
 ADD COLUMN IF NOT EXISTS cancellation_reason TEXT,
-ADD COLUMN IF NOT EXISTS payment_type TEXT DEFAULT 'one_time' CHECK (payment_type IN ('one_time', 'recurring')),
+ADD COLUMN IF NOT EXISTS payment_type TEXT DEFAULT 'one_time' CHECK (payment_type IN ('one_time', 'recurring', 'subscription')),
 ADD COLUMN IF NOT EXISTS next_billing_date TIMESTAMPTZ,
 ADD COLUMN IF NOT EXISTS billing_cycle TEXT DEFAULT 'monthly' CHECK (billing_cycle IN ('monthly', 'yearly')),
-ADD COLUMN IF NOT EXISTS subscription_source TEXT DEFAULT 'manual' CHECK (subscription_source IN ('manual', 'stripe', 'razorpay'));
+ADD COLUMN IF NOT EXISTS subscription_source TEXT DEFAULT 'manual' CHECK (subscription_source IN ('manual', 'stripe', 'razorpay')),
+ADD COLUMN IF NOT EXISTS razorpay_subscription_id TEXT,
+ADD COLUMN IF NOT EXISTS razorpay_plan_id TEXT;
 
 -- 2. Create subscription_cancellations table for tracking cancellation details
 CREATE TABLE IF NOT EXISTS public.subscription_cancellations (
@@ -43,23 +45,27 @@ CREATE TABLE IF NOT EXISTS public.subscription_renewals (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 4. Update existing subscriptions to have proper defaults
-UPDATE public.user_subscriptions 
-SET 
-  auto_renewal = CASE 
-    WHEN plan_tier = 'Free' THEN false 
-    ELSE true 
+-- 4. Add payment_type column to payment_transactions if not exists
+ALTER TABLE public.payment_transactions
+ADD COLUMN IF NOT EXISTS payment_type TEXT DEFAULT 'one_time' CHECK (payment_type IN ('one_time', 'recurring', 'subscription'));
+
+-- 5. Update existing subscriptions to have proper defaults
+UPDATE public.user_subscriptions
+SET
+  auto_renewal = CASE
+    WHEN plan_tier = 'Free' THEN false
+    ELSE true
   END,
-  payment_type = CASE 
+  payment_type = CASE
     WHEN plan_tier = 'Free' THEN 'one_time'
     ELSE 'recurring'
   END,
   billing_cycle = 'monthly',
   subscription_source = 'manual',
-  next_billing_date = CASE 
-    WHEN plan_tier != 'Free' AND plan_expires_at IS NOT NULL 
-    THEN plan_expires_at 
-    ELSE NULL 
+  next_billing_date = CASE
+    WHEN plan_tier != 'Free' AND plan_expires_at IS NOT NULL
+    THEN plan_expires_at
+    ELSE NULL
   END
 WHERE auto_renewal IS NULL;
 
