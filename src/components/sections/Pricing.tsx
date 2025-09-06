@@ -52,6 +52,8 @@ export const Pricing = () => {
   const [userCountry, setUserCountry] = useState('US');
   const [preferredCurrency, setPreferredCurrency] = useState('usd');
   const [paymentType, setPaymentType] = useState<'one_time' | 'subscription'>('subscription');
+  const [locationData, setLocationData] = useState<any>(null);
+  const [paymentMethods, setPaymentMethods] = useState<string[]>([]);
   const { user } = useAuth();
   const { toast } = useToast();
   const { createAndOpenSubscription, loading: subscriptionLoading } = useRazorpaySubscription();
@@ -77,24 +79,56 @@ export const Pricing = () => {
       setRazorpayLoaded(true);
     }
 
-    // Detect user location (simplified)
-    fetch('https://ipapi.co/json/')
-      .then(response => response.json())
-      .then(data => {
+    // Enhanced location detection with payment methods
+    const detectLocationAndPaymentMethods = async () => {
+      try {
+        const response = await fetch('https://ipapi.co/json/');
+        const data = await response.json();
+
+        setLocationData(data);
         setUserCountry(data.country_code || 'US');
+
         // Set preferred currency based on country
         const currencyMap: { [key: string]: string } = {
           'IN': 'inr',
           'GB': 'gbp',
-          'DE': 'eur', 'FR': 'eur', 'IT': 'eur', 'ES': 'eur', 'NL': 'eur'
+          'DE': 'eur', 'FR': 'eur', 'IT': 'eur', 'ES': 'eur', 'NL': 'eur',
+          'AU': 'aud', 'CA': 'cad', 'JP': 'jpy', 'SG': 'sgd'
         };
         setPreferredCurrency(currencyMap[data.country_code] || 'usd');
-      })
-      .catch(() => {
-        // Fallback to USD if location detection fails
+
+        // Set available payment methods based on country
+        const paymentMethodsMap: { [key: string]: string[] } = {
+          'IN': ['cards', 'upi', 'netbanking', 'wallets', 'emi'],
+          'US': ['cards', 'paypal', 'apple_pay', 'google_pay'],
+          'GB': ['cards', 'paypal', 'apple_pay', 'google_pay'],
+          'DE': ['cards', 'paypal', 'sofort', 'giropay'],
+          'FR': ['cards', 'paypal', 'apple_pay'],
+          'AU': ['cards', 'paypal', 'apple_pay'],
+          'CA': ['cards', 'paypal', 'apple_pay'],
+          'SG': ['cards', 'paypal', 'grabpay'],
+          'MY': ['cards', 'paypal', 'grabpay', 'fpx'],
+          'TH': ['cards', 'paypal', 'truemoney'],
+        };
+
+        setPaymentMethods(paymentMethodsMap[data.country_code] || ['cards', 'paypal']);
+
+        console.log('Location detected:', {
+          country: data.country_code,
+          currency: currencyMap[data.country_code] || 'usd',
+          paymentMethods: paymentMethodsMap[data.country_code] || ['cards', 'paypal']
+        });
+
+      } catch (error) {
+        console.error('Location detection failed:', error);
+        // Fallback to US defaults
         setUserCountry('US');
         setPreferredCurrency('usd');
-      });
+        setPaymentMethods(['cards', 'paypal']);
+      }
+    };
+
+    detectLocationAndPaymentMethods();
   }, []);
 
   // Static pricing plans with standardized features
@@ -103,7 +137,7 @@ export const Pricing = () => {
       id: 'free',
       name: 'Free',
       price_monthly: 0,
-      faq_limit: 10, // Updated to 10 FAQs for Free plan
+      faq_limit: 5, // Free plan: 5 FAQs per month
       features: [
         'Website URL analysis',
         'Text content analysis',
@@ -200,14 +234,24 @@ export const Pricing = () => {
         throw new Error('Failed to create payment order');
       }
 
-      // Configure Razorpay options
+      // Configure Razorpay options with location-specific settings
       const options: RazorpayOptions = {
         key: data.order.key,
         amount: data.order.amount,
         currency: data.order.currency.toUpperCase(),
         name: 'FAQify',
-        description: `${data.plan.name} Plan Subscription`,
+        description: `${data.plan.name} Plan ${paymentType === 'subscription' ? 'Subscription' : 'Upgrade'}`,
         order_id: data.order.id,
+        // Location-specific payment method preferences
+        method: userCountry === 'IN' ? {
+          upi: paymentMethods.includes('upi'),
+          card: paymentMethods.includes('cards'),
+          netbanking: paymentMethods.includes('netbanking'),
+          wallet: paymentMethods.includes('wallets'),
+          emi: paymentMethods.includes('emi')
+        } : {
+          card: true
+        },
         handler: async function (response: any) {
           try {
             // Verify payment on backend
@@ -245,10 +289,22 @@ export const Pricing = () => {
         },
         prefill: {
           name: data.user.name,
-          email: data.user.email
+          email: data.user.email,
+          contact: data.user.phone || '',
+          ...(locationData && {
+            'billing_address[country]': locationData.country_code,
+            'billing_address[state]': locationData.region,
+            'billing_address[city]': locationData.city,
+            'billing_address[postal_code]': locationData.postal
+          })
         },
         theme: {
           color: '#3B82F6'
+        },
+        config: {
+          display: {
+            language: userCountry === 'IN' ? 'en' : 'en'
+          }
         },
         modal: {
           ondismiss: function () {
@@ -377,6 +433,64 @@ export const Pricing = () => {
               <p>💡 Pay once for 30 days • Manual renewal required • No auto-billing</p>
             )}
           </div>
+
+          {/* Location-Based Payment Methods */}
+          {locationData && paymentMethods.length > 0 && (
+            <div className="mt-6 p-4 bg-gray-800/50 rounded-lg max-w-2xl mx-auto">
+              <div className="flex items-center justify-center space-x-2 mb-3">
+                <span className="text-sm text-gray-400">
+                  Available in {locationData.country_name || userCountry}:
+                </span>
+              </div>
+              <div className="flex items-center justify-center space-x-4 flex-wrap gap-2">
+                {paymentMethods.map((method) => {
+                  const methodIcons: { [key: string]: string } = {
+                    'cards': '💳',
+                    'upi': '📱',
+                    'netbanking': '🏦',
+                    'wallets': '👛',
+                    'emi': '📊',
+                    'paypal': '🅿️',
+                    'apple_pay': '🍎',
+                    'google_pay': '🔵',
+                    'sofort': '⚡',
+                    'giropay': '🇩🇪',
+                    'grabpay': '🚗',
+                    'fpx': '🏦',
+                    'truemoney': '💰'
+                  };
+
+                  const methodNames: { [key: string]: string } = {
+                    'cards': 'Cards',
+                    'upi': 'UPI',
+                    'netbanking': 'Net Banking',
+                    'wallets': 'Wallets',
+                    'emi': 'EMI',
+                    'paypal': 'PayPal',
+                    'apple_pay': 'Apple Pay',
+                    'google_pay': 'Google Pay',
+                    'sofort': 'Sofort',
+                    'giropay': 'Giropay',
+                    'grabpay': 'GrabPay',
+                    'fpx': 'FPX',
+                    'truemoney': 'TrueMoney'
+                  };
+
+                  return (
+                    <div key={method} className="flex items-center space-x-1 text-xs text-gray-300 bg-gray-700 px-2 py-1 rounded">
+                      <span>{methodIcons[method] || '💳'}</span>
+                      <span>{methodNames[method] || method}</span>
+                    </div>
+                  );
+                })}
+              </div>
+              {userCountry === 'IN' && (
+                <div className="mt-2 text-xs text-blue-400 text-center">
+                  🇮🇳 Special support for Indian payment methods via Razorpay
+                </div>
+              )}
+            </div>
+          )}
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
@@ -447,8 +561,19 @@ export const Pricing = () => {
                         Secure payment via Razorpay
                       </div>
                       <div className="text-xs text-gray-500">
-                        Supports cards, UPI, wallets & international payments
+                        {userCountry === 'IN' ? (
+                          'Cards, UPI, Net Banking, Wallets & EMI'
+                        ) : userCountry === 'US' ? (
+                          'Cards, PayPal, Apple Pay & Google Pay'
+                        ) : (
+                          'Cards, PayPal & local payment methods'
+                        )}
                       </div>
+                      {locationData && (
+                        <div className="text-xs text-blue-400 mt-1">
+                          📍 {locationData.country_name} • {preferredCurrency.toUpperCase()}
+                        </div>
+                      )}
                     </div>
                   )}
 

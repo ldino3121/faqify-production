@@ -20,7 +20,7 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { useSubscription } from "@/hooks/useSubscription";
 import { supabase } from "@/integrations/supabase/client";
-// import { SubscriptionManagement } from "./SubscriptionManagement"; // Temporarily disabled
+import { SubscriptionManagement } from "./SubscriptionManagement";
 
 interface DashboardStats {
   totalCollections: number;
@@ -367,9 +367,8 @@ export const DashboardOverviewData = () => {
         </Card>
       </div>
 
-      {/* Subscription Management Section - Temporarily disabled until database migration */}
-      {/* TODO: Enable after running migration 20250109000000_add_subscription_management.sql */}
-      {false && subscription && (
+      {/* Subscription Management Section */}
+      {subscription && (
         <div>
           <h2 className="text-2xl font-bold text-white mb-4">Subscription Management</h2>
           <SubscriptionManagement />
