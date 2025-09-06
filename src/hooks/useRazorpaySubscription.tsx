@@ -286,7 +286,7 @@ export const useRazorpaySubscription = () => {
     refresh,
 
     // Subscription methods
-    createSubscription: async (planId: 'Pro' | 'Business'): Promise<SubscriptionResult> => {
+    createSubscription: async (planId: 'Pro' | 'Business', currency?: 'INR' | 'USD', userCountry?: string): Promise<SubscriptionResult> => {
       if (!user) {
         return { success: false, error: 'User not authenticated' };
       }
@@ -297,7 +297,9 @@ export const useRazorpaySubscription = () => {
           body: {
             planId,
             userEmail: user.email || '',
-            userName: user.user_metadata?.full_name || user.email || 'User'
+            userName: user.user_metadata?.full_name || user.email || 'User',
+            currency: currency || 'INR',
+            userCountry: userCountry || 'IN'
           }
         });
 
@@ -463,6 +465,141 @@ export const useRazorpaySubscription = () => {
       }
 
       return result;
+    },
+
+    // Subscription management methods
+    pauseSubscription: async (immediate: boolean = false) => {
+      if (!user) {
+        return { success: false, error: 'User not authenticated' };
+      }
+
+      setLoading(true);
+      try {
+        const { data, error } = await supabase.functions.invoke('manage-razorpay-subscription', {
+          body: {
+            action: 'pause',
+            immediate
+          }
+        });
+
+        if (error) throw error;
+
+        if (data.success) {
+          toast({
+            title: "Subscription Paused",
+            description: immediate ? "Your subscription has been paused immediately." : "Your subscription will be paused at the end of current billing cycle.",
+          });
+          await refresh();
+        }
+
+        return data;
+      } catch (error) {
+        console.error('Error pausing subscription:', error);
+        toast({
+          title: "Error",
+          description: "Failed to pause subscription. Please try again.",
+          variant: "destructive",
+        });
+        return { success: false, error: error.message };
+      } finally {
+        setLoading(false);
+      }
+    },
+
+    resumeSubscription: async () => {
+      if (!user) {
+        return { success: false, error: 'User not authenticated' };
+      }
+
+      setLoading(true);
+      try {
+        const { data, error } = await supabase.functions.invoke('manage-razorpay-subscription', {
+          body: {
+            action: 'resume'
+          }
+        });
+
+        if (error) throw error;
+
+        if (data.success) {
+          toast({
+            title: "Subscription Resumed",
+            description: "Your subscription has been resumed successfully.",
+          });
+          await refresh();
+        }
+
+        return data;
+      } catch (error) {
+        console.error('Error resuming subscription:', error);
+        toast({
+          title: "Error",
+          description: "Failed to resume subscription. Please try again.",
+          variant: "destructive",
+        });
+        return { success: false, error: error.message };
+      } finally {
+        setLoading(false);
+      }
+    },
+
+    cancelSubscription: async (reason?: string, immediate: boolean = false) => {
+      if (!user) {
+        return { success: false, error: 'User not authenticated' };
+      }
+
+      setLoading(true);
+      try {
+        const { data, error } = await supabase.functions.invoke('manage-razorpay-subscription', {
+          body: {
+            action: 'cancel',
+            reason,
+            immediate
+          }
+        });
+
+        if (error) throw error;
+
+        if (data.success) {
+          toast({
+            title: "Subscription Cancelled",
+            description: data.message,
+          });
+          await refresh();
+        }
+
+        return data;
+      } catch (error) {
+        console.error('Error cancelling subscription:', error);
+        toast({
+          title: "Error",
+          description: "Failed to cancel subscription. Please try again.",
+          variant: "destructive",
+        });
+        return { success: false, error: error.message };
+      } finally {
+        setLoading(false);
+      }
+    },
+
+    getSubscriptionDetails: async () => {
+      if (!user) {
+        return { success: false, error: 'User not authenticated' };
+      }
+
+      try {
+        const { data, error } = await supabase.functions.invoke('manage-razorpay-subscription', {
+          body: {
+            action: 'get_details'
+          }
+        });
+
+        if (error) throw error;
+        return data;
+      } catch (error) {
+        console.error('Error getting subscription details:', error);
+        return { success: false, error: error.message };
+      }
     },
   };
 };

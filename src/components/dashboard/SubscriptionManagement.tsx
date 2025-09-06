@@ -4,9 +4,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { AlertTriangle, Calendar, CreditCard, RefreshCw, X } from 'lucide-react';
+import { AlertTriangle, Calendar, CreditCard, RefreshCw, X, Play, Pause } from 'lucide-react';
 import { useSubscription } from '@/hooks/useSubscription';
-import { useSubscriptionManagement } from '@/hooks/useSubscriptionManagement';
+import { useRazorpaySubscription } from '@/hooks/useRazorpaySubscription';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   Dialog,
@@ -22,38 +22,61 @@ import { Textarea } from '@/components/ui/textarea';
 export const SubscriptionManagement: React.FC = () => {
   const { subscription, loading: subscriptionLoading } = useSubscription();
   const [hasError, setHasError] = useState(false);
+  const [subscriptionDetails, setSubscriptionDetails] = useState<any>(null);
 
-  // Initialize subscription management hook
-  const managementHook = useSubscriptionManagement();
-
+  // Initialize Razorpay subscription management
   const {
-    managementData,
-    loading: managementLoading,
-    isAvailable,
-    toggleAutoRenewal,
-    cancelSubscription,
-    reactivateSubscription,
-  } = managementHook;
+    loading: razorpayLoading,
+    pauseSubscription,
+    resumeSubscription,
+    cancelSubscription: cancelRazorpaySubscription,
+    getSubscriptionDetails,
+  } = useRazorpaySubscription();
 
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [cancellationReason, setCancellationReason] = useState('');
   const [immediateCancel, setImmediateCancel] = useState(false);
 
-  const handleCancelSubscription = async () => {
-    const result = await cancelSubscription(cancellationReason, immediateCancel);
-    if (result) {
-      setShowCancelDialog(false);
-      setCancellationReason('');
-      setImmediateCancel(false);
+  // Load subscription details on mount
+  useEffect(() => {
+    if (subscription && subscription.subscription_source === 'razorpay') {
+      loadSubscriptionDetails();
+    }
+  }, [subscription]);
+
+  const loadSubscriptionDetails = async () => {
+    try {
+      const details = await getSubscriptionDetails();
+      if (details.success) {
+        setSubscriptionDetails(details.subscription);
+      }
+    } catch (error) {
+      console.error('Error loading subscription details:', error);
     }
   };
 
-  const handleReactivateSubscription = async () => {
-    await reactivateSubscription();
+  const handlePauseSubscription = async () => {
+    const result = await pauseSubscription(false);
+    if (result.success) {
+      await loadSubscriptionDetails();
+    }
   };
 
-  const handleAutoRenewalToggle = async (enabled: boolean) => {
-    await toggleAutoRenewal(enabled);
+  const handleResumeSubscription = async () => {
+    const result = await resumeSubscription();
+    if (result.success) {
+      await loadSubscriptionDetails();
+    }
+  };
+
+  const handleCancelSubscription = async () => {
+    const result = await cancelRazorpaySubscription(cancellationReason, immediateCancel);
+    if (result.success) {
+      setShowCancelDialog(false);
+      setCancellationReason('');
+      setImmediateCancel(false);
+      await loadSubscriptionDetails();
+    }
   };
 
   if (subscriptionLoading || !subscription) {
@@ -69,8 +92,38 @@ export const SubscriptionManagement: React.FC = () => {
     );
   }
 
-  // Show fallback UI if subscription management is not fully available
-  if (!isAvailable || !managementData) {
+  // Show basic info for Free plan
+  if (subscription.plan_tier === 'Free') {
+    return (
+      <Card className="bg-gray-900/50 border-gray-800">
+        <CardHeader>
+          <CardTitle className="text-white flex items-center gap-2">
+            <CreditCard className="h-5 w-5" />
+            Subscription Management
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="text-center py-6">
+            <Badge className="bg-green-600/20 text-green-400 border-green-600/30 mb-4">
+              Free Plan
+            </Badge>
+            <p className="text-gray-400 mb-4">
+              You're currently on the Free plan with {subscription.faq_usage_limit} FAQs per month.
+            </p>
+            <Button
+              onClick={() => window.location.href = '/dashboard?tab=upgrade'}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              Upgrade to Pro
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Show fallback UI if not a Razorpay subscription
+  if (subscription.subscription_source !== 'razorpay') {
     return (
       <Card className="bg-gray-900/50 border-gray-800">
         <CardHeader>
@@ -116,24 +169,26 @@ export const SubscriptionManagement: React.FC = () => {
     });
   };
 
-  const getPaymentStatusBadge = () => {
-    if (subscription.plan_tier === 'Free') {
-      return <Badge variant="secondary">Free Plan</Badge>;
+  const getSubscriptionStatusBadge = () => {
+    if (!subscriptionDetails) {
+      return <Badge className="bg-gray-600 text-white">Loading...</Badge>;
     }
 
-    if (subscription.is_cancelled) {
-      return <Badge variant="destructive">Cancelled</Badge>;
+    switch (subscriptionDetails.status) {
+      case 'active':
+        return <Badge className="bg-green-600 text-white">Active</Badge>;
+      case 'paused':
+        return <Badge className="bg-yellow-600 text-white">Paused</Badge>;
+      case 'cancelled':
+        return <Badge className="bg-red-600 text-white">Cancelled</Badge>;
+      case 'completed':
+        return <Badge className="bg-blue-600 text-white">Completed</Badge>;
+      default:
+        return <Badge className="bg-gray-600 text-white">{subscriptionDetails.status}</Badge>;
     }
-
-    if (subscription.payment_type === 'recurring' && subscription.auto_renewal) {
-      return <Badge className="bg-green-600">Auto-Renewal Active</Badge>;
-    }
-
-    return <Badge variant="outline">One-Time Payment</Badge>;
   };
 
-  const showCancellationMessage = subscription.is_cancelled && subscription.continues_until;
-
+  // Main Razorpay subscription management UI
   return (
     <div className="space-y-6">
       {/* Subscription Status Card */}
@@ -141,7 +196,7 @@ export const SubscriptionManagement: React.FC = () => {
         <CardHeader>
           <CardTitle className="text-white flex items-center gap-2">
             <CreditCard className="h-5 w-5" />
-            Subscription Management
+            Razorpay Subscription Management
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -151,171 +206,144 @@ export const SubscriptionManagement: React.FC = () => {
               <h3 className="text-white font-medium">Current Plan</h3>
               <p className="text-gray-400 text-sm">{subscription.plan_tier} Plan</p>
             </div>
-            {getPaymentStatusBadge()}
+            {getSubscriptionStatusBadge()}
           </div>
 
-          {/* Payment Information */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label className="text-gray-300">Payment Type</Label>
-              <p className="text-white capitalize">{subscription.payment_type.replace('_', ' ')}</p>
-            </div>
-            <div>
-              <Label className="text-gray-300">Billing Cycle</Label>
-              <p className="text-white capitalize">{subscription.billing_cycle}</p>
-            </div>
-            <div>
-              <Label className="text-gray-300">Plan Activated</Label>
-              <p className="text-white">{formatDate(subscription.plan_activated_at)}</p>
-            </div>
-            <div>
-              <Label className="text-gray-300">
-                {subscription.plan_tier === 'Free' ? 'Plan Status' : 'Expires On'}
-              </Label>
-              <p className="text-white">
-                {subscription.plan_tier === 'Free' ? 'Active' : formatDate(subscription.plan_expires_at)}
-              </p>
-            </div>
-          </div>
-
-          {/* Next Billing Date */}
-          {subscription.next_billing_date && subscription.auto_renewal && !subscription.is_cancelled && (
-            <div className="flex items-center gap-2 p-3 bg-blue-600/20 border border-blue-500/30 rounded-lg">
-              <Calendar className="h-4 w-4 text-blue-400" />
+          {/* Subscription Details */}
+          {subscriptionDetails && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-gray-700">
               <div>
-                <p className="text-blue-300 text-sm font-medium">Next Billing Date</p>
-                <p className="text-white">{formatDate(subscription.next_billing_date)}</p>
+                <Label className="text-gray-400 text-sm">Plan ID</Label>
+                <p className="text-white">{subscriptionDetails.plan_id}</p>
+              </div>
+              <div>
+                <Label className="text-gray-400 text-sm">Status</Label>
+                <p className="text-white capitalize">{subscriptionDetails.status}</p>
+              </div>
+              <div>
+                <Label className="text-gray-400 text-sm">Current Period</Label>
+                <p className="text-white">
+                  {formatDate(new Date(subscriptionDetails.current_start * 1000).toISOString())} - {formatDate(new Date(subscriptionDetails.current_end * 1000).toISOString())}
+                </p>
+              </div>
+              <div>
+                <Label className="text-gray-400 text-sm">Next Billing</Label>
+                <p className="text-white">
+                  {subscriptionDetails.status === 'active'
+                    ? formatDate(new Date(subscriptionDetails.current_end * 1000).toISOString())
+                    : 'N/A'
+                  }
+                </p>
               </div>
             </div>
           )}
 
-          {/* Cancellation Message */}
-          {showCancellationMessage && (
-            <Alert className="border-orange-500/30 bg-orange-600/20">
-              <AlertTriangle className="h-4 w-4 text-orange-400" />
-              <AlertDescription className="text-orange-300">
-                Your subscription has been cancelled and will continue until{' '}
-                <strong>{formatDate(subscription.continues_until)}</strong>.
-                You can reactivate it anytime before this date.
-              </AlertDescription>
-            </Alert>
+          {/* Subscription Controls */}
+          {subscriptionDetails && (
+            <div className="pt-4 border-t border-gray-700">
+              <h4 className="text-white font-medium mb-4">Subscription Controls</h4>
+              <div className="flex flex-wrap gap-3">
+                {subscriptionDetails.status === 'active' && (
+                  <>
+                    <Button
+                      onClick={handlePauseSubscription}
+                      disabled={razorpayLoading}
+                      variant="outline"
+                      className="border-yellow-600 text-yellow-400 hover:bg-yellow-600/10"
+                    >
+                      <Pause className="h-4 w-4 mr-2" />
+                      Pause Subscription
+                    </Button>
+                    <Button
+                      onClick={() => setShowCancelDialog(true)}
+                      disabled={razorpayLoading}
+                      variant="outline"
+                      className="border-red-600 text-red-400 hover:bg-red-600/10"
+                    >
+                      <X className="h-4 w-4 mr-2" />
+                      Cancel Subscription
+                    </Button>
+                  </>
+                )}
+
+                {subscriptionDetails.status === 'paused' && (
+                  <Button
+                    onClick={handleResumeSubscription}
+                    disabled={razorpayLoading}
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    <Play className="h-4 w-4 mr-2" />
+                    Resume Subscription
+                  </Button>
+                )}
+
+                <Button
+                  onClick={loadSubscriptionDetails}
+                  disabled={razorpayLoading}
+                  variant="outline"
+                  className="border-gray-600 text-gray-400 hover:bg-gray-600/10"
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Refresh Details
+                </Button>
+              </div>
+            </div>
           )}
         </CardContent>
       </Card>
 
-      {/* Auto-Renewal Settings */}
-      {subscription.plan_tier !== 'Free' && (
-        <Card className="bg-gray-900/50 border-gray-800">
-          <CardHeader>
-            <CardTitle className="text-white flex items-center gap-2">
-              <RefreshCw className="h-5 w-5" />
-              Auto-Renewal Settings
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <Label className="text-white">Auto-Renewal</Label>
-                <p className="text-gray-400 text-sm">
-                  Automatically renew your subscription when it expires
-                </p>
-              </div>
-              <Switch
-                checked={subscription.auto_renewal && !subscription.is_cancelled}
-                onCheckedChange={handleAutoRenewalToggle}
-                disabled={managementLoading || subscription.is_cancelled}
+      {/* Cancellation Dialog */}
+      <Dialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
+        <DialogContent className="bg-gray-900 border-gray-800">
+          <DialogHeader>
+            <DialogTitle className="text-white">Cancel Subscription</DialogTitle>
+            <DialogDescription className="text-gray-400">
+              Are you sure you want to cancel your subscription? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <Label className="text-white">Reason for cancellation (optional)</Label>
+              <Textarea
+                value={cancellationReason}
+                onChange={(e) => setCancellationReason(e.target.value)}
+                placeholder="Help us improve by telling us why you're cancelling..."
+                className="bg-gray-800 border-gray-700 text-white mt-2"
               />
             </div>
 
-            {!subscription.auto_renewal && !subscription.is_cancelled && (
-              <Alert className="border-yellow-500/30 bg-yellow-600/20">
-                <AlertTriangle className="h-4 w-4 text-yellow-400" />
-                <AlertDescription className="text-yellow-300">
-                  Auto-renewal is disabled. Your subscription will expire on{' '}
-                  {formatDate(subscription.plan_expires_at)} and you'll be downgraded to the Free plan.
-                </AlertDescription>
-              </Alert>
-            )}
-          </CardContent>
-        </Card>
-      )}
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="immediate-cancel"
+                checked={immediateCancel}
+                onCheckedChange={setImmediateCancel}
+              />
+              <Label htmlFor="immediate-cancel" className="text-white">
+                Cancel immediately (otherwise cancels at end of billing period)
+              </Label>
+            </div>
+          </div>
 
-      {/* Subscription Actions */}
-      {subscription.plan_tier !== 'Free' && (
-        <Card className="bg-gray-900/50 border-gray-800">
-          <CardHeader>
-            <CardTitle className="text-white">Subscription Actions</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {subscription.is_cancelled ? (
-              <Button
-                onClick={handleReactivateSubscription}
-                disabled={managementLoading}
-                className="w-full bg-green-600 hover:bg-green-700"
-              >
-                {managementLoading ? 'Processing...' : 'Reactivate Subscription'}
-              </Button>
-            ) : (
-              <Dialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
-                <DialogTrigger asChild>
-                  <Button
-                    variant="destructive"
-                    className="w-full"
-                    disabled={managementLoading}
-                  >
-                    Cancel Subscription
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="bg-gray-900 border-gray-800">
-                  <DialogHeader>
-                    <DialogTitle className="text-white">Cancel Subscription</DialogTitle>
-                    <DialogDescription className="text-gray-400">
-                      We're sorry to see you go. Please let us know why you're cancelling.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-4">
-                    <div>
-                      <Label className="text-gray-300">Reason for cancellation (optional)</Label>
-                      <Textarea
-                        value={cancellationReason}
-                        onChange={(e) => setCancellationReason(e.target.value)}
-                        placeholder="Help us improve by sharing your feedback..."
-                        className="bg-gray-800 border-gray-700 text-white"
-                      />
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Switch
-                        id="immediate-cancel"
-                        checked={immediateCancel}
-                        onCheckedChange={setImmediateCancel}
-                      />
-                      <Label htmlFor="immediate-cancel" className="text-gray-300">
-                        Cancel immediately (otherwise continues until {formatDate(subscription.plan_expires_at)})
-                      </Label>
-                    </div>
-                  </div>
-                  <DialogFooter>
-                    <Button
-                      variant="outline"
-                      onClick={() => setShowCancelDialog(false)}
-                      className="border-gray-600 text-gray-300"
-                    >
-                      Keep Subscription
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      onClick={handleCancelSubscription}
-                      disabled={managementLoading}
-                    >
-                      {managementLoading ? 'Processing...' : 'Cancel Subscription'}
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-            )}
-          </CardContent>
-        </Card>
-      )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowCancelDialog(false)}
+              className="border-gray-600 text-gray-400"
+            >
+              Keep Subscription
+            </Button>
+            <Button
+              onClick={handleCancelSubscription}
+              disabled={razorpayLoading}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {razorpayLoading ? 'Cancelling...' : 'Cancel Subscription'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
+
 };

@@ -10,6 +10,8 @@ interface SubscriptionRequest {
   planId: 'Pro' | 'Business';
   userEmail: string;
   userName: string;
+  currency?: 'INR' | 'USD';
+  userCountry?: string;
 }
 
 serve(async (req) => {
@@ -40,12 +42,15 @@ serve(async (req) => {
       throw new Error('Unauthorized')
     }
 
-    const { planId, userEmail, userName }: SubscriptionRequest = await req.json()
+    const { planId, userEmail, userName, currency, userCountry }: SubscriptionRequest = await req.json()
 
     // Validate plan
     if (!['Pro', 'Business'].includes(planId)) {
       throw new Error('Invalid plan selected')
     }
+
+    // Determine currency based on user location
+    const targetCurrency = currency || (userCountry === 'IN' ? 'INR' : 'USD')
 
     // Razorpay configuration
     const razorpayKeyId = Deno.env.get('RAZORPAY_KEY_ID')
@@ -55,28 +60,49 @@ serve(async (req) => {
       throw new Error('Razorpay credentials not configured')
     }
 
-    // Plan mapping
+    // Plan mapping with currency support
     const planMapping = {
       'Pro': {
-        razorpay_plan_id: 'faqify_pro_monthly',
-        amount: 900, // ₹9 in paise
+        INR: {
+          razorpay_plan_id: 'faqify_pro_monthly_inr',
+          amount: 19900, // ₹199 in paise
+          currency: 'INR'
+        },
+        USD: {
+          razorpay_plan_id: 'faqify_pro_monthly_usd',
+          amount: 900, // $9 in cents
+          currency: 'USD'
+        },
         faq_limit: 100
       },
       'Business': {
-        razorpay_plan_id: 'faqify_business_monthly',
-        amount: 2900, // ₹29 in paise
+        INR: {
+          razorpay_plan_id: 'faqify_business_monthly_inr',
+          amount: 99900, // ₹999 in paise
+          currency: 'INR'
+        },
+        USD: {
+          razorpay_plan_id: 'faqify_business_monthly_usd',
+          amount: 2900, // $29 in cents
+          currency: 'USD'
+        },
         faq_limit: 500
       }
     }
 
     const selectedPlan = planMapping[planId]
+    const currencyPlan = selectedPlan[targetCurrency]
+
+    if (!currencyPlan) {
+      throw new Error(`Plan not available for currency: ${targetCurrency}`)
+    }
 
     // Create subscription in Razorpay
     const subscriptionData = {
-      plan_id: selectedPlan.razorpay_plan_id,
+      plan_id: currencyPlan.razorpay_plan_id,
       customer_notify: 1,
       quantity: 1,
-      total_count: 12, // 12 months
+      total_count: 12, // 12 months (can be made unlimited by setting to 0)
       start_at: Math.floor(Date.now() / 1000), // Start immediately
       expire_by: Math.floor(Date.now() / 1000) + (365 * 24 * 60 * 60), // Expire in 1 year
       notes: {
@@ -85,6 +111,8 @@ serve(async (req) => {
         user_name: userName,
         plan_tier: planId,
         faq_limit: selectedPlan.faq_limit.toString(),
+        currency: targetCurrency,
+        user_country: userCountry || 'Unknown',
         created_via: 'faqify_app'
       }
     }

@@ -15,6 +15,7 @@ import {
   Sparkles
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useRazorpaySubscription } from "@/hooks/useRazorpaySubscription";
 
 type PlanType = "Free" | "Pro" | "Business";
 
@@ -38,7 +39,9 @@ export const PlanUpgrade = () => {
   const [paymentType, setPaymentType] = useState<'one_time' | 'subscription'>('subscription');
   const [userCountry, setUserCountry] = useState('US');
   const [countryOverride, setCountryOverride] = useState<string | null>(null);
+  const [processingPlan, setProcessingPlan] = useState<string | null>(null);
   const { toast } = useToast();
+  const { createAndOpenSubscription, loading: subscriptionLoading } = useRazorpaySubscription();
 
   // Detect user location for pricing
   useEffect(() => {
@@ -202,14 +205,60 @@ export const PlanUpgrade = () => {
     }
   ];
 
-  const handleUpgrade = (planName: string) => {
+  const handleUpgrade = async (planName: string) => {
     if (planName === "Free") return;
-    
+
+    if (paymentType === 'subscription') {
+      // Use Razorpay native subscriptions
+      await handleSubscriptionUpgrade(planName as 'Pro' | 'Business');
+    } else {
+      // Use one-time payment (existing logic)
+      handleOneTimeUpgrade(planName);
+    }
+  };
+
+  const handleSubscriptionUpgrade = async (planId: 'Pro' | 'Business') => {
+    if (processingPlan) return;
+
+    setProcessingPlan(planId);
+
+    try {
+      const effectiveCountry = countryOverride || userCountry;
+      const currency = effectiveCountry === 'IN' ? 'INR' : 'USD';
+
+      toast({
+        title: "Creating Subscription",
+        description: `Setting up your ${planId} plan subscription...`,
+      });
+
+      const result = await createAndOpenSubscription(planId);
+
+      if (result.success) {
+        toast({
+          title: "Subscription Created!",
+          description: `Your ${planId} plan subscription is being processed. Complete the payment to activate.`,
+        });
+      } else {
+        throw new Error(result.error || 'Failed to create subscription');
+      }
+    } catch (error) {
+      console.error('Subscription upgrade error:', error);
+      toast({
+        title: "Subscription Failed",
+        description: "Failed to create subscription. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setProcessingPlan(null);
+    }
+  };
+
+  const handleOneTimeUpgrade = (planName: string) => {
     toast({
       title: `Upgrading to ${planName}`,
       description: "Redirecting to secure payment gateway...",
     });
-    
+
     // Simulate payment redirect
     setTimeout(() => {
       toast({
@@ -401,7 +450,7 @@ export const PlanUpgrade = () => {
 
               <Button
                 onClick={() => handleUpgrade(plan.name)}
-                disabled={plan.disabled}
+                disabled={plan.disabled || processingPlan === plan.name || subscriptionLoading}
                 className={`w-full py-3 ${
                   plan.current
                     ? 'bg-green-600 hover:bg-green-700 text-white'
@@ -410,7 +459,12 @@ export const PlanUpgrade = () => {
                     : 'bg-gray-800 hover:bg-gray-700 text-white border border-gray-600'
                 }`}
               >
-                {plan.current ? (
+                {processingPlan === plan.name ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    {paymentType === 'subscription' ? 'Creating Subscription...' : 'Processing...'}
+                  </>
+                ) : plan.current ? (
                   <>
                     <Check className="h-4 w-4 mr-2" />
                     {plan.cta}
@@ -419,6 +473,11 @@ export const PlanUpgrade = () => {
                   <>
                     {plan.name !== "Free" && <CreditCard className="h-4 w-4 mr-2" />}
                     {plan.cta}
+                    {paymentType === 'subscription' && plan.name !== "Free" && (
+                      <span className="ml-2 text-xs opacity-75">
+                        (Auto-Renewal)
+                      </span>
+                    )}
                   </>
                 )}
               </Button>
