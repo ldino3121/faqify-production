@@ -37,16 +37,53 @@ export const PlanUpgrade = () => {
   const [currentPlan, setCurrentPlan] = useState<PlanType>("Free");
   const [paymentType, setPaymentType] = useState<'one_time' | 'subscription'>('subscription');
   const [userCountry, setUserCountry] = useState('US');
+  const [countryOverride, setCountryOverride] = useState<string | null>(null);
   const { toast } = useToast();
 
   // Detect user location for pricing
   useEffect(() => {
     const detectLocation = async () => {
       try {
-        const response = await fetch('https://ipapi.co/json/');
-        const data = await response.json();
-        if (data.country_code) {
-          setUserCountry(data.country_code);
+        // Try multiple location services
+        let country = null;
+
+        // Method 1: ipapi.co
+        try {
+          const response1 = await fetch('https://ipapi.co/json/');
+          const data1 = await response1.json();
+          if (data1.country_code) {
+            country = data1.country_code;
+          }
+        } catch (e) {
+          console.log('ipapi.co failed, trying backup...');
+        }
+
+        // Method 2: ip-api.com (backup)
+        if (!country) {
+          try {
+            const response2 = await fetch('http://ip-api.com/json/');
+            const data2 = await response2.json();
+            if (data2.countryCode) {
+              country = data2.countryCode;
+            }
+          } catch (e) {
+            console.log('ip-api.com failed, trying timezone...');
+          }
+        }
+
+        // Method 3: Timezone detection (fallback)
+        if (!country) {
+          const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+          if (timezone.includes('Asia/Kolkata') || timezone.includes('Asia/Calcutta')) {
+            country = 'IN';
+          }
+        }
+
+        if (country) {
+          setUserCountry(country);
+          console.log('Detected country:', country);
+        } else {
+          console.log('Could not detect country, using default US');
         }
       } catch (error) {
         console.error('Error detecting location:', error);
@@ -58,7 +95,8 @@ export const PlanUpgrade = () => {
 
   // Helper function to get price based on location
   const getPrice = (usdPrice: number, inrPrice: number) => {
-    if (userCountry === 'IN') {
+    const effectiveCountry = countryOverride || userCountry;
+    if (effectiveCountry === 'IN') {
       return {
         amount: inrPrice,
         symbol: '₹',
@@ -191,15 +229,52 @@ export const PlanUpgrade = () => {
         <p className="text-gray-400 mb-4">Choose the perfect plan for your FAQ generation needs</p>
 
         {/* Location-based pricing indicator */}
-        <div className="mb-6 inline-flex items-center space-x-2 bg-gray-800/50 px-4 py-2 rounded-lg">
+        <div className="mb-4 inline-flex items-center space-x-2 bg-gray-800/50 px-4 py-2 rounded-lg">
           <span className="text-sm text-gray-400">
-            📍 Pricing for {userCountry === 'IN' ? 'India' : 'International'}
+            📍 Pricing for {(countryOverride || userCountry) === 'IN' ? 'India' : 'International'}
           </span>
-          {userCountry === 'IN' && (
+          {(countryOverride || userCountry) === 'IN' && (
             <span className="text-xs bg-green-600 text-white px-2 py-1 rounded">
               Special India Pricing
             </span>
           )}
+        </div>
+
+        {/* Manual Country Override for Testing */}
+        <div className="mb-6 text-center">
+          <details className="inline-block">
+            <summary className="text-xs text-gray-500 cursor-pointer hover:text-gray-400">
+              🧪 Test Different Pricing
+            </summary>
+            <div className="mt-2 space-x-2">
+              <button
+                onClick={() => setCountryOverride('IN')}
+                className={`text-xs px-3 py-1 rounded ${
+                  countryOverride === 'IN'
+                    ? 'bg-green-600 text-white'
+                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                }`}
+              >
+                🇮🇳 India (₹199/₹999)
+              </button>
+              <button
+                onClick={() => setCountryOverride('US')}
+                className={`text-xs px-3 py-1 rounded ${
+                  countryOverride === 'US'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                }`}
+              >
+                🇺🇸 USA ($9/$29)
+              </button>
+              <button
+                onClick={() => setCountryOverride(null)}
+                className="text-xs px-3 py-1 rounded bg-gray-700 text-gray-300 hover:bg-gray-600"
+              >
+                🌍 Auto-Detect
+              </button>
+            </div>
+          </details>
         </div>
         
         {/* Annual/Monthly Toggle */}
