@@ -368,7 +368,7 @@ export const DashboardOverviewData = () => {
       </div>
 
       {/* Subscription Management Section */}
-      {subscription && (
+      {subscription && subscription.plan_tier !== 'Free' && (
         <div>
           <h2 className="text-2xl font-bold text-white mb-4">Subscription Management</h2>
           <SubscriptionManagement />

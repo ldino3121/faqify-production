@@ -21,6 +21,7 @@ import { Textarea } from '@/components/ui/textarea';
 
 export const SubscriptionManagement: React.FC = () => {
   const { subscription, loading: subscriptionLoading } = useSubscription();
+  const [hasError, setHasError] = useState(false);
 
   // Safely initialize subscription management hook
   let managementHook;
@@ -28,6 +29,7 @@ export const SubscriptionManagement: React.FC = () => {
     managementHook = useSubscriptionManagement();
   } catch (error) {
     console.error('Error initializing subscription management:', error);
+    setHasError(true);
     managementHook = {
       loading: false,
       cancelSubscription: async () => ({ success: false, error: 'Feature not available' }),
@@ -93,6 +95,44 @@ export const SubscriptionManagement: React.FC = () => {
         </CardHeader>
         <CardContent>
           <div className="text-gray-400">Loading subscription details...</div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Show fallback UI if there's an error or subscription management is not available
+  if (hasError || !managementData) {
+    return (
+      <Card className="bg-gray-900/50 border-gray-800">
+        <CardHeader>
+          <CardTitle className="text-white flex items-center gap-2">
+            <CreditCard className="h-5 w-5" />
+            Subscription Management
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Alert className="bg-blue-900/20 border-blue-800">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription className="text-blue-200">
+              Subscription management features are being set up. Please check back later or contact support if you need immediate assistance.
+            </AlertDescription>
+          </Alert>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-white font-medium">Current Plan</h3>
+              <p className="text-gray-400 text-sm">{subscription?.plan_tier || 'Free'} Plan</p>
+            </div>
+            <Badge className="bg-green-600 text-white">
+              Active
+            </Badge>
+          </div>
+
+          <div className="text-sm text-gray-400">
+            <p>• Plan management features will be available soon</p>
+            <p>• Your current subscription remains active</p>
+            <p>• Contact support for immediate assistance</p>
+          </div>
         </CardContent>
       </Card>
     );

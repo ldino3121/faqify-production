@@ -27,6 +27,8 @@ export const useSubscriptionManagement = () => {
 
     try {
       setLoading(true);
+
+      // First try to fetch with new columns
       const { data, error } = await supabase
         .from('user_subscriptions')
         .select(`
@@ -45,12 +47,40 @@ export const useSubscriptionManagement = () => {
 
       if (error) {
         console.error('Error fetching subscription management data:', error);
+
+        // If columns don't exist, provide default values
+        if (error.code === '42703' || error.message.includes('column') || error.message.includes('does not exist')) {
+          console.log('New subscription columns not found, using defaults');
+          setManagementData({
+            auto_renewal: true,
+            cancelled_at: null,
+            cancellation_reason: null,
+            payment_type: 'one_time',
+            next_billing_date: null,
+            billing_cycle: 'monthly',
+            subscription_source: 'manual',
+            razorpay_subscription_id: null,
+            razorpay_plan_id: null,
+          });
+        }
         return;
       }
 
       setManagementData(data);
     } catch (error) {
       console.error('Error in fetchManagementData:', error);
+      // Provide fallback data
+      setManagementData({
+        auto_renewal: true,
+        cancelled_at: null,
+        cancellation_reason: null,
+        payment_type: 'one_time',
+        next_billing_date: null,
+        billing_cycle: 'monthly',
+        subscription_source: 'manual',
+        razorpay_subscription_id: null,
+        razorpay_plan_id: null,
+      });
     } finally {
       setLoading(false);
     }
@@ -64,18 +94,27 @@ export const useSubscriptionManagement = () => {
       setLoading(true);
       const { error } = await supabase
         .from('user_subscriptions')
-        .update({ 
+        .update({
           auto_renewal: enabled,
           updated_at: new Date().toISOString()
         })
         .eq('user_id', user.id);
 
       if (error) {
-        toast({
-          title: "Error",
-          description: "Failed to update auto-renewal setting.",
-          variant: "destructive",
-        });
+        // If column doesn't exist, show a different message
+        if (error.code === '42703' || error.message.includes('column') || error.message.includes('auto_renewal')) {
+          toast({
+            title: "Feature Not Available",
+            description: "Auto-renewal management is being set up. Please check back later.",
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Error",
+            description: "Failed to update auto-renewal setting.",
+            variant: "destructive",
+          });
+        }
         return false;
       }
 
