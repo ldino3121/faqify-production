@@ -23,68 +23,37 @@ export const SubscriptionManagement: React.FC = () => {
   const { subscription, loading: subscriptionLoading } = useSubscription();
   const [hasError, setHasError] = useState(false);
 
-  // Safely initialize subscription management hook
-  let managementHook;
-  try {
-    managementHook = useSubscriptionManagement();
-  } catch (error) {
-    console.error('Error initializing subscription management:', error);
-    setHasError(true);
-    managementHook = {
-      loading: false,
-      cancelSubscription: async () => ({ success: false, error: 'Feature not available' }),
-      reactivateSubscription: async () => ({ success: false, error: 'Feature not available' }),
-      updateAutoRenewal: async () => false,
-      getSubscriptionManagement: async () => null
-    };
-  }
+  // Initialize subscription management hook
+  const managementHook = useSubscriptionManagement();
 
   const {
+    managementData,
     loading: managementLoading,
+    isAvailable,
+    toggleAutoRenewal,
     cancelSubscription,
     reactivateSubscription,
-    updateAutoRenewal,
-    getSubscriptionManagement
   } = managementHook;
 
-  const [managementData, setManagementData] = useState<any>(null);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [cancellationReason, setCancellationReason] = useState('');
   const [immediateCancel, setImmediateCancel] = useState(false);
 
-  useEffect(() => {
-    if (subscription) {
-      loadManagementData();
-    }
-  }, [subscription]);
-
-  const loadManagementData = async () => {
-    const data = await getSubscriptionManagement();
-    setManagementData(data);
-  };
-
   const handleCancelSubscription = async () => {
     const result = await cancelSubscription(cancellationReason, immediateCancel);
-    if (result.success) {
+    if (result) {
       setShowCancelDialog(false);
       setCancellationReason('');
       setImmediateCancel(false);
-      loadManagementData();
     }
   };
 
   const handleReactivateSubscription = async () => {
-    const result = await reactivateSubscription();
-    if (result.success) {
-      loadManagementData();
-    }
+    await reactivateSubscription();
   };
 
   const handleAutoRenewalToggle = async (enabled: boolean) => {
-    const success = await updateAutoRenewal(enabled);
-    if (success) {
-      loadManagementData();
-    }
+    await toggleAutoRenewal(enabled);
   };
 
   if (subscriptionLoading || !subscription) {
@@ -100,8 +69,8 @@ export const SubscriptionManagement: React.FC = () => {
     );
   }
 
-  // Show fallback UI if there's an error or subscription management is not available
-  if (hasError || !managementData) {
+  // Show fallback UI if subscription management is not fully available
+  if (!isAvailable || !managementData) {
     return (
       <Card className="bg-gray-900/50 border-gray-800">
         <CardHeader>
