@@ -54,57 +54,67 @@ serve(async (req) => {
 
     // Razorpay configuration
     const razorpayKeyId = Deno.env.get('RAZORPAY_KEY_ID')
-    const razorpayKeySecret = Deno.env.get('RAZORPAY_KEY_SECRET')
+    const razorpayKeySecret = Deno.env.get('RAZORPAY_SECRET_KEY')
 
     if (!razorpayKeyId || !razorpayKeySecret) {
       throw new Error('Razorpay credentials not configured')
     }
 
-    // Plan mapping with currency support
-    const planMapping = {
-      'Pro': {
-        INR: {
-          razorpay_plan_id: 'faqify_pro_monthly_inr',
-          amount: 19900, // ₹199 in paise
-          currency: 'INR'
-        },
-        USD: {
-          razorpay_plan_id: 'faqify_pro_monthly_usd',
-          amount: 900, // $9 in cents
-          currency: 'USD'
-        },
-        faq_limit: 100
-      },
-      'Business': {
-        INR: {
-          razorpay_plan_id: 'faqify_business_monthly_inr',
-          amount: 99900, // ₹999 in paise
-          currency: 'INR'
-        },
-        USD: {
-          razorpay_plan_id: 'faqify_business_monthly_usd',
-          amount: 2900, // $29 in cents
-          currency: 'USD'
-        },
-        faq_limit: 500
+    // Get plan details from database instead of hardcoded mapping
+    const supabaseAdminClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+
+    const { data: selectedPlan, error: planError } = await supabaseAdminClient
+      .from('subscription_plans')
+      .select('*')
+      .eq('name', planId)
+      .single();
+
+    if (planError || !selectedPlan) {
+      console.error('Plan not found in database:', { planId, planError });
+      throw new Error(`Plan not found: ${planId}`);
+    }
+
+    console.log('Found plan in database:', selectedPlan);
+
+    // Set currency-specific amount
+    const currencyPlan = {
+      amount: targetCurrency === 'INR' ? selectedPlan.price_inr || (selectedPlan.price_monthly * 83) : selectedPlan.price_monthly,
+      currency: targetCurrency
+    };
+
+    // Get the Razorpay Plan ID from the plan we already fetched
+    let razorpayPlanId = selectedPlan?.razorpay_plan_id_inr;
+
+    // If no plan ID in database, use your actual Razorpay Plan IDs from dashboard
+    if (!razorpayPlanId) {
+      console.log('No plan ID in database, using actual Razorpay plan IDs from dashboard');
+      if (planId === 'Pro') {
+        // Using actual Pro Plan ID from your Razorpay dashboard
+        razorpayPlanId = 'plan_REN5cBATpXrR7S';
+      } else if (planId === 'Business') {
+        // Using actual Business Plan ID from your Razorpay dashboard
+        razorpayPlanId = 'plan_RENZeCMJQuFc8n';
       }
     }
 
-    const selectedPlan = planMapping[planId]
-    const currencyPlan = selectedPlan[targetCurrency]
+    console.log('Final Razorpay Plan ID:', razorpayPlanId);
+    console.log('Target Currency:', targetCurrency);
+    console.log('Plan Configuration:', { planId, targetCurrency, selectedPlan, currencyPlan });
 
-    if (!currencyPlan) {
-      throw new Error(`Plan not available for currency: ${targetCurrency}`)
+    if (!razorpayPlanId) {
+      throw new Error(`No Razorpay Plan ID found for ${planId} plan with currency ${targetCurrency}`);
     }
 
     // Create subscription in Razorpay
     const subscriptionData = {
-      plan_id: currencyPlan.razorpay_plan_id,
+      plan_id: razorpayPlanId,
       customer_notify: 1,
       quantity: 1,
-      total_count: 12, // 12 months (can be made unlimited by setting to 0)
+      total_count: 0, // 0 = unlimited (auto-renewal)
       start_at: Math.floor(Date.now() / 1000), // Start immediately
-      expire_by: Math.floor(Date.now() / 1000) + (365 * 24 * 60 * 60), // Expire in 1 year
       notes: {
         user_id: user.id,
         user_email: userEmail,
@@ -113,7 +123,8 @@ serve(async (req) => {
         faq_limit: selectedPlan.faq_limit.toString(),
         currency: targetCurrency,
         user_country: userCountry || 'Unknown',
-        created_via: 'faqify_app'
+        created_via: 'faqify_app',
+        payment_type: 'subscription'
       }
     }
 
@@ -131,8 +142,14 @@ serve(async (req) => {
 
     if (!razorpayResponse.ok) {
       const errorData = await razorpayResponse.text()
-      console.error('Razorpay subscription creation failed:', errorData)
-      throw new Error(`Failed to create subscription: ${errorData}`)
+      console.error('Razorpay subscription creation failed:', {
+        status: razorpayResponse.status,
+        statusText: razorpayResponse.statusText,
+        error: errorData,
+        planId: razorpayPlanId,
+        subscriptionData
+      })
+      throw new Error(`Failed to create subscription: HTTP ${razorpayResponse.status} - ${errorData}`)
     }
 
     const razorpaySubscription = await razorpayResponse.json()
@@ -147,8 +164,8 @@ serve(async (req) => {
         razorpay_order_id: razorpaySubscription.id,
         razorpay_payment_id: null, // Will be updated after payment
         razorpay_signature: null, // Will be updated after payment
-        amount: selectedPlan.amount,
-        currency: 'INR',
+        amount: currencyPlan.amount,
+        currency: targetCurrency,
         status: 'created',
         plan_tier: planId as any,
         plan_duration: 'monthly',
@@ -156,7 +173,7 @@ serve(async (req) => {
         metadata: {
           razorpay_subscription: razorpaySubscription,
           subscription_id: razorpaySubscription.id,
-          plan_id: selectedPlan.razorpay_plan_id,
+          plan_id: razorpayPlanId,
           billing_cycle: 'monthly',
           auto_renewal: true
         }
@@ -172,9 +189,9 @@ serve(async (req) => {
       JSON.stringify({
         success: true,
         subscription_id: razorpaySubscription.id,
-        plan_id: selectedPlan.razorpay_plan_id,
-        amount: selectedPlan.amount,
-        currency: 'INR',
+        plan_id: razorpayPlanId,
+        amount: currencyPlan.amount,
+        currency: targetCurrency,
         status: razorpaySubscription.status,
         short_url: razorpaySubscription.short_url, // Payment link
         customer_details: {

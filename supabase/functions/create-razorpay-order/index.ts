@@ -11,6 +11,7 @@ interface RazorpayOrderRequest {
   planId: string;
   currency?: string;
   userCountry?: string;
+  paymentType?: 'onetime' | 'subscription';
 }
 
 interface RazorpayOrderResponse {
@@ -78,12 +79,13 @@ serve(async (req) => {
     }
 
     // Parse request body
-    const { planId, currency = 'inr', userCountry = 'IN' }: RazorpayOrderRequest = await req.json();
+    const { planId, currency = 'inr', userCountry = 'IN', paymentType = 'onetime' }: RazorpayOrderRequest = await req.json();
 
     console.log('Request details:', {
       planId,
       currency,
       userCountry,
+      paymentType,
       userId: user.id
     });
 

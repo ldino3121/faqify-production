@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
 import {
   Check,
   Star,
@@ -34,95 +33,32 @@ interface Plan {
 }
 
 export const PlanUpgrade = () => {
-  const [isAnnual, setIsAnnual] = useState(false);
   const [currentPlan, setCurrentPlan] = useState<PlanType>("Free");
   const [paymentType, setPaymentType] = useState<'one_time' | 'subscription'>('subscription');
-  const [userCountry, setUserCountry] = useState('US');
-  const [countryOverride, setCountryOverride] = useState<string | null>(null);
   const [processingPlan, setProcessingPlan] = useState<string | null>(null);
   const { toast } = useToast();
   const { createAndOpenSubscription, loading: subscriptionLoading } = useRazorpaySubscription();
 
-  // Detect user location for pricing
-  useEffect(() => {
-    const detectLocation = async () => {
-      try {
-        // Try multiple location services
-        let country = null;
 
-        // Method 1: ipapi.co
-        try {
-          const response1 = await fetch('https://ipapi.co/json/');
-          const data1 = await response1.json();
-          if (data1.country_code) {
-            country = data1.country_code;
-          }
-        } catch (e) {
-          console.log('ipapi.co failed, trying backup...');
-        }
 
-        // Method 2: ip-api.com (backup)
-        if (!country) {
-          try {
-            const response2 = await fetch('http://ip-api.com/json/');
-            const data2 = await response2.json();
-            if (data2.countryCode) {
-              country = data2.countryCode;
-            }
-          } catch (e) {
-            console.log('ip-api.com failed, trying timezone...');
-          }
-        }
-
-        // Method 3: Timezone detection (fallback)
-        if (!country) {
-          const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-          if (timezone.includes('Asia/Kolkata') || timezone.includes('Asia/Calcutta')) {
-            country = 'IN';
-          }
-        }
-
-        if (country) {
-          setUserCountry(country);
-          console.log('Detected country:', country);
-        } else {
-          console.log('Could not detect country, using default US');
-        }
-      } catch (error) {
-        console.error('Error detecting location:', error);
-      }
+  // Simple USD pricing only
+  const getPrice = (usdPrice: number) => {
+    return {
+      amount: usdPrice,
+      symbol: '$',
+      currency: 'USD'
     };
-
-    detectLocation();
-  }, []);
-
-  // Helper function to get price based on location
-  const getPrice = (usdPrice: number, inrPrice: number) => {
-    const effectiveCountry = countryOverride || userCountry;
-    if (effectiveCountry === 'IN') {
-      return {
-        amount: inrPrice,
-        symbol: '₹',
-        currency: 'INR'
-      };
-    } else {
-      return {
-        amount: usdPrice,
-        symbol: '$',
-        currency: 'USD'
-      };
-    }
   };
 
   const plans: Plan[] = [
     {
       name: "Free",
-      price: isAnnual ? "$0" : "$0",
+      price: "$0",
       originalPrice: null,
-      period: isAnnual ? "per year" : "forever",
+      period: "forever",
       description: "Perfect for trying out FAQify",
       features: [
-        "10 FAQ generations per month",
+        "5 FAQ generations per month",
         "Website URL analysis",
         "Text content analysis",
         "Document upload (PDF, DOCX)",
@@ -142,20 +78,14 @@ export const PlanUpgrade = () => {
     {
       name: "Pro",
       price: (() => {
-        const monthlyPrice = getPrice(9, 199);
-        const yearlyPrice = getPrice(90, 1990);
-        return isAnnual
-          ? `${yearlyPrice.symbol}${yearlyPrice.amount}`
-          : `${monthlyPrice.symbol}${monthlyPrice.amount}`;
+        const monthlyPrice = getPrice(9);
+        return `${monthlyPrice.symbol}${monthlyPrice.amount}`;
       })(),
-      originalPrice: isAnnual ? (() => {
-        const originalPrice = getPrice(108, 2388);
-        return `${originalPrice.symbol}${originalPrice.amount}`;
-      })() : null,
-      period: isAnnual ? "per year" : "per month",
+      originalPrice: null,
+      period: "per month",
       description: "Ideal for small businesses and bloggers",
       features: [
-        "500 FAQ generations per month",
+        "100 FAQ generations per month",
         "Website URL analysis",
         "Text & document upload",
         "Advanced embedding options",
@@ -173,20 +103,14 @@ export const PlanUpgrade = () => {
     {
       name: "Business",
       price: (() => {
-        const monthlyPrice = getPrice(29, 999);
-        const yearlyPrice = getPrice(290, 9990);
-        return isAnnual
-          ? `${yearlyPrice.symbol}${yearlyPrice.amount}`
-          : `${monthlyPrice.symbol}${monthlyPrice.amount}`;
+        const monthlyPrice = getPrice(29);
+        return `${monthlyPrice.symbol}${monthlyPrice.amount}`;
       })(),
-      originalPrice: isAnnual ? (() => {
-        const originalPrice = getPrice(348, 11988);
-        return `${originalPrice.symbol}${originalPrice.amount}`;
-      })() : null,
-      period: isAnnual ? "per year" : "per month",
+      originalPrice: null,
+      period: "per month",
       description: "For agencies and large websites",
       features: [
-        "2,500 FAQ generations per month",
+        "500 FAQ generations per month",
         "All input methods included",
         "White-label embedding",
         "Custom branding options",
@@ -269,78 +193,11 @@ export const PlanUpgrade = () => {
     }, 2000);
   };
 
-  const savings = isAnnual ? "Save 17%" : null;
-
   return (
     <div className="space-y-8">
       <div className="text-center">
         <h1 className="text-3xl font-bold text-white mb-2">Upgrade Your Plan</h1>
         <p className="text-gray-400 mb-4">Choose the perfect plan for your FAQ generation needs</p>
-
-        {/* Location-based pricing indicator */}
-        <div className="mb-4 inline-flex items-center space-x-2 bg-gray-800/50 px-4 py-2 rounded-lg">
-          <span className="text-sm text-gray-400">
-            📍 Pricing for {(countryOverride || userCountry) === 'IN' ? 'India' : 'International'}
-          </span>
-          {(countryOverride || userCountry) === 'IN' && (
-            <span className="text-xs bg-green-600 text-white px-2 py-1 rounded">
-              Special India Pricing
-            </span>
-          )}
-        </div>
-
-        {/* Manual Country Override for Testing */}
-        <div className="mb-6 text-center">
-          <details className="inline-block">
-            <summary className="text-xs text-gray-500 cursor-pointer hover:text-gray-400">
-              🧪 Test Different Pricing
-            </summary>
-            <div className="mt-2 space-x-2">
-              <button
-                onClick={() => setCountryOverride('IN')}
-                className={`text-xs px-3 py-1 rounded ${
-                  countryOverride === 'IN'
-                    ? 'bg-green-600 text-white'
-                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                }`}
-              >
-                🇮🇳 India (₹199/₹999)
-              </button>
-              <button
-                onClick={() => setCountryOverride('US')}
-                className={`text-xs px-3 py-1 rounded ${
-                  countryOverride === 'US'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                }`}
-              >
-                🇺🇸 USA ($9/$29)
-              </button>
-              <button
-                onClick={() => setCountryOverride(null)}
-                className="text-xs px-3 py-1 rounded bg-gray-700 text-gray-300 hover:bg-gray-600"
-              >
-                🌍 Auto-Detect
-              </button>
-            </div>
-          </details>
-        </div>
-        
-        {/* Annual/Monthly Toggle */}
-        <div className="flex items-center justify-center space-x-4 mb-6">
-          <span className={`text-sm ${!isAnnual ? 'text-white' : 'text-gray-400'}`}>Monthly</span>
-          <Switch
-            checked={isAnnual}
-            onCheckedChange={setIsAnnual}
-            className="data-[state=checked]:bg-blue-600"
-          />
-          <span className={`text-sm ${isAnnual ? 'text-white' : 'text-gray-400'}`}>Annual</span>
-          {savings && (
-            <Badge className="bg-green-600/20 text-green-400 border-green-600/30 ml-2">
-              {savings}
-            </Badge>
-          )}
-        </div>
 
         {/* Payment Type Toggle */}
         <div className="flex items-center justify-center space-x-4 mb-8">
@@ -353,7 +210,7 @@ export const PlanUpgrade = () => {
                   : 'text-gray-400 hover:text-white'
               }`}
             >
-              🔄 Auto-Renewal Subscription
+              Auto Renew
             </button>
             <button
               onClick={() => setPaymentType('one_time')}
@@ -363,7 +220,7 @@ export const PlanUpgrade = () => {
                   : 'text-gray-400 hover:text-white'
               }`}
             >
-              💳 One-Time Payment
+              One Time
             </button>
           </div>
         </div>

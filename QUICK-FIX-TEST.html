@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quick Fix Test - Authentication & Toggle</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { background: #d4edda; border-color: #c3e6cb; }
+        .error { background: #f8d7da; border-color: #f5c6cb; }
+        .info { background: #d1ecf1; border-color: #bee5eb; }
+        .warning { background: #fff3cd; border-color: #ffeaa7; }
+        button { padding: 10px 20px; margin: 5px; border: none; border-radius: 4px; cursor: pointer; }
+        .btn-primary { background: #007bff; color: white; }
+        .btn-success { background: #28a745; color: white; }
+        .btn-danger { background: #dc3545; color: white; }
+        .checklist { list-style: none; padding: 0; }
+        .checklist li { padding: 8px 0; border-bottom: 1px solid #eee; }
+        .status { font-weight: bold; margin-right: 10px; }
+        .pass { color: #28a745; }
+        .fail { color: #dc3545; }
+        .pending { color: #ffc107; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Quick Fix Test - Authentication & Toggle</h1>
+        <p>Testing the two critical fixes applied</p>
+
+        <div class="test-section info">
+            <h3>🎯 Issues Fixed</h3>
+            <ul class="checklist">
+                <li><span class="status pass">✅</span> Login routing issue (race condition fixed)</li>
+                <li><span class="status pass">✅</span> Toggle labels updated (Auto Renew / One Time)</li>
+                <li><span class="status pass">✅</span> Removed unused Switch import</li>
+                <li><span class="status pass">✅</span> Added proper navigation handling</li>
+            </ul>
+        </div>
+
+        <div class="test-section warning">
+            <h3>🧪 Manual Testing Required</h3>
+            <ol>
+                <li><strong>Clear Browser Cache</strong> (Ctrl+Shift+R)</li>
+                <li><strong>Test Login</strong>: Go to <a href="http://localhost:8082/login" target="_blank">http://localhost:8082/login</a></li>
+                <li><strong>Enter Credentials</strong> and verify it works on FIRST attempt</li>
+                <li><strong>Check Dashboard</strong>: Go to Upgrade tab</li>
+                <li><strong>Verify Toggle</strong>: Should show "Auto Renew" and "One Time"</li>
+                <li><strong>Test Sign Out</strong>: Click sign out button</li>
+            </ol>
+        </div>
+
+        <div class="test-section success">
+            <h3>✅ Expected Results</h3>
+            <ul>
+                <li><strong>Login Flow</strong>: Works on first attempt, no redirect to landing page</li>
+                <li><strong>Dashboard Toggle</strong>: Shows "Auto Renew" ←→ "One Time"</li>
+                <li><strong>Sign Out</strong>: Works properly, redirects to landing page</li>
+                <li><strong>Payment Flow</strong>: Same functionality, different labels</li>
+            </ul>
+        </div>
+
+        <div class="test-section info">
+            <h3>🔍 Code Changes Summary</h3>
+            <h4>1. Login.tsx Changes:</h4>
+            <pre>
+// Added useEffect for proper navigation
+useEffect(() => {
+  if (user && !loading) {
+    navigate('/dashboard', { replace: true });
+  }
+}, [user, loading, navigate]);
+
+// Removed manual navigation after signIn
+await signIn(email, password);
+// Let auth state handle navigation automatically
+            </pre>
+
+            <h4>2. PlanUpgrade.tsx Changes:</h4>
+            <pre>
+// Updated toggle labels
+"Auto Renew"     (was: 🔄 Auto-Renewal Subscription)
+"One Time"       (was: 💳 One-Time Payment)
+
+// Removed unused import
+// import { Switch } from "@/components/ui/switch"; ❌
+            </pre>
+        </div>
+
+        <div class="test-section error">
+            <h3>🚨 If Issues Persist</h3>
+            <ul>
+                <li><strong>Browser Cache</strong>: Clear completely or use incognito mode</li>
+                <li><strong>Dev Server</strong>: Restart with <code>npm run dev</code></li>
+                <li><strong>Component Check</strong>: Verify Dashboard.tsx imports PlanUpgrade (not PlanUpgradeData)</li>
+                <li><strong>Console Errors</strong>: Check browser console for JavaScript errors</li>
+            </ul>
+        </div>
+
+        <button class="btn-primary" onclick="openLogin()">🔐 Test Login</button>
+        <button class="btn-success" onclick="openDashboard()">📊 Test Dashboard</button>
+        <button class="btn-danger" onclick="clearCache()">🗑️ Clear Cache Instructions</button>
+
+        <div id="results"></div>
+    </div>
+
+    <script>
+        function openLogin() {
+            window.open('http://localhost:8082/login', '_blank');
+            log('🔐 Opened login page. Test the authentication flow.', 'info');
+        }
+
+        function openDashboard() {
+            window.open('http://localhost:8082/dashboard', '_blank');
+            log('📊 Opened dashboard. Check if authentication is required and toggle labels.', 'info');
+        }
+
+        function clearCache() {
+            log('🗑️ To clear cache:', 'warning');
+            log('Chrome/Edge: Ctrl+Shift+R or F12 → Network → Disable cache', 'info');
+            log('Firefox: Ctrl+Shift+R or F12 → Network → Settings → Disable cache', 'info');
+            log('Safari: Cmd+Option+R or Develop → Empty Caches', 'info');
+        }
+
+        function log(message, type = 'info') {
+            const results = document.getElementById('results');
+            const div = document.createElement('div');
+            div.className = `test-section ${type}`;
+            div.innerHTML = `<pre>${new Date().toLocaleTimeString()}: ${message}</pre>`;
+            results.appendChild(div);
+        }
+
+        // Auto-run message when page loads
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                log('🔧 Authentication & Toggle Fixes Applied!', 'success');
+                log('Ready for manual testing. Clear cache first!', 'warning');
+            }, 1000);
+        });
+    </script>
+</body>
+</html>

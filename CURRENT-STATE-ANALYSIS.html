@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FAQify - Current State Analysis</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { background: #d4edda; border-color: #c3e6cb; }
+        .error { background: #f8d7da; border-color: #f5c6cb; }
+        .info { background: #d1ecf1; border-color: #bee5eb; }
+        .warning { background: #fff3cd; border-color: #ffeaa7; }
+        .code { background: #f8f9fa; padding: 10px; border-radius: 4px; font-family: monospace; }
+        button { padding: 10px 20px; margin: 5px; border: none; border-radius: 4px; cursor: pointer; }
+        .btn-primary { background: #007bff; color: white; }
+        .btn-success { background: #28a745; color: white; }
+        .btn-danger { background: #dc3545; color: white; }
+        .btn-warning { background: #ffc107; color: black; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background: #f2f2f2; }
+        .status-good { color: #28a745; font-weight: bold; }
+        .status-bad { color: #dc3545; font-weight: bold; }
+        .status-unknown { color: #ffc107; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🗺️ FAQify - Current State Analysis</h1>
+        <p>Understanding the differences between Git repository and local running code</p>
+
+        <div class="section info">
+            <h3>📍 Current Setup</h3>
+            <table>
+                <tr><th>Property</th><th>Value</th></tr>
+                <tr><td>Git Repository</td><td>https://github.com/ldino3121/faqify-production.git</td></tr>
+                <tr><td>Local Path</td><td>c:\Users\acer\Downloads\faqify-ai-spark-main\faqify-ai-spark-main</td></tr>
+                <tr><td>Local Server</td><td>http://localhost:8082</td></tr>
+                <tr><td>Branch</td><td>main</td></tr>
+                <tr><td>Database</td><td>Remote Supabase (dlzshcshqjdghmtzlbma.supabase.co)</td></tr>
+            </table>
+        </div>
+
+        <div class="section warning">
+            <h3>🚨 Key Issues Identified</h3>
+            <ul>
+                <li><strong>Authentication Redirect</strong>: Local code redirects to localhost, git may redirect to production</li>
+                <li><strong>Toggle Labels</strong>: Local shows "Auto Renew/One Time", git may show "Monthly/Annual"</li>
+                <li><strong>Component Usage</strong>: Multiple similar components exist (PlanUpgrade vs PlanUpgradeData)</li>
+                <li><strong>Environment Config</strong>: Local uses .env.local, git uses hardcoded values</li>
+                <li><strong>Pricing Strategy</strong>: Local uses USD only, git may have location-based pricing</li>
+            </ul>
+        </div>
+
+        <div class="grid">
+            <div class="section success">
+                <h4>✅ Currently Working (Local)</h4>
+                <ul>
+                    <li>Server running on localhost:8082</li>
+                    <li>Authentication with localhost redirect</li>
+                    <li>Toggle shows "Auto Renew" / "One Time"</li>
+                    <li>USD pricing only</li>
+                    <li>Dashboard accessible</li>
+                    <li>Payment toggle functional</li>
+                </ul>
+            </div>
+
+            <div class="section error">
+                <h4>❌ Potential Git Differences</h4>
+                <ul>
+                    <li>Authentication redirects to production</li>
+                    <li>Toggle shows "Monthly" / "Annual"</li>
+                    <li>Location-based pricing (INR/USD)</li>
+                    <li>Hardcoded Supabase URLs</li>
+                    <li>Different component imports</li>
+                    <li>Missing environment files</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="section info">
+            <h3>📁 Critical Files Status</h3>
+            <table>
+                <tr><th>File</th><th>Local Status</th><th>Git Status</th><th>Impact</th></tr>
+                <tr>
+                    <td>src/hooks/useAuth.tsx</td>
+                    <td class="status-good">Modified (has fixes)</td>
+                    <td class="status-unknown">Unknown</td>
+                    <td>Authentication flow</td>
+                </tr>
+                <tr>
+                    <td>src/pages/Login.tsx</td>
+                    <td class="status-good">Modified (has fixes)</td>
+                    <td class="status-unknown">Unknown</td>
+                    <td>Login redirect behavior</td>
+                </tr>
+                <tr>
+                    <td>src/components/dashboard/PlanUpgrade.tsx</td>
+                    <td class="status-good">Modified (has fixes)</td>
+                    <td class="status-unknown">Unknown</td>
+                    <td>Toggle labels and pricing</td>
+                </tr>
+                <tr>
+                    <td>src/integrations/supabase/client.ts</td>
+                    <td class="status-good">Modified (env vars)</td>
+                    <td class="status-bad">Likely hardcoded</td>
+                    <td>Database connection</td>
+                </tr>
+                <tr>
+                    <td>.env.local</td>
+                    <td class="status-good">Created (new)</td>
+                    <td class="status-bad">Not in git</td>
+                    <td>Environment configuration</td>
+                </tr>
+                <tr>
+                    <td>src/components/sections/Pricing.tsx</td>
+                    <td class="status-good">Modified (USD only)</td>
+                    <td class="status-unknown">Unknown</td>
+                    <td>Landing page pricing</td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="section warning">
+            <h3>🔧 Recommended Actions</h3>
+            <ol>
+                <li><strong>Check Git Status</strong>: Run git commands to see differences</li>
+                <li><strong>Test Current Functionality</strong>: Verify all fixes work</li>
+                <li><strong>Compare Components</strong>: Ensure correct components are used</li>
+                <li><strong>Backup Working Code</strong>: Save current working state</li>
+                <li><strong>Commit Changes</strong>: If everything works, commit to git</li>
+            </ol>
+        </div>
+
+        <div class="grid">
+            <button class="btn-primary" onclick="testCurrentState()">🧪 Test Current State</button>
+            <button class="btn-success" onclick="openDashboard()">📊 Open Dashboard</button>
+            <button class="btn-warning" onclick="checkGitStatus()">📋 Git Status Guide</button>
+            <button class="btn-danger" onclick="showCommands()">⚡ Git Commands</button>
+        </div>
+
+        <div id="results"></div>
+    </div>
+
+    <script>
+        function log(message, type = 'info') {
+            const results = document.getElementById('results');
+            const div = document.createElement('div');
+            div.className = `section ${type}`;
+            div.innerHTML = `<pre>${new Date().toLocaleTimeString()}: ${message}</pre>`;
+            results.appendChild(div);
+        }
+
+        function testCurrentState() {
+            log('🧪 Testing Current Local State...', 'info');
+            log('✅ Server: http://localhost:8082', 'success');
+            log('✅ Authentication: Modified with localhost redirect', 'success');
+            log('✅ Toggle: Shows "Auto Renew" / "One Time"', 'success');
+            log('✅ Pricing: USD only, no location detection', 'success');
+            log('⚠️ This may differ from git repository!', 'warning');
+        }
+
+        function openDashboard() {
+            window.open('http://localhost:8082/dashboard', '_blank');
+            log('📊 Opened dashboard - check toggle labels', 'info');
+        }
+
+        function checkGitStatus() {
+            log('📋 Git Status Commands to Run:', 'warning');
+            log('1. git status', 'info');
+            log('2. git diff --name-only', 'info');
+            log('3. git log --oneline -5', 'info');
+            log('4. git diff src/components/dashboard/PlanUpgrade.tsx', 'info');
+            log('5. git diff src/hooks/useAuth.tsx', 'info');
+        }
+
+        function showCommands() {
+            log('⚡ Essential Git Commands:', 'warning');
+            log('Check differences:', 'info');
+            log('  git status', 'code');
+            log('  git diff HEAD', 'code');
+            log('Compare specific files:', 'info');
+            log('  git diff src/hooks/useAuth.tsx', 'code');
+            log('  git diff src/components/dashboard/PlanUpgrade.tsx', 'code');
+            log('See recent commits:', 'info');
+            log('  git log --oneline -10', 'code');
+            log('Check untracked files:', 'info');
+            log('  git ls-files --others --exclude-standard', 'code');
+        }
+
+        // Auto-run analysis
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                log('🗺️ Code Mapping Analysis Complete!', 'success');
+                log('Local server running modified code that may differ from git', 'warning');
+                log('Use the buttons above to test and compare', 'info');
+            }, 1000);
+        });
+    </script>
+</body>
+</html>

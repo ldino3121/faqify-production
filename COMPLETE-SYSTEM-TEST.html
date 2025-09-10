@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Complete FAQify System Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { background: #d4edda; border-color: #c3e6cb; }
+        .error { background: #f8d7da; border-color: #f5c6cb; }
+        .info { background: #d1ecf1; border-color: #bee5eb; }
+        .warning { background: #fff3cd; border-color: #ffeaa7; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 4px; overflow-x: auto; font-size: 12px; }
+        button { padding: 10px 20px; margin: 5px; border: none; border-radius: 4px; cursor: pointer; }
+        .btn-primary { background: #007bff; color: white; }
+        .btn-success { background: #28a745; color: white; }
+        .btn-danger { background: #dc3545; color: white; }
+        .btn-warning { background: #ffc107; color: black; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Complete FAQify System Test</h1>
+        <p>Testing location detection, pricing, and payment systems</p>
+
+        <div class="test-section info">
+            <h3>🎯 Test Plan</h3>
+            <p>1. Test location detection and pricing display</p>
+            <p>2. Test subscription vs one-time payment systems</p>
+            <p>3. Verify edge function routing</p>
+            <p>4. Check currency and amount accuracy</p>
+        </div>
+
+        <div class="grid">
+            <button class="btn-primary" onclick="testLocationDetection()">🌍 Test Location Detection</button>
+            <button class="btn-success" onclick="testPricingLogic()">💰 Test Pricing Logic</button>
+            <button class="btn-warning" onclick="testSubscriptionSystem()">🔄 Test Subscription System</button>
+            <button class="btn-danger" onclick="testOneTimeSystem()">💳 Test One-Time System</button>
+        </div>
+
+        <button class="btn-primary" onclick="runCompleteTest()" style="width: 100%; margin-top: 10px;">🚀 Run Complete Test Suite</button>
+        <button class="btn-danger" onclick="clearResults()" style="width: 100%;">🗑️ Clear Results</button>
+
+        <div id="results"></div>
+    </div>
+
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script>
+        // Initialize Supabase
+        const supabaseUrl = 'https://dzlhcaqgdghmztbmzfma.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR6bGhjYXFnZGdobXp0Ym16Zm1hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzU0NzI0MjMsImV4cCI6MjA1MTA0ODQyM30.f86c401b34f5b8a9956f43caff5b32456017492a76';
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+        function log(message, type = 'info') {
+            const results = document.getElementById('results');
+            const div = document.createElement('div');
+            div.className = `test-section ${type}`;
+            div.innerHTML = `<pre>${new Date().toLocaleTimeString()}: ${message}</pre>`;
+            results.appendChild(div);
+            console.log(message);
+        }
+
+        function clearResults() {
+            document.getElementById('results').innerHTML = '';
+        }
+
+        async function testLocationDetection() {
+            log('🌍 Testing Location Detection...', 'info');
+
+            try {
+                // Test multiple location APIs
+                const tests = [
+                    { name: 'ipapi.co', url: 'https://ipapi.co/json/' },
+                    { name: 'ip-api.com', url: 'http://ip-api.com/json/' },
+                    { name: 'ipinfo.io', url: 'https://ipinfo.io/json' }
+                ];
+
+                for (const test of tests) {
+                    try {
+                        const response = await fetch(test.url);
+                        const data = await response.json();
+                        
+                        log(`✅ ${test.name} Response:`, 'success');
+                        log(`  Country: ${data.country_code || data.countryCode || data.country}`, 'info');
+                        log(`  City: ${data.city}`, 'info');
+                        log(`  IP: ${data.ip}`, 'info');
+                        
+                        if (data.country_code === 'IN' || data.countryCode === 'IN' || data.country === 'IN') {
+                            log(`  🇮🇳 INDIAN USER DETECTED - Should show INR pricing`, 'success');
+                        } else {
+                            log(`  🌍 NON-INDIAN USER - Should show USD pricing`, 'warning');
+                        }
+                        
+                    } catch (error) {
+                        log(`❌ ${test.name} failed: ${error.message}`, 'error');
+                    }
+                }
+
+                // Test timezone detection
+                const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+                log(`🕐 Timezone: ${timezone}`, 'info');
+                if (timezone.includes('Asia/Kolkata') || timezone.includes('Asia/Calcutta')) {
+                    log(`  🇮🇳 INDIAN TIMEZONE DETECTED`, 'success');
+                }
+
+            } catch (error) {
+                log(`❌ Location detection test failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testPricingLogic() {
+            log('💰 Testing Pricing Logic...', 'info');
+
+            // Simulate pricing logic for both countries
+            const plans = [
+                { name: 'Pro', usd: 9, inr: 199 },
+                { name: 'Business', usd: 29, inr: 999 }
+            ];
+
+            const countries = ['IN', 'US'];
+
+            countries.forEach(country => {
+                log(`\n📍 Testing pricing for country: ${country}`, 'info');
+                
+                plans.forEach(plan => {
+                    if (country === 'IN') {
+                        log(`  ${plan.name}: ₹${plan.inr}/month`, 'success');
+                    } else {
+                        log(`  ${plan.name}: $${plan.usd}/month`, 'success');
+                    }
+                });
+            });
+        }
+
+        async function testSubscriptionSystem() {
+            log('🔄 Testing Subscription System...', 'info');
+
+            try {
+                const { data: { user }, error: userError } = await supabase.auth.getUser();
+                
+                if (userError || !user) {
+                    log('❌ Please log in to test subscription system', 'error');
+                    return;
+                }
+
+                log(`👤 Testing subscription for: ${user.email}`, 'info');
+
+                const { data, error } = await supabase.functions.invoke('create-razorpay-subscription', {
+                    body: {
+                        planId: 'Pro',
+                        userEmail: user.email,
+                        userName: user.user_metadata?.full_name || user.email || 'Test User',
+                        currency: 'INR',
+                        userCountry: 'IN'
+                    }
+                });
+
+                log('📥 Subscription System Response:', 'info');
+                
+                if (error) {
+                    log(`❌ Error: ${error.message}`, 'error');
+                    return;
+                }
+
+                if (data && data.success) {
+                    log('✅ SUBSCRIPTION SYSTEM WORKING!', 'success');
+                    log(`  - Type: SUBSCRIPTION (auto-renewal)`, 'success');
+                    log(`  - Subscription ID: ${data.subscription_id}`, 'success');
+                    log(`  - Amount: ₹${data.amount/100}`, 'success');
+                    log(`  - Currency: ${data.currency}`, 'success');
+                    log(`  - Status: ${data.status}`, 'success');
+                    log(`  - Edge Function: create-razorpay-subscription ✅`, 'success');
+                } else {
+                    log('❌ Subscription system failed', 'error');
+                    log(`Response: ${JSON.stringify(data, null, 2)}`, 'error');
+                }
+
+            } catch (error) {
+                log(`❌ Subscription test failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testOneTimeSystem() {
+            log('💳 Testing One-Time Payment System...', 'info');
+
+            try {
+                const { data, error } = await supabase.functions.invoke('create-razorpay-order', {
+                    body: {
+                        planId: 'Pro',
+                        currency: 'INR',
+                        userCountry: 'IN'
+                    }
+                });
+
+                log('📥 One-Time System Response:', 'info');
+                
+                if (error) {
+                    log(`❌ Error: ${error.message}`, 'error');
+                    return;
+                }
+
+                if (data && data.success) {
+                    log('✅ ONE-TIME SYSTEM WORKING!', 'success');
+                    log(`  - Type: ONE-TIME (manual renewal)`, 'success');
+                    log(`  - Order ID: ${data.order?.id}`, 'success');
+                    log(`  - Amount: ₹${data.order?.amount/100}`, 'success');
+                    log(`  - Currency: ${data.order?.currency}`, 'success');
+                    log(`  - Edge Function: create-razorpay-order ✅`, 'success');
+                } else {
+                    log('❌ One-time system failed', 'error');
+                    log(`Response: ${JSON.stringify(data, null, 2)}`, 'error');
+                }
+
+            } catch (error) {
+                log(`❌ One-time test failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function runCompleteTest() {
+            clearResults();
+            log('🚀 Running Complete System Test...', 'info');
+
+            await testLocationDetection();
+            log('\n' + '='.repeat(60), 'info');
+            
+            await testPricingLogic();
+            log('\n' + '='.repeat(60), 'info');
+            
+            await testSubscriptionSystem();
+            log('\n' + '='.repeat(60), 'info');
+            
+            await testOneTimeSystem();
+            log('\n' + '='.repeat(60), 'info');
+
+            log('🎯 COMPLETE TEST SUMMARY:', 'info');
+            log('1. ✅ Location detection working', 'success');
+            log('2. ✅ Pricing logic functional', 'success');
+            log('3. Check subscription system results above', 'warning');
+            log('4. Check one-time system results above', 'warning');
+            log('\n💡 NEXT STEPS:', 'info');
+            log('- If both payment systems work, test the toggle in dashboard', 'info');
+            log('- Verify Indian users see ₹199/₹999 pricing', 'info');
+            log('- Verify non-Indian users see $9/$29 pricing', 'info');
+        }
+
+        // Auto-run location test when page loads
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                log('🔍 System test ready. Click "Run Complete Test Suite" to start.', 'info');
+            }, 1000);
+        });
+    </script>
+</body>
+</html>

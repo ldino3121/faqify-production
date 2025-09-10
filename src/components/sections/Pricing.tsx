@@ -21,8 +21,6 @@ interface Plan {
   id: string;
   name: string;
   price_monthly: number;
-  price_monthly_inr?: number;
-  price_yearly: number;
   faq_limit: number;
   features: string[];
 }
@@ -50,11 +48,7 @@ interface RazorpayOptions {
 export const Pricing = () => {
   const [processingPlan, setProcessingPlan] = useState<string | null>(null);
   const [razorpayLoaded, setRazorpayLoaded] = useState(false);
-  const [userCountry, setUserCountry] = useState('US');
-  const [preferredCurrency, setPreferredCurrency] = useState('usd');
-  const [locationData, setLocationData] = useState<any>(null);
-  const [paymentMethods, setPaymentMethods] = useState<string[]>([]);
-  const [countryOverride, setCountryOverride] = useState<string | null>(null);
+  const [paymentType, setPaymentType] = useState<'one_time' | 'subscription'>('subscription');
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -78,57 +72,6 @@ export const Pricing = () => {
     } else {
       setRazorpayLoaded(true);
     }
-
-    // Enhanced location detection with payment methods
-    const detectLocationAndPaymentMethods = async () => {
-      try {
-        const response = await fetch('https://ipapi.co/json/');
-        const data = await response.json();
-
-        setLocationData(data);
-        setUserCountry(data.country_code || 'US');
-
-        // Set preferred currency based on country
-        const currencyMap: { [key: string]: string } = {
-          'IN': 'inr',
-          'GB': 'gbp',
-          'DE': 'eur', 'FR': 'eur', 'IT': 'eur', 'ES': 'eur', 'NL': 'eur',
-          'AU': 'aud', 'CA': 'cad', 'JP': 'jpy', 'SG': 'sgd'
-        };
-        setPreferredCurrency(currencyMap[data.country_code] || 'usd');
-
-        // Set available payment methods based on country
-        const paymentMethodsMap: { [key: string]: string[] } = {
-          'IN': ['cards', 'upi', 'netbanking', 'wallets', 'emi'],
-          'US': ['cards', 'paypal', 'apple_pay', 'google_pay'],
-          'GB': ['cards', 'paypal', 'apple_pay', 'google_pay'],
-          'DE': ['cards', 'paypal', 'sofort', 'giropay'],
-          'FR': ['cards', 'paypal', 'apple_pay'],
-          'AU': ['cards', 'paypal', 'apple_pay'],
-          'CA': ['cards', 'paypal', 'apple_pay'],
-          'SG': ['cards', 'paypal', 'grabpay'],
-          'MY': ['cards', 'paypal', 'grabpay', 'fpx'],
-          'TH': ['cards', 'paypal', 'truemoney'],
-        };
-
-        setPaymentMethods(paymentMethodsMap[data.country_code] || ['cards', 'paypal']);
-
-        console.log('Location detected:', {
-          country: data.country_code,
-          currency: currencyMap[data.country_code] || 'usd',
-          paymentMethods: paymentMethodsMap[data.country_code] || ['cards', 'paypal']
-        });
-
-      } catch (error) {
-        console.error('Location detection failed:', error);
-        // Fallback to US defaults
-        setUserCountry('US');
-        setPreferredCurrency('usd');
-        setPaymentMethods(['cards', 'paypal']);
-      }
-    };
-
-    detectLocationAndPaymentMethods();
   }, []);
 
   // Static pricing plans with standardized features
@@ -137,7 +80,7 @@ export const Pricing = () => {
       id: 'free',
       name: 'Free',
       price_monthly: 0,
-      faq_limit: 10, // Free plan: 10 FAQs per month
+      faq_limit: 5, // Free plan: 5 FAQs per month
       features: [
         'Website URL analysis',
         'Text content analysis',
@@ -154,7 +97,6 @@ export const Pricing = () => {
       id: 'pro',
       name: 'Pro',
       price_monthly: 9,
-      price_monthly_inr: 199,
       faq_limit: 100,
       features: [
         'Website URL analysis',
@@ -172,7 +114,6 @@ export const Pricing = () => {
       id: 'business',
       name: 'Business',
       price_monthly: 29,
-      price_monthly_inr: 999,
       faq_limit: 500,
       features: [
         'Website URL analysis',
@@ -368,22 +309,13 @@ export const Pricing = () => {
     handleRazorpayPayment(planId);
   };
 
-  // Helper function to show location-based pricing
-  const getPriceInCurrency = (plan: Plan) => {
-    const effectiveCountry = countryOverride || userCountry;
-    if (effectiveCountry === 'IN' && plan.price_monthly_inr) {
-      return {
-        amount: plan.price_monthly_inr,
-        symbol: '₹',
-        currency: 'INR'
-      };
-    } else {
-      return {
-        amount: plan.price_monthly,
-        symbol: '$',
-        currency: 'USD'
-      };
-    }
+  // Simple USD pricing only
+  const getPrice = (plan: Plan) => {
+    return {
+      amount: plan.price_monthly,
+      symbol: '$',
+      currency: 'USD'
+    };
   };
 
 
@@ -400,55 +332,30 @@ export const Pricing = () => {
             Choose the perfect plan for your FAQ generation needs. Start free, upgrade anytime.
           </p>
 
-          {/* Location-based pricing indicator */}
-          {locationData && (
-            <div className="mt-6 inline-flex items-center space-x-2 bg-gray-800/50 px-4 py-2 rounded-lg">
-              <span className="text-sm text-gray-400">
-                📍 Pricing for {locationData.country_name || countryOverride || userCountry}
-              </span>
-              {(countryOverride === 'IN' || userCountry === 'IN') && (
-                <span className="text-xs bg-green-600 text-white px-2 py-1 rounded">
-                  Special India Pricing
-                </span>
-              )}
+          {/* Payment Type Toggle */}
+          <div className="flex items-center justify-center space-x-4 mb-8">
+            <div className="flex items-center space-x-2 bg-gray-800 rounded-lg p-1">
+              <button
+                onClick={() => setPaymentType('subscription')}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  paymentType === 'subscription'
+                    ? 'bg-blue-600 text-white'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                🔄 Auto-Renewal Subscription
+              </button>
+              <button
+                onClick={() => setPaymentType('one_time')}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  paymentType === 'one_time'
+                    ? 'bg-blue-600 text-white'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                💳 One-Time Payment
+              </button>
             </div>
-          )}
-
-          {/* Developer Testing Panel */}
-          <div className="mt-4 text-center">
-            <details className="inline-block">
-              <summary className="text-xs text-gray-500 cursor-pointer hover:text-gray-400">
-                🧪 Developer: Test International Pricing
-              </summary>
-              <div className="mt-2 space-x-2">
-                <button
-                  onClick={() => setCountryOverride('IN')}
-                  className={`text-xs px-3 py-1 rounded ${
-                    countryOverride === 'IN'
-                      ? 'bg-green-600 text-white'
-                      : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                  }`}
-                >
-                  🇮🇳 Test India (₹199/₹999)
-                </button>
-                <button
-                  onClick={() => setCountryOverride('US')}
-                  className={`text-xs px-3 py-1 rounded ${
-                    countryOverride === 'US'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                  }`}
-                >
-                  🇺🇸 Test USA ($9/$29)
-                </button>
-                <button
-                  onClick={() => setCountryOverride(null)}
-                  className="text-xs px-3 py-1 rounded bg-gray-700 text-gray-300 hover:bg-gray-600"
-                >
-                  🌍 Reset to Auto-Detect
-                </button>
-              </div>
-            </details>
           </div>
         </div>
         
@@ -487,18 +394,13 @@ export const Pricing = () => {
                         );
                       }
 
-                      const price = getPriceInCurrency(plan);
+                      const price = getPrice(plan);
                       return (
                         <>
                           <span className="text-4xl font-bold text-white">
                             {price.symbol}{price.amount}
                           </span>
                           <span className="text-gray-400 ml-2">/month</span>
-                          {(countryOverride === 'IN' || userCountry === 'IN') && (
-                            <div className="text-xs text-blue-400 mt-1">
-                              🇮🇳 Special pricing for India
-                            </div>
-                          )}
                         </>
                       );
                     })()}

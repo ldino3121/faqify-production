@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Subscription System</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .step { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .warning { background-color: #fff3cd; border-color: #ffeaa7; }
+        button { padding: 10px 20px; margin: 5px; background: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 3px; overflow-x: auto; }
+        .log { max-height: 300px; overflow-y: auto; background: #f8f9fa; padding: 10px; border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Test Subscription System</h1>
+    
+    <div class="step">
+        <h3>Step 1: Check Database Plan IDs</h3>
+        <button onclick="checkPlanIds()">Check Plan IDs in Database</button>
+        <div id="planIdsResult"></div>
+    </div>
+
+    <div class="step">
+        <h3>Step 2: Test Subscription Creation</h3>
+        <button onclick="testSubscriptionCreation('Pro')">Test Pro Subscription</button>
+        <button onclick="testSubscriptionCreation('Business')">Test Business Subscription</button>
+        <div id="subscriptionResult"></div>
+    </div>
+
+    <div class="step">
+        <h3>Step 3: Check User Subscription Status</h3>
+        <button onclick="checkUserSubscription()">Check My Subscription</button>
+        <div id="userSubscriptionResult"></div>
+    </div>
+
+    <div class="step">
+        <h3>Test Log</h3>
+        <div id="testLog" class="log"></div>
+    </div>
+
+    <script type="module">
+        import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+        // Initialize Supabase client
+        const supabaseUrl = 'https://dlzshcshqjdghmtzlbma.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRsenNoY3NocWpkZ2htdHpsYm1hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzY0MjE4NzQsImV4cCI6MjA1MTk5Nzg3NH0.Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8E';
+        
+        const supabase = createClient(supabaseUrl, supabaseKey);
+
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('testLog');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.innerHTML = `<strong>[${timestamp}]</strong> ${message}`;
+            logEntry.style.color = type === 'error' ? 'red' : type === 'success' ? 'green' : 'black';
+            logDiv.appendChild(logEntry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        window.checkPlanIds = async function() {
+            log('Checking plan IDs in database...');
+            
+            try {
+                const { data, error } = await supabase
+                    .from('subscription_plans')
+                    .select('name, price_monthly, price_inr, razorpay_plan_id_inr')
+                    .in('name', ['Pro', 'Business']);
+
+                const resultDiv = document.getElementById('planIdsResult');
+                
+                if (error) {
+                    resultDiv.innerHTML = `<div class="error"><h4>❌ Database Error</h4><pre>${error.message}</pre></div>`;
+                    log(`❌ Database error: ${error.message}`, 'error');
+                    return;
+                }
+
+                let html = '<div class="success"><h4>✅ Plan IDs in Database</h4><ul>';
+                
+                data.forEach(plan => {
+                    const hasRazorpayId = plan.razorpay_plan_id_inr && plan.razorpay_plan_id_inr !== 'plan_YOUR_ACTUAL_PLAN_ID';
+                    html += `
+                        <li>
+                            <strong>${plan.name}</strong>: 
+                            ₹${plan.price_inr / 100}/month
+                            <br>Razorpay Plan ID: <code>${plan.razorpay_plan_id_inr || 'Not Set'}</code>
+                            ${hasRazorpayId ? '✅' : '❌'}
+                        </li>
+                    `;
+                });
+                
+                html += '</ul></div>';
+                resultDiv.innerHTML = html;
+                
+                const allPlansHaveIds = data.every(plan => 
+                    plan.razorpay_plan_id_inr && 
+                    plan.razorpay_plan_id_inr !== 'plan_YOUR_ACTUAL_PLAN_ID'
+                );
+                
+                if (allPlansHaveIds) {
+                    log('✅ All plans have Razorpay Plan IDs configured', 'success');
+                } else {
+                    log('❌ Some plans are missing Razorpay Plan IDs', 'error');
+                }
+
+            } catch (error) {
+                const resultDiv = document.getElementById('planIdsResult');
+                resultDiv.innerHTML = `<div class="error"><h4>❌ Check Failed</h4><pre>${error.message}</pre></div>`;
+                log(`❌ Plan ID check failed: ${error.message}`, 'error');
+            }
+        };
+
+        window.testSubscriptionCreation = async function(planId) {
+            log(`Testing ${planId} subscription creation...`);
+            
+            try {
+                const { data: { user }, error: userError } = await supabase.auth.getUser();
+                
+                if (userError || !user) {
+                    throw new Error('Please log in first to test subscription creation');
+                }
+
+                log(`Creating ${planId} subscription for user: ${user.email}`);
+
+                const { data, error } = await supabase.functions.invoke('create-razorpay-subscription', {
+                    body: {
+                        planId: planId,
+                        userEmail: user.email,
+                        userName: user.user_metadata?.full_name || user.email || 'Test User',
+                        currency: 'INR',
+                        userCountry: 'IN'
+                    }
+                });
+
+                const resultDiv = document.getElementById('subscriptionResult');
+                
+                if (error) {
+                    resultDiv.innerHTML = `<div class="error"><h4>❌ Subscription Creation Failed</h4><pre>${JSON.stringify(error, null, 2)}</pre></div>`;
+                    log(`❌ Subscription creation failed: ${error.message}`, 'error');
+                } else if (data && data.success) {
+                    resultDiv.innerHTML = `
+                        <div class="success">
+                            <h4>✅ ${planId} Subscription Created Successfully!</h4>
+                            <p><strong>Subscription ID:</strong> ${data.subscription_id}</p>
+                            <p><strong>Plan ID:</strong> ${data.plan_id}</p>
+                            <p><strong>Amount:</strong> ₹${data.amount / 100}</p>
+                            <p><strong>Status:</strong> ${data.status}</p>
+                            <p><strong>Payment Link:</strong> <a href="${data.short_url}" target="_blank">Open Payment</a></p>
+                        </div>
+                    `;
+                    log(`✅ ${planId} subscription created successfully: ${data.subscription_id}`, 'success');
+                } else {
+                    resultDiv.innerHTML = `<div class="error"><h4>❌ Subscription Creation Failed</h4><pre>${JSON.stringify(data, null, 2)}</pre></div>`;
+                    log(`❌ Subscription creation failed: ${data?.error || 'Unknown error'}`, 'error');
+                }
+
+            } catch (error) {
+                const resultDiv = document.getElementById('subscriptionResult');
+                resultDiv.innerHTML = `<div class="error"><h4>❌ Test Failed</h4><pre>${error.message}</pre></div>`;
+                log(`❌ Subscription test failed: ${error.message}`, 'error');
+            }
+        };
+
+        window.checkUserSubscription = async function() {
+            log('Checking user subscription status...');
+            
+            try {
+                const { data: { user }, error: userError } = await supabase.auth.getUser();
+                
+                if (userError || !user) {
+                    throw new Error('Please log in first');
+                }
+
+                const { data, error } = await supabase
+                    .from('user_subscriptions')
+                    .select('*')
+                    .eq('user_id', user.id)
+                    .single();
+
+                const resultDiv = document.getElementById('userSubscriptionResult');
+                
+                if (error) {
+                    resultDiv.innerHTML = `<div class="error"><h4>❌ Subscription Check Failed</h4><pre>${error.message}</pre></div>`;
+                    log(`❌ Subscription check failed: ${error.message}`, 'error');
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="success">
+                            <h4>✅ User Subscription Status</h4>
+                            <p><strong>Plan:</strong> ${data.plan_tier}</p>
+                            <p><strong>Status:</strong> ${data.status}</p>
+                            <p><strong>FAQ Usage:</strong> ${data.faq_usage_current}/${data.faq_usage_limit}</p>
+                            <p><strong>Activated:</strong> ${data.plan_activated_at ? new Date(data.plan_activated_at).toLocaleString() : 'N/A'}</p>
+                            <p><strong>Expires:</strong> ${data.plan_expires_at ? new Date(data.plan_expires_at).toLocaleString() : 'N/A'}</p>
+                            <p><strong>Razorpay Subscription:</strong> ${data.razorpay_subscription_id || 'N/A'}</p>
+                        </div>
+                    `;
+                    log(`✅ User subscription: ${data.plan_tier} plan`, 'success');
+                }
+
+            } catch (error) {
+                const resultDiv = document.getElementById('userSubscriptionResult');
+                resultDiv.innerHTML = `<div class="error"><h4>❌ Check Failed</h4><pre>${error.message}</pre></div>`;
+                log(`❌ User subscription check failed: ${error.message}`, 'error');
+            }
+        };
+
+        // Auto-run initial checks
+        window.addEventListener('load', () => {
+            log('🧪 Starting subscription system tests...');
+            checkPlanIds();
+        });
+    </script>
+</body>
+</html>

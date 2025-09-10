@@ -27,45 +27,70 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [initialLoad, setInitialLoad] = useState(true);
   const [hasShownWelcome, setHasShownWelcome] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
-    // Set up auth state listener first
+    let mounted = true;
+
+    const initAuth = async () => {
+      try {
+        // Get initial session first
+        const { data: { session }, error } = await supabase.auth.getSession();
+
+        if (mounted) {
+          console.log('Initial session:', session?.user?.email);
+          setSession(session);
+          setUser(session?.user ?? null);
+          setInitialLoad(false);
+          setLoading(false);
+
+          if (session) {
+            setHasShownWelcome(true);
+          }
+        }
+      } catch (error) {
+        console.error('Error getting initial session:', error);
+        if (mounted) {
+          setLoading(false);
+          setInitialLoad(false);
+        }
+      }
+    };
+
+    // Initialize auth state
+    initAuth();
+
+    // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('Auth state changed:', event, session?.user?.email);
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
 
-      if (event === 'SIGNED_IN' && !hasShownWelcome) {
-        toast({
-          title: "Welcome!",
-          description: "You have been signed in successfully.",
-        });
-        setHasShownWelcome(true);
-      } else if (event === 'SIGNED_OUT') {
-        toast({
-          title: "Signed out",
-          description: "You have been signed out successfully.",
-        });
-        setHasShownWelcome(false);
+      if (mounted && !initialLoad) {
+        setSession(session);
+        setUser(session?.user ?? null);
+
+        if (event === 'SIGNED_IN' && !hasShownWelcome) {
+          toast({
+            title: "Welcome!",
+            description: "You have been signed in successfully.",
+          });
+          setHasShownWelcome(true);
+        } else if (event === 'SIGNED_OUT') {
+          toast({
+            title: "Signed out",
+            description: "You have been signed out successfully.",
+          });
+          setHasShownWelcome(false);
+        }
       }
     });
 
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      console.log('Initial session:', session?.user?.email);
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-      if (session) {
-        setHasShownWelcome(true);
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, [toast, hasShownWelcome]);
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, [toast]);
 
   const signUp = async (email: string, password: string, fullName?: string) => {
     console.log('Attempting sign up for:', email);
@@ -143,6 +168,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       throw new Error(error.message);
     }
+
+    // Temporary fix: Force redirect to localhost dashboard for development
+    if (data.session && window.location.hostname === 'localhost') {
+      console.log('Development mode: Forcing redirect to localhost dashboard');
+      setTimeout(() => {
+        window.location.href = 'http://localhost:8082/dashboard';
+      }, 100);
+    }
   };
 
   const signOut = async () => {
@@ -156,12 +189,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     console.log('Attempting Google OAuth sign in...');
     console.log('Current origin:', window.location.origin);
 
-    // Determine the correct redirect URL based on environment
-    const isProduction = window.location.hostname === 'faqify.app' || window.location.hostname === 'www.faqify.app';
-    const redirectUrl = isProduction ? 'https://faqify.app/dashboard' : `${window.location.origin}/dashboard`;
+    // Always use current origin for development
+    const redirectUrl = `${window.location.origin}/dashboard`;
 
     console.log('Redirect URL:', redirectUrl);
-    console.log('Is production:', isProduction);
 
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',

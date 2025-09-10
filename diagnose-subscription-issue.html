@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Diagnose Subscription Issue</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .step { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .warning { background-color: #fff3cd; border-color: #ffeaa7; }
+        button { padding: 10px 20px; margin: 5px; background: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 3px; overflow-x: auto; }
+        .log { max-height: 300px; overflow-y: auto; background: #f8f9fa; padding: 10px; border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Subscription Issue Diagnosis</h1>
+    
+    <div class="step">
+        <h3>Step 1: Check Environment Variables</h3>
+        <button onclick="checkEnvVars()">Check Environment Variables</button>
+        <div id="envResult"></div>
+    </div>
+
+    <div class="step">
+        <h3>Step 2: Test Supabase Connection</h3>
+        <button onclick="testSupabaseConnection()">Test Supabase Connection</button>
+        <div id="supabaseResult"></div>
+    </div>
+
+    <div class="step">
+        <h3>Step 3: Test Edge Function Call</h3>
+        <button onclick="testEdgeFunction()">Test Subscription Creation</button>
+        <div id="edgeFunctionResult"></div>
+    </div>
+
+    <div class="step">
+        <h3>Step 4: Check Database Plans</h3>
+        <button onclick="checkDatabasePlans()">Check Database Plans</button>
+        <div id="databaseResult"></div>
+    </div>
+
+    <div class="step">
+        <h3>Diagnosis Log</h3>
+        <div id="diagnosisLog" class="log"></div>
+    </div>
+
+    <script type="module">
+        import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+        // Initialize Supabase client
+        const supabaseUrl = 'https://dlzshcshqjdghmtzlbma.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRsenNoY3NocWpkZ2htdHpsYm1hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzY0MjE4NzQsImV4cCI6MjA1MTk5Nzg3NH0.Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8E';
+        
+        const supabase = createClient(supabaseUrl, supabaseKey);
+
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('diagnosisLog');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.innerHTML = `<strong>[${timestamp}]</strong> ${message}`;
+            logEntry.style.color = type === 'error' ? 'red' : type === 'success' ? 'green' : 'black';
+            logDiv.appendChild(logEntry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        window.checkEnvVars = function() {
+            log('Checking environment variables...');
+            
+            const envVars = {
+                'VITE_SUPABASE_URL': supabaseUrl,
+                'VITE_SUPABASE_ANON_KEY': supabaseKey ? 'Set' : 'Not Set',
+                'VITE_RAZORPAY_KEY_ID': import.meta.env.VITE_RAZORPAY_KEY_ID || 'Not Set'
+            };
+
+            let html = '<h4>Environment Variables:</h4><ul>';
+            let allSet = true;
+
+            for (const [key, value] of Object.entries(envVars)) {
+                const isSet = value && value !== 'Not Set' && !value.includes('your_');
+                html += `<li><strong>${key}:</strong> ${isSet ? '✅ Set' : '❌ Not Set'}</li>`;
+                if (!isSet) allSet = false;
+            }
+
+            html += '</ul>';
+
+            const resultDiv = document.getElementById('envResult');
+            resultDiv.innerHTML = html;
+            resultDiv.className = allSet ? 'success' : 'error';
+
+            if (allSet) {
+                log('✅ Environment variables are configured', 'success');
+            } else {
+                log('❌ Some environment variables are missing', 'error');
+            }
+        };
+
+        window.testSupabaseConnection = async function() {
+            log('Testing Supabase connection...');
+            
+            try {
+                const { data: { user }, error } = await supabase.auth.getUser();
+                
+                if (error) {
+                    throw error;
+                }
+
+                const resultDiv = document.getElementById('supabaseResult');
+                if (user) {
+                    resultDiv.innerHTML = `<h4>✅ Connected to Supabase</h4><p>User: ${user.email}</p>`;
+                    resultDiv.className = 'success';
+                    log(`✅ Connected to Supabase as ${user.email}`, 'success');
+                } else {
+                    resultDiv.innerHTML = `<h4>⚠️ Not logged in</h4><p>Please log in to test subscription creation</p>`;
+                    resultDiv.className = 'warning';
+                    log('⚠️ Not logged in to Supabase', 'warning');
+                }
+            } catch (error) {
+                const resultDiv = document.getElementById('supabaseResult');
+                resultDiv.innerHTML = `<h4>❌ Supabase Connection Failed</h4><pre>${error.message}</pre>`;
+                resultDiv.className = 'error';
+                log(`❌ Supabase connection failed: ${error.message}`, 'error');
+            }
+        };
+
+        window.testEdgeFunction = async function() {
+            log('Testing edge function...');
+            
+            try {
+                const { data: { user }, error: userError } = await supabase.auth.getUser();
+                
+                if (userError || !user) {
+                    throw new Error('Please log in first');
+                }
+
+                log('Calling create-razorpay-subscription edge function...');
+
+                const { data, error } = await supabase.functions.invoke('create-razorpay-subscription', {
+                    body: {
+                        planId: 'Pro',
+                        userEmail: user.email,
+                        userName: user.user_metadata?.full_name || user.email || 'Test User',
+                        currency: 'INR',
+                        userCountry: 'IN'
+                    }
+                });
+
+                const resultDiv = document.getElementById('edgeFunctionResult');
+                
+                if (error) {
+                    resultDiv.innerHTML = `<h4>❌ Edge Function Error</h4><pre>${JSON.stringify(error, null, 2)}</pre>`;
+                    resultDiv.className = 'error';
+                    log(`❌ Edge function error: ${error.message}`, 'error');
+                } else if (data && data.success) {
+                    resultDiv.innerHTML = `<h4>✅ Edge Function Success</h4><pre>${JSON.stringify(data, null, 2)}</pre>`;
+                    resultDiv.className = 'success';
+                    log('✅ Edge function executed successfully', 'success');
+                } else {
+                    resultDiv.innerHTML = `<h4>❌ Edge Function Failed</h4><pre>${JSON.stringify(data, null, 2)}</pre>`;
+                    resultDiv.className = 'error';
+                    log(`❌ Edge function failed: ${data?.error || 'Unknown error'}`, 'error');
+                }
+
+            } catch (error) {
+                const resultDiv = document.getElementById('edgeFunctionResult');
+                resultDiv.innerHTML = `<h4>❌ Test Failed</h4><pre>${error.message}</pre>`;
+                resultDiv.className = 'error';
+                log(`❌ Test failed: ${error.message}`, 'error');
+            }
+        };
+
+        window.checkDatabasePlans = async function() {
+            log('Checking database plans...');
+            
+            try {
+                const { data, error } = await supabase
+                    .from('subscription_plans')
+                    .select('*');
+
+                const resultDiv = document.getElementById('databaseResult');
+                
+                if (error) {
+                    resultDiv.innerHTML = `<h4>❌ Database Error</h4><pre>${error.message}</pre>`;
+                    resultDiv.className = 'error';
+                    log(`❌ Database error: ${error.message}`, 'error');
+                } else {
+                    resultDiv.innerHTML = `<h4>✅ Database Plans</h4><pre>${JSON.stringify(data, null, 2)}</pre>`;
+                    resultDiv.className = 'success';
+                    log(`✅ Found ${data.length} plans in database`, 'success');
+                }
+
+            } catch (error) {
+                const resultDiv = document.getElementById('databaseResult');
+                resultDiv.innerHTML = `<h4>❌ Check Failed</h4><pre>${error.message}</pre>`;
+                resultDiv.className = 'error';
+                log(`❌ Database check failed: ${error.message}`, 'error');
+            }
+        };
+
+        // Auto-run initial checks
+        window.addEventListener('load', () => {
+            log('🔍 Starting subscription diagnosis...');
+            checkEnvVars();
+        });
+    </script>
+</body>
+</html>

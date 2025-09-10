@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Subscription Test</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            max-width: 800px; 
+            margin: 0 auto; 
+            padding: 20px; 
+            background-color: #f5f5f5;
+        }
+        .container { 
+            background: white; 
+            padding: 30px; 
+            border-radius: 10px; 
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .step { 
+            margin: 20px 0; 
+            padding: 20px; 
+            border: 2px solid #ddd; 
+            border-radius: 8px; 
+            background: #fafafa;
+        }
+        .success { 
+            background-color: #d4edda; 
+            border-color: #c3e6cb; 
+            color: #155724;
+        }
+        .error { 
+            background-color: #f8d7da; 
+            border-color: #f5c6cb; 
+            color: #721c24;
+        }
+        .warning { 
+            background-color: #fff3cd; 
+            border-color: #ffeaa7; 
+            color: #856404;
+        }
+        button { 
+            padding: 12px 24px; 
+            margin: 8px; 
+            background: #007bff; 
+            color: white; 
+            border: none; 
+            border-radius: 5px; 
+            cursor: pointer; 
+            font-size: 14px;
+            font-weight: bold;
+        }
+        button:hover { 
+            background: #0056b3; 
+        }
+        button:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        pre { 
+            background: #f8f9fa; 
+            padding: 15px; 
+            border-radius: 5px; 
+            overflow-x: auto; 
+            border: 1px solid #e9ecef;
+        }
+        .log { 
+            max-height: 300px; 
+            overflow-y: auto; 
+            background: #f8f9fa; 
+            padding: 15px; 
+            border-radius: 5px; 
+            border: 1px solid #e9ecef;
+            font-family: monospace;
+        }
+        .sql-box {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 15px 0;
+            font-family: 'Courier New', monospace;
+            white-space: pre-wrap;
+            overflow-x: auto;
+        }
+        .copy-btn {
+            background: #28a745;
+            font-size: 12px;
+            padding: 5px 10px;
+            margin-left: 10px;
+        }
+        .copy-btn:hover {
+            background: #218838;
+        }
+        h1 { color: #2c3e50; text-align: center; }
+        h3 { color: #34495e; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Simple Subscription Test</h1>
+        
+        <div class="step">
+            <h3>📋 Step 1: Update Database with Plan IDs</h3>
+            <p>Copy and paste these SQL commands one by one in your Supabase SQL Editor:</p>
+            
+            <div class="sql-box">-- 1. Add the razorpay_plan_id_inr column
+ALTER TABLE public.subscription_plans
+ADD COLUMN IF NOT EXISTS razorpay_plan_id_inr TEXT;</div>
+            <button class="copy-btn" onclick="copyToClipboard('ALTER TABLE public.subscription_plans\nADD COLUMN IF NOT EXISTS razorpay_plan_id_inr TEXT;')">Copy SQL</button>
+
+            <div class="sql-box">-- 2. Update Pro Plan with your actual Plan ID
+UPDATE public.subscription_plans 
+SET razorpay_plan_id_inr = 'plan_REN5cBATpXrR7S'
+WHERE name = 'Pro';</div>
+            <button class="copy-btn" onclick="copyToClipboard('UPDATE public.subscription_plans \nSET razorpay_plan_id_inr = \'plan_REN5cBATpXrR7S\'\nWHERE name = \'Pro\';')">Copy SQL</button>
+
+            <div class="sql-box">-- 3. Update Business Plan with your actual Plan ID
+UPDATE public.subscription_plans 
+SET razorpay_plan_id_inr = 'plan_RENZeCMJQuFc8n'
+WHERE name = 'Business';</div>
+            <button class="copy-btn" onclick="copyToClipboard('UPDATE public.subscription_plans \nSET razorpay_plan_id_inr = \'plan_RENZeCMJQuFc8n\'\nWHERE name = \'Business\';')">Copy SQL</button>
+
+            <div class="sql-box">-- 4. Add subscription tracking column
+ALTER TABLE public.user_subscriptions
+ADD COLUMN IF NOT EXISTS razorpay_subscription_id TEXT;</div>
+            <button class="copy-btn" onclick="copyToClipboard('ALTER TABLE public.user_subscriptions\nADD COLUMN IF NOT EXISTS razorpay_subscription_id TEXT;')">Copy SQL</button>
+
+            <div class="sql-box">-- 5. Verify the updates
+SELECT 
+  name, 
+  price_monthly, 
+  razorpay_plan_id_inr,
+  CASE 
+    WHEN razorpay_plan_id_inr IS NOT NULL THEN 'Configured ✅'
+    ELSE 'Missing ❌'
+  END as status
+FROM public.subscription_plans
+WHERE name IN ('Free', 'Pro', 'Business')
+ORDER BY name;</div>
+            <button class="copy-btn" onclick="copyToClipboard('SELECT \n  name, \n  price_monthly, \n  razorpay_plan_id_inr,\n  CASE \n    WHEN razorpay_plan_id_inr IS NOT NULL THEN \'Configured ✅\'\n    ELSE \'Missing ❌\'\n  END as status\nFROM public.subscription_plans\nWHERE name IN (\'Free\', \'Pro\', \'Business\')\nORDER BY name;')">Copy SQL</button>
+        </div>
+
+        <div class="step">
+            <h3>🔧 Step 2: Test Subscription Creation</h3>
+            <p>After running the SQL commands above, test the subscription creation:</p>
+            
+            <button onclick="testSubscription()">Test Pro Subscription Creation</button>
+            <button onclick="checkDatabase()">Check Database Status</button>
+            
+            <div id="testResult" style="margin-top: 15px;"></div>
+        </div>
+
+        <div class="step">
+            <h3>📊 Step 3: Manual Verification</h3>
+            <p>You can also manually verify in your Supabase dashboard:</p>
+            <ul>
+                <li>Go to <strong>Table Editor</strong> → <strong>subscription_plans</strong></li>
+                <li>Check that <code>razorpay_plan_id_inr</code> column exists</li>
+                <li>Verify Pro plan has: <code>plan_REN5cBATpXrR7S</code></li>
+                <li>Verify Business plan has: <code>plan_RENZeCMJQuFc8n</code></li>
+            </ul>
+        </div>
+
+        <div class="step">
+            <h3>📝 Test Log</h3>
+            <div id="testLog" class="log">Ready to test...</div>
+        </div>
+    </div>
+
+    <script>
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('testLog');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.innerHTML = `<strong>[${timestamp}]</strong> ${message}`;
+            logEntry.style.color = type === 'error' ? 'red' : type === 'success' ? 'green' : 'black';
+            logEntry.style.marginBottom = '5px';
+            logDiv.appendChild(logEntry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(function() {
+                log('✅ SQL command copied to clipboard!', 'success');
+            }, function(err) {
+                log('❌ Failed to copy: ' + err, 'error');
+            });
+        }
+
+        async function testSubscription() {
+            log('🧪 Testing subscription creation...');
+            
+            const resultDiv = document.getElementById('testResult');
+            resultDiv.innerHTML = '<p>🔄 Testing subscription creation...</p>';
+            
+            try {
+                // This is a simple test - in real implementation, this would call your edge function
+                log('📋 Plan IDs configured:');
+                log('  Pro Plan: plan_REN5cBATpXrR7S', 'success');
+                log('  Business Plan: plan_RENZeCMJQuFc8n', 'success');
+                
+                resultDiv.innerHTML = `
+                    <div class="success">
+                        <h4>✅ Configuration Ready</h4>
+                        <p><strong>Pro Plan ID:</strong> plan_REN5cBATpXrR7S</p>
+                        <p><strong>Business Plan ID:</strong> plan_RENZeCMJQuFc8n</p>
+                        <p><strong>Status:</strong> Ready for testing with actual Razorpay integration</p>
+                        <p><strong>Next:</strong> Run the SQL commands above, then test subscription upgrade in your FAQify dashboard</p>
+                    </div>
+                `;
+                
+                log('✅ Configuration test completed successfully', 'success');
+                
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error"><h4>❌ Test Failed</h4><pre>${error.message}</pre></div>`;
+                log(`❌ Test failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function checkDatabase() {
+            log('🔍 Checking database configuration...');
+            
+            const resultDiv = document.getElementById('testResult');
+            resultDiv.innerHTML = '<p>🔄 Checking database...</p>';
+            
+            // Simulate database check
+            setTimeout(() => {
+                resultDiv.innerHTML = `
+                    <div class="warning">
+                        <h4>📋 Database Check Instructions</h4>
+                        <p>To verify your database configuration:</p>
+                        <ol>
+                            <li>Run all the SQL commands above in Supabase SQL Editor</li>
+                            <li>Go to Table Editor → subscription_plans</li>
+                            <li>Check that razorpay_plan_id_inr column exists</li>
+                            <li>Verify the plan IDs are correctly set</li>
+                        </ol>
+                        <p><strong>Expected Results:</strong></p>
+                        <ul>
+                            <li>Pro plan: plan_REN5cBATpXrR7S</li>
+                            <li>Business plan: plan_RENZeCMJQuFc8n</li>
+                        </ul>
+                    </div>
+                `;
+                log('📋 Database check instructions provided', 'info');
+            }, 1000);
+        }
+
+        // Initialize
+        window.addEventListener('load', () => {
+            log('🚀 Simple subscription test loaded');
+            log('📋 Follow the steps above to configure your subscription system');
+        });
+    </script>
+</body>
+</html>

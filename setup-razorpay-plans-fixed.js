@@ -1,11 +1,9 @@
-#!/usr/bin/env node
-
 /**
  * Setup script to create Razorpay subscription plans
  * Run this script to initialize the required plans in your Razorpay account
  */
 
-import https from 'https';
+const https = require('https');
 
 // Configuration
 const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID || 'your_razorpay_key_id';
@@ -13,7 +11,7 @@ const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET || 'your_razorpay_ke
 
 if (!RAZORPAY_KEY_ID || !RAZORPAY_KEY_SECRET || RAZORPAY_KEY_ID === 'your_razorpay_key_id') {
   console.error('❌ Please set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET environment variables');
-  console.log('💡 Example: RAZORPAY_KEY_ID=rzp_test_xxx RAZORPAY_KEY_SECRET=xxx node setup-razorpay-plans.js');
+  console.log('💡 Example: set RAZORPAY_KEY_ID=rzp_test_xxx && set RAZORPAY_KEY_SECRET=xxx && node setup-razorpay-plans-fixed.js');
   process.exit(1);
 }
 

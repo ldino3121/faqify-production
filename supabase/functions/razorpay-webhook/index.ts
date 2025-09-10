@@ -247,6 +247,71 @@ serve(async (req) => {
         break;
       }
 
+      case 'subscription.activated': {
+        const subscription = event.payload.subscription.entity;
+        console.log('Subscription activated:', subscription.id);
+
+        // Find user by subscription notes
+        const userId = subscription.notes?.user_id;
+        if (!userId) {
+          console.error('No user_id in subscription notes');
+          break;
+        }
+
+        // Update user subscription
+        const { error } = await supabase
+          .from('user_subscriptions')
+          .update({
+            razorpay_subscription_id: subscription.id,
+            status: 'active',
+            current_period_end: new Date(subscription.current_end * 1000).toISOString(),
+            updated_at: new Date().toISOString()
+          })
+          .eq('user_id', userId);
+
+        if (error) {
+          console.error('Error updating subscription:', error);
+        } else {
+          console.log('Subscription activated for user:', userId);
+        }
+        break;
+      }
+
+      case 'subscription.completed': {
+        const subscription = event.payload.subscription.entity;
+        console.log('Subscription completed:', subscription.id);
+
+        // Find user by Razorpay subscription ID
+        const { data: userSubscription, error: userError } = await supabase
+          .from('user_subscriptions')
+          .select('*')
+          .eq('razorpay_subscription_id', subscription.id)
+          .single();
+
+        if (userError || !userSubscription) {
+          console.error('User subscription not found:', subscription.id);
+          break;
+        }
+
+        // Downgrade to Free plan
+        const { error } = await supabase
+          .from('user_subscriptions')
+          .update({
+            plan_tier: 'Free',
+            status: 'expired',
+            faq_usage_limit: 5,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', userSubscription.id);
+
+        if (error) {
+          console.error('Error completing subscription:', error);
+        } else {
+          console.log('Subscription completed for user:', userSubscription.user_id);
+        }
+        break;
+      }
+
       default:
         console.log('Unhandled webhook event type:', event.event);
     }

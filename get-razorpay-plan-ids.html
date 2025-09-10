@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Get Razorpay Plan IDs</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .step { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .warning { background-color: #fff3cd; border-color: #ffeaa7; }
+        button { padding: 10px 20px; margin: 5px; background: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 3px; overflow-x: auto; }
+        input { padding: 8px; margin: 5px; border: 1px solid #ddd; border-radius: 3px; width: 300px; }
+        .plan-card { border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 5px; }
+        .plan-id { font-family: monospace; background: #f8f9fa; padding: 5px; border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Get Razorpay Plan IDs</h1>
+    
+    <div class="step">
+        <h3>Step 1: Enter Your Razorpay Credentials</h3>
+        <p>Enter your Razorpay API credentials to fetch your plan IDs:</p>
+        
+        <div>
+            <label>Razorpay Key ID:</label><br>
+            <input type="text" id="keyId" placeholder="rzp_test_..." value="">
+        </div>
+        
+        <div>
+            <label>Razorpay Key Secret:</label><br>
+            <input type="password" id="keySecret" placeholder="Your secret key">
+        </div>
+        
+        <button onclick="fetchPlans()">Fetch Plans</button>
+        
+        <div class="warning">
+            <strong>⚠️ Security Note:</strong> This page runs locally in your browser. Your credentials are not sent to any external server except Razorpay's API.
+        </div>
+    </div>
+
+    <div class="step">
+        <h3>Step 2: Your Razorpay Plans</h3>
+        <div id="plansResult">Click "Fetch Plans" to see your plans...</div>
+    </div>
+
+    <div class="step">
+        <h3>Step 3: Update Your Edge Function</h3>
+        <div id="updateInstructions" style="display: none;">
+            <p>Copy the plan IDs above and update your edge function:</p>
+            <pre id="codeUpdate"></pre>
+        </div>
+    </div>
+
+    <script>
+        async function fetchPlans() {
+            const keyId = document.getElementById('keyId').value.trim();
+            const keySecret = document.getElementById('keySecret').value.trim();
+            
+            if (!keyId || !keySecret) {
+                alert('Please enter both Key ID and Key Secret');
+                return;
+            }
+            
+            const resultDiv = document.getElementById('plansResult');
+            resultDiv.innerHTML = '<p>🔄 Fetching plans from Razorpay...</p>';
+            
+            try {
+                // Create basic auth header
+                const auth = btoa(`${keyId}:${keySecret}`);
+                
+                const response = await fetch('https://api.razorpay.com/v1/plans', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Basic ${auth}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${errorData}`);
+                }
+                
+                const data = await response.json();
+                const plans = data.items || [];
+                
+                if (plans.length === 0) {
+                    resultDiv.innerHTML = '<div class="error"><h4>❌ No Plans Found</h4><p>No subscription plans found in your Razorpay account.</p></div>';
+                    return;
+                }
+                
+                // Display plans
+                let html = `<div class="success"><h4>✅ Found ${plans.length} Plans</h4>`;
+                
+                let proPlanId = null;
+                let businessPlanId = null;
+                
+                plans.forEach((plan, index) => {
+                    const planName = plan.item?.name || 'Unnamed Plan';
+                    const amount = plan.item?.amount || 0;
+                    const currency = plan.item?.currency || 'INR';
+                    const displayAmount = currency === 'INR' ? `₹${amount / 100}` : `$${amount / 100}`;
+                    
+                    // Try to identify Pro and Business plans
+                    if (planName.toLowerCase().includes('pro') || amount === 19900) {
+                        proPlanId = plan.id;
+                    }
+                    if (planName.toLowerCase().includes('business') || amount === 99900) {
+                        businessPlanId = plan.id;
+                    }
+                    
+                    html += `
+                        <div class="plan-card">
+                            <h5>${planName}</h5>
+                            <p><strong>Plan ID:</strong> <span class="plan-id">${plan.id}</span></p>
+                            <p><strong>Amount:</strong> ${displayAmount}</p>
+                            <p><strong>Period:</strong> ${plan.period} (${plan.interval} ${plan.period})</p>
+                            <p><strong>Status:</strong> ${plan.status || 'active'}</p>
+                            <p><strong>Created:</strong> ${new Date(plan.created_at * 1000).toLocaleString()}</p>
+                        </div>
+                    `;
+                });
+                
+                html += '</div>';
+                resultDiv.innerHTML = html;
+                
+                // Show update instructions
+                if (proPlanId || businessPlanId) {
+                    showUpdateInstructions(proPlanId, businessPlanId);
+                }
+                
+            } catch (error) {
+                console.error('Error fetching plans:', error);
+                resultDiv.innerHTML = `<div class="error"><h4>❌ Error Fetching Plans</h4><pre>${error.message}</pre></div>`;
+            }
+        }
+        
+        function showUpdateInstructions(proId, businessId) {
+            const instructionsDiv = document.getElementById('updateInstructions');
+            const codeDiv = document.getElementById('codeUpdate');
+            
+            let code = `// Update your edge function with these plan IDs:
+// File: supabase/functions/create-razorpay-subscription/index.ts
+// Replace lines 118-122 with:
+
+if (planId === 'Pro') {
+  razorpayPlanId = '${proId || 'YOUR_PRO_PLAN_ID'}';
+} else if (planId === 'Business') {
+  razorpayPlanId = '${businessId || 'YOUR_BUSINESS_PLAN_ID'}';
+}`;
+            
+            codeDiv.textContent = code;
+            instructionsDiv.style.display = 'block';
+        }
+        
+        // Auto-fill if we can detect credentials from environment
+        window.addEventListener('load', () => {
+            // Try to get from common environment variable names
+            const urlParams = new URLSearchParams(window.location.search);
+            const keyId = urlParams.get('key_id');
+            if (keyId) {
+                document.getElementById('keyId').value = keyId;
+            }
+        });
+    </script>
+    
+    <div class="step">
+        <h3>Alternative: Manual Method</h3>
+        <p>If the above doesn't work, you can get plan IDs manually:</p>
+        <ol>
+            <li>Go to your <a href="https://dashboard.razorpay.com/app/subscriptions/plans" target="_blank">Razorpay Dashboard → Subscriptions → Plans</a></li>
+            <li>Click on each plan to see its details</li>
+            <li>Copy the Plan ID from the plan details page</li>
+            <li>Update the edge function with the correct plan IDs</li>
+        </ol>
+        
+        <h4>Expected Plan Structure:</h4>
+        <ul>
+            <li><strong>Pro Plan:</strong> ₹199/month (should have plan ID like <code>plan_xxxxx</code>)</li>
+            <li><strong>Business Plan:</strong> ₹999/month (should have plan ID like <code>plan_xxxxx</code>)</li>
+        </ul>
+    </div>
+</body>
+</html>

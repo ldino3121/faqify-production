@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Comprehensive Payment System Analysis</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { background: #d4edda; border-color: #c3e6cb; }
+        .error { background: #f8d7da; border-color: #f5c6cb; }
+        .info { background: #d1ecf1; border-color: #bee5eb; }
+        .warning { background: #fff3cd; border-color: #ffeaa7; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 4px; overflow-x: auto; }
+        button { padding: 10px 20px; margin: 5px; border: none; border-radius: 4px; cursor: pointer; }
+        .btn-primary { background: #007bff; color: white; }
+        .btn-success { background: #28a745; color: white; }
+        .btn-danger { background: #dc3545; color: white; }
+        .btn-warning { background: #ffc107; color: black; }
+        .step { margin: 10px 0; padding: 10px; background: #f8f9fa; border-left: 4px solid #007bff; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Comprehensive Payment System Analysis</h1>
+        <p>This will analyze your entire payment system step by step</p>
+
+        <div class="section info">
+            <h3>📋 Analysis Steps</h3>
+            <div class="step">1. Check Environment Variables</div>
+            <div class="step">2. Analyze Database Schema</div>
+            <div class="step">3. Test Edge Function</div>
+            <div class="step">4. Check Frontend Integration</div>
+            <div class="step">5. Identify Root Cause</div>
+        </div>
+
+        <button class="btn-primary" onclick="runCompleteAnalysis()">🚀 Run Complete Analysis</button>
+        <button class="btn-success" onclick="testSubscriptionFlow()">🧪 Test Subscription Flow</button>
+        <button class="btn-warning" onclick="checkDatabaseState()">📊 Check Database State</button>
+        <button class="btn-danger" onclick="clearResults()">🗑️ Clear Results</button>
+
+        <div id="results"></div>
+    </div>
+
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script>
+        // Initialize Supabase
+        const supabaseUrl = 'https://dzlhcaqgdghmztbmzfma.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR6bGhjYXFnZGdobXp0Ym16Zm1hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzU0NzI0MjMsImV4cCI6MjA1MTA0ODQyM30.f86c401b34f5b8a9956f43caff5b32456017492a76';
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+        function log(message, type = 'info') {
+            const results = document.getElementById('results');
+            const div = document.createElement('div');
+            div.className = `section ${type}`;
+            div.innerHTML = `<pre>${new Date().toLocaleTimeString()}: ${message}</pre>`;
+            results.appendChild(div);
+            console.log(message);
+        }
+
+        function clearResults() {
+            document.getElementById('results').innerHTML = '';
+        }
+
+        async function runCompleteAnalysis() {
+            clearResults();
+            log('🔍 Starting Comprehensive Payment System Analysis...', 'info');
+
+            try {
+                // Step 1: Check Authentication
+                log('\n📋 STEP 1: Checking Authentication...', 'info');
+                const { data: { user }, error: userError } = await supabase.auth.getUser();
+                
+                if (userError || !user) {
+                    log('❌ User not authenticated. Please log in first.', 'error');
+                    return;
+                }
+                log(`✅ User authenticated: ${user.email}`, 'success');
+
+                // Step 2: Check Environment Variables
+                log('\n📋 STEP 2: Checking Environment Variables...', 'info');
+                const razorpayKey = 'rzp_test_ce7ca5ffee2f85d5fb5c211f';
+                log(`✅ Frontend Razorpay Key: ${razorpayKey}`, 'success');
+
+                // Step 3: Check Database Schema
+                log('\n📋 STEP 3: Analyzing Database Schema...', 'info');
+                await checkDatabaseSchema();
+
+                // Step 4: Test Edge Function
+                log('\n📋 STEP 4: Testing Edge Function...', 'info');
+                await testEdgeFunction();
+
+                // Step 5: Check Frontend Integration
+                log('\n📋 STEP 5: Checking Frontend Integration...', 'info');
+                await checkFrontendIntegration();
+
+                log('\n🎯 ANALYSIS COMPLETE!', 'success');
+
+            } catch (error) {
+                log(`❌ Analysis failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function checkDatabaseSchema() {
+            try {
+                // Check subscription_plans table
+                const { data: plans, error: plansError } = await supabase
+                    .from('subscription_plans')
+                    .select('*');
+
+                if (plansError) {
+                    log(`❌ Error fetching subscription plans: ${plansError.message}`, 'error');
+                    return;
+                }
+
+                log(`📊 Found ${plans.length} subscription plans:`, 'info');
+                plans.forEach(plan => {
+                    log(`  - ${plan.name}: $${plan.price_monthly/100}/month, ${plan.faq_limit} FAQs, Razorpay ID: ${plan.razorpay_plan_id_inr || 'NOT SET'}`, 'info');
+                });
+
+                // Check user_subscriptions table structure
+                const { data: userSub, error: userSubError } = await supabase
+                    .from('user_subscriptions')
+                    .select('*')
+                    .limit(1);
+
+                if (userSubError) {
+                    log(`❌ Error checking user_subscriptions: ${userSubError.message}`, 'error');
+                } else {
+                    log(`✅ user_subscriptions table accessible`, 'success');
+                }
+
+                // Check payment_transactions table
+                const { data: transactions, error: transError } = await supabase
+                    .from('payment_transactions')
+                    .select('*')
+                    .limit(1);
+
+                if (transError) {
+                    log(`❌ Error checking payment_transactions: ${transError.message}`, 'error');
+                } else {
+                    log(`✅ payment_transactions table accessible`, 'success');
+                }
+
+            } catch (error) {
+                log(`❌ Database schema check failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testEdgeFunction() {
+            try {
+                log('🧪 Testing create-razorpay-subscription edge function...', 'info');
+
+                const { data, error } = await supabase.functions.invoke('create-razorpay-subscription', {
+                    body: {
+                        planId: 'Pro',
+                        userEmail: 'test@example.com',
+                        userName: 'Test User',
+                        currency: 'INR',
+                        userCountry: 'IN'
+                    }
+                });
+
+                log(`📥 Edge Function Response:`, 'info');
+                log(`Data: ${JSON.stringify(data, null, 2)}`, 'info');
+                log(`Error: ${JSON.stringify(error, null, 2)}`, 'info');
+
+                if (error) {
+                    log(`❌ Edge Function Error: ${error.message}`, 'error');
+                    
+                    // Analyze specific error patterns
+                    if (error.message?.includes('credentials not configured')) {
+                        log('🔑 ISSUE: Razorpay credentials not configured in Supabase Edge Functions', 'warning');
+                    } else if (error.message?.includes('Plan not found')) {
+                        log('📋 ISSUE: Plan not found in database', 'warning');
+                    } else if (error.message?.includes('Unauthorized')) {
+                        log('🔐 ISSUE: Service role key not configured', 'warning');
+                    }
+                } else if (data && data.success) {
+                    log(`✅ Edge Function Success!`, 'success');
+                    log(`  - Subscription ID: ${data.subscription_id}`, 'success');
+                    log(`  - Amount: ${data.amount} ${data.currency}`, 'success');
+                    log(`  - Payment URL: ${data.short_url}`, 'success');
+                } else {
+                    log(`❌ Edge Function returned unsuccessful response`, 'error');
+                }
+
+            } catch (error) {
+                log(`❌ Edge Function test failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function checkFrontendIntegration() {
+            try {
+                // Check if Razorpay SDK is loaded
+                if (window.Razorpay) {
+                    log('✅ Razorpay SDK loaded successfully', 'success');
+                } else {
+                    log('❌ Razorpay SDK not loaded', 'error');
+                }
+
+                // Check environment variables
+                const razorpayKey = 'rzp_test_ce7ca5ffee2f85d5fb5c211f';
+                if (razorpayKey && razorpayKey !== 'your_razorpay_key_id') {
+                    log(`✅ Razorpay key configured: ${razorpayKey}`, 'success');
+                } else {
+                    log('❌ Razorpay key not configured in frontend', 'error');
+                }
+
+            } catch (error) {
+                log(`❌ Frontend integration check failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testSubscriptionFlow() {
+            clearResults();
+            log('🧪 Testing Complete Subscription Flow...', 'info');
+
+            try {
+                const { data: { user }, error: userError } = await supabase.auth.getUser();
+                
+                if (userError || !user) {
+                    log('❌ Please log in first', 'error');
+                    return;
+                }
+
+                log(`👤 Testing for user: ${user.email}`, 'info');
+
+                // Test subscription creation
+                log('\n🔧 Creating subscription...', 'info');
+                const { data, error } = await supabase.functions.invoke('create-razorpay-subscription', {
+                    body: {
+                        planId: 'Pro',
+                        userEmail: user.email,
+                        userName: user.user_metadata?.full_name || user.email || 'Test User',
+                        currency: 'INR',
+                        userCountry: 'IN'
+                    }
+                });
+
+                if (error) {
+                    log(`❌ Subscription creation failed: ${error.message}`, 'error');
+                    return;
+                }
+
+                if (data && data.success) {
+                    log('✅ Subscription created successfully!', 'success');
+                    log(`  - Subscription ID: ${data.subscription_id}`, 'success');
+                    log(`  - Amount: ₹${data.amount/100}`, 'success');
+                    log(`  - Currency: ${data.currency}`, 'success');
+                    log(`  - Status: ${data.status}`, 'success');
+                    
+                    if (data.short_url) {
+                        log(`  - Payment URL: ${data.short_url}`, 'success');
+                        log('💡 You can now test the payment by opening this URL', 'info');
+                    }
+                } else {
+                    log('❌ Subscription creation returned unsuccessful response', 'error');
+                    log(`Response: ${JSON.stringify(data, null, 2)}`, 'error');
+                }
+
+            } catch (error) {
+                log(`❌ Subscription flow test failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function checkDatabaseState() {
+            clearResults();
+            log('📊 Checking Database State...', 'info');
+
+            try {
+                // Check subscription plans
+                const { data: plans, error: plansError } = await supabase
+                    .from('subscription_plans')
+                    .select('*')
+                    .order('name');
+
+                if (plansError) {
+                    log(`❌ Error fetching plans: ${plansError.message}`, 'error');
+                    return;
+                }
+
+                log('\n📋 SUBSCRIPTION PLANS:', 'info');
+                plans.forEach(plan => {
+                    const hasRazorpayId = plan.razorpay_plan_id_inr ? '✅' : '❌';
+                    log(`${hasRazorpayId} ${plan.name}: $${plan.price_monthly/100}/month, ${plan.faq_limit} FAQs`, 'info');
+                    if (plan.razorpay_plan_id_inr) {
+                        log(`    Razorpay Plan ID: ${plan.razorpay_plan_id_inr}`, 'success');
+                    } else {
+                        log(`    ❌ Missing Razorpay Plan ID`, 'error');
+                    }
+                    if (plan.price_inr) {
+                        log(`    INR Price: ₹${plan.price_inr/100}`, 'info');
+                    }
+                });
+
+                // Check current user subscription
+                const { data: { user } } = await supabase.auth.getUser();
+                if (user) {
+                    const { data: userSub, error: userSubError } = await supabase
+                        .from('user_subscriptions')
+                        .select('*')
+                        .eq('user_id', user.id)
+                        .single();
+
+                    if (userSubError) {
+                        log(`❌ Error fetching user subscription: ${userSubError.message}`, 'error');
+                    } else if (userSub) {
+                        log('\n👤 CURRENT USER SUBSCRIPTION:', 'info');
+                        log(`  Plan: ${userSub.plan_tier}`, 'info');
+                        log(`  Status: ${userSub.status}`, 'info');
+                        log(`  FAQ Usage: ${userSub.faq_usage_current}/${userSub.faq_usage_limit}`, 'info');
+                        log(`  Created: ${new Date(userSub.created_at).toLocaleDateString()}`, 'info');
+                    }
+                }
+
+                // Check recent payment transactions
+                const { data: transactions, error: transError } = await supabase
+                    .from('payment_transactions')
+                    .select('*')
+                    .order('created_at', { ascending: false })
+                    .limit(5);
+
+                if (transError) {
+                    log(`❌ Error fetching transactions: ${transError.message}`, 'error');
+                } else {
+                    log('\n💳 RECENT TRANSACTIONS:', 'info');
+                    if (transactions.length === 0) {
+                        log('  No transactions found', 'warning');
+                    } else {
+                        transactions.forEach(trans => {
+                            log(`  ${trans.status.toUpperCase()}: ${trans.plan_tier} - ${trans.currency} ${trans.amount/100} (${trans.payment_type})`, 'info');
+                        });
+                    }
+                }
+
+            } catch (error) {
+                log(`❌ Database state check failed: ${error.message}`, 'error');
+            }
+        }
+
+        // Auto-load Razorpay SDK
+        const script = document.createElement('script');
+        script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+        document.head.appendChild(script);
+    </script>
+</body>
+</html>

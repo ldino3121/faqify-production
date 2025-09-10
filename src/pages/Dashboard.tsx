@@ -5,7 +5,7 @@ import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { DashboardOverviewData } from "@/components/dashboard/DashboardOverviewData";
 import { FAQCreator } from "@/components/dashboard/FAQCreator";
 import { FAQManager } from "@/components/dashboard/FAQManager";
-import { PlanUpgradeData } from "@/components/dashboard/PlanUpgradeData";
+import { PlanUpgrade } from "@/components/dashboard/PlanUpgrade";
 
 const Dashboard = () => {
   const [activeTab, setActiveTab] = useState("overview");
@@ -48,7 +48,7 @@ const Dashboard = () => {
 
         {/* Upgrade Tab */}
         <div className={activeTab === "upgrade" ? "block" : "hidden"}>
-          <PlanUpgradeData key={`upgrade-${refreshKey}`} />
+          <PlanUpgrade key={`upgrade-${refreshKey}`} />
         </div>
       </div>
     );

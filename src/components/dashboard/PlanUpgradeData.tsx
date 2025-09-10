@@ -39,10 +39,11 @@ interface Plan {
 }
 
 export const PlanUpgradeData = () => {
-  const [isAnnual, setIsAnnual] = useState(false);
+  // Removed annual toggle - only monthly billing
+  const isAnnual = false;
   const [processingPlan, setProcessingPlan] = useState<string | null>(null);
   const [razorpayLoaded, setRazorpayLoaded] = useState(false);
-  const [userCountry, setUserCountry] = useState('US');
+  const [userCountry, setUserCountry] = useState('IN'); // Default to India for testing
   const [preferredCurrency, setPreferredCurrency] = useState('usd');
   const { subscription, loading } = useSubscription();
   const { toast } = useToast();
@@ -72,20 +73,37 @@ export const PlanUpgradeData = () => {
     }
 
     // Detect user location for currency
+    // Check localStorage first for manual override
+    const manualCountry = localStorage.getItem('userCountry');
+    if (manualCountry) {
+      console.log('Using manual country override:', manualCountry);
+      setUserCountry(manualCountry);
+      const currencyMap: { [key: string]: string } = {
+        'IN': 'inr',
+        'GB': 'gbp',
+        'DE': 'eur', 'FR': 'eur', 'IT': 'eur', 'ES': 'eur', 'NL': 'eur'
+      };
+      setPreferredCurrency(currencyMap[manualCountry] || 'usd');
+      return;
+    }
+
     fetch('https://ipapi.co/json/')
       .then(response => response.json())
       .then(data => {
-        setUserCountry(data.country_code || 'US');
+        console.log('IP detection result:', data);
+        const detectedCountry = data.country_code || 'IN'; // Default to India
+        setUserCountry(detectedCountry);
         const currencyMap: { [key: string]: string } = {
           'IN': 'inr',
           'GB': 'gbp',
           'DE': 'eur', 'FR': 'eur', 'IT': 'eur', 'ES': 'eur', 'NL': 'eur'
         };
-        setPreferredCurrency(currencyMap[data.country_code] || 'usd');
+        setPreferredCurrency(currencyMap[detectedCountry] || 'inr');
       })
       .catch(() => {
-        setUserCountry('US');
-        setPreferredCurrency('usd');
+        console.log('IP detection failed, defaulting to India');
+        setUserCountry('IN'); // Default to India instead of US
+        setPreferredCurrency('inr');
       });
   }, []);
 
@@ -116,9 +134,9 @@ export const PlanUpgradeData = () => {
     },
     {
       name: "Pro",
-      price: isAnnual ? "$97" : "$9",
-      originalPrice: isAnnual ? "$108" : null,
-      period: isAnnual ? "per year" : "per month",
+      price: userCountry === 'IN' ? "₹199" : "$9",
+      originalPrice: null,
+      period: "per month",
       description: "Ideal for small businesses and content creators",
       features: [
         "100 FAQ generations per month",
@@ -140,9 +158,9 @@ export const PlanUpgradeData = () => {
     },
     {
       name: "Business",
-      price: isAnnual ? "$313" : "$29",
-      originalPrice: isAnnual ? "$348" : null,
-      period: isAnnual ? "per year" : "per month",
+      price: userCountry === 'IN' ? "₹999" : "$29",
+      originalPrice: null,
+      period: "per month",
       description: "For agencies and large organizations",
       features: [
         "500 FAQ generations per month",
@@ -183,7 +201,19 @@ export const PlanUpgradeData = () => {
     };
   };
 
-  // Razorpay payment handler
+  // Determine payment type based on user location
+  const getPaymentType = (userCountry: string): 'subscription' | 'onetime' => {
+    console.log('Determining payment type for country:', userCountry);
+
+    // FORCE SUBSCRIPTION FOR ALL USERS (TESTING)
+    // TODO: Change back to location-based after testing
+    const paymentType = 'subscription';
+
+    console.log('Payment type determined (FORCED SUBSCRIPTION):', { userCountry, paymentType });
+    return paymentType;
+  };
+
+  // Razorpay payment handler with dual payment types
   const handleRazorpayPayment = async (planName: string) => {
     if (!user) {
       toast({
@@ -206,103 +236,30 @@ export const PlanUpgradeData = () => {
     try {
       setProcessingPlan(planName);
 
+      const paymentType = getPaymentType(userCountry);
+
       console.log('Starting Razorpay payment for:', {
         planName,
+        paymentType,
         preferredCurrency,
         userCountry,
         razorpayLoaded,
         hasRazorpay: !!window.Razorpay
       });
 
-      // Create Razorpay order
-      const { data, error } = await supabase.functions.invoke('create-razorpay-order', {
-        body: {
-          planId: planName,
-          currency: preferredCurrency,
-          userCountry: userCountry
-        }
-      });
+      // Show alert for debugging
+      alert(`Payment Type: ${paymentType} | Country: ${userCountry} | Plan: ${planName}`);
 
-      console.log('Razorpay order response:', { data, error });
-
-      if (error) {
-        console.error('Razorpay order creation error:', error);
-        throw error;
+      if (paymentType === 'subscription') {
+        // FORCE SUBSCRIPTION - NO FALLBACK (FOR TESTING)
+        console.log('Creating subscription payment - no fallback');
+        await handleSubscriptionPayment(planName);
+      } else {
+        await handleOneTimePayment(planName);
       }
-
-      if (!data.success || !data.order) {
-        console.error('Invalid order response:', data);
-        throw new Error('Failed to create payment order');
-      }
-
-      console.log('Order created successfully:', data.order);
-
-      // Configure Razorpay options
-      const options = {
-        key: data.order.key,
-        amount: data.order.amount,
-        currency: data.order.currency.toUpperCase(),
-        name: 'FAQify',
-        description: `${data.plan.name} Plan Subscription`,
-        order_id: data.order.id,
-        handler: async function (response: any) {
-          try {
-            // Verify payment on backend
-            const { data: verifyData, error: verifyError } = await supabase.functions.invoke('verify-razorpay-payment', {
-              body: {
-                razorpay_order_id: response.razorpay_order_id,
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_signature: response.razorpay_signature
-              }
-            });
-
-            if (verifyError) throw verifyError;
-
-            if (verifyData.success) {
-              toast({
-                title: "Payment Successful!",
-                description: `Welcome to ${data.plan.name} plan! Your subscription is now active.`,
-              });
-
-              // Refresh the page to show updated plan
-              setTimeout(() => {
-                window.location.reload();
-              }, 2000);
-            } else {
-              throw new Error('Payment verification failed');
-            }
-          } catch (error) {
-            console.error('Payment verification error:', error);
-            toast({
-              title: "Payment Verification Failed",
-              description: "Please contact support if your payment was deducted.",
-              variant: "destructive",
-            });
-          }
-        },
-        prefill: {
-          name: data.user.name,
-          email: data.user.email
-        },
-        theme: {
-          color: '#3B82F6'
-        },
-        modal: {
-          ondismiss: function () {
-            setProcessingPlan(null);
-          }
-        }
-      };
-
-      console.log('Razorpay options configured:', options);
-
-      // Open Razorpay checkout
-      const rzp = new window.Razorpay(options);
-      console.log('Opening Razorpay checkout...');
-      rzp.open();
 
     } catch (error) {
-      console.error('Error creating Razorpay order:', error);
+      console.error('Error in payment flow:', error);
       toast({
         title: "Payment Failed",
         description: "Failed to start payment process. Please try again.",
@@ -310,6 +267,149 @@ export const PlanUpgradeData = () => {
       });
       setProcessingPlan(null);
     }
+  };
+
+  // Handle subscription payment (auto-renewal for Indian users)
+  const handleSubscriptionPayment = async (planName: string) => {
+    console.log('🚀 Creating Razorpay subscription for:', planName);
+
+    const requestBody = {
+      planId: planName,
+      userEmail: user?.email || '',
+      userName: user?.user_metadata?.full_name || user?.email || 'User',
+      currency: 'INR',
+      userCountry: 'IN'
+    };
+
+    console.log('📋 Subscription request body:', requestBody);
+
+    const { data, error } = await supabase.functions.invoke('create-razorpay-subscription', {
+      body: requestBody
+    });
+
+    console.log('📥 Subscription response:', { data, error });
+
+    if (error) {
+      console.error('❌ Edge function error:', error);
+      alert(`Edge Function Error: ${JSON.stringify(error)}`);
+      throw new Error(`Edge function error: ${error.message}`);
+    }
+
+    if (!data || !data.success) {
+      console.error('❌ Subscription creation failed:', { data });
+      alert(`Subscription Failed: ${JSON.stringify(data)}`);
+      throw new Error(data?.error || 'Failed to create subscription');
+    }
+
+    // Open Razorpay subscription checkout
+    const options = {
+      key: import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_your_key_id',
+      subscription_id: data.subscription_id,
+      name: 'FAQify',
+      description: `${planName} Plan Subscription (Auto-Renewal)`,
+      handler: async (response: any) => {
+        console.log('Subscription payment response:', response);
+
+        toast({
+          title: "Subscription Activated!",
+          description: `Your ${planName} plan with auto-renewal is now active. Redirecting...`,
+        });
+
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000);
+      },
+      prefill: {
+        name: user?.user_metadata?.full_name || user?.email || 'User',
+        email: user?.email || ''
+      },
+      theme: {
+        color: '#3B82F6'
+      },
+      modal: {
+        ondismiss: function () {
+          setProcessingPlan(null);
+        }
+      }
+    };
+
+    const rzp = new window.Razorpay(options);
+    rzp.open();
+  };
+
+  // Handle one-time payment (for international users)
+  const handleOneTimePayment = async (planName: string) => {
+    const { data, error } = await supabase.functions.invoke('create-razorpay-order', {
+      body: {
+        planId: planName,
+        currency: preferredCurrency,
+        userCountry: userCountry,
+        paymentType: 'onetime'
+      }
+    });
+
+    if (error || !data.success || !data.order) {
+      throw new Error('Failed to create payment order');
+    }
+
+    // Configure Razorpay options
+    const options = {
+      key: data.order.key,
+      amount: data.order.amount,
+      currency: data.order.currency.toUpperCase(),
+      name: 'FAQify',
+      description: `${data.plan.name} Plan (30 Days)`,
+      order_id: data.order.id,
+      handler: async function (response: any) {
+        try {
+          // Verify payment on backend
+          const { data: verifyData, error: verifyError } = await supabase.functions.invoke('verify-razorpay-payment', {
+            body: {
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature
+            }
+          });
+
+          if (verifyError) throw verifyError;
+
+          if (verifyData.success) {
+            toast({
+              title: "Payment Successful!",
+              description: `Your ${planName} plan is now active for 30 days. Redirecting...`,
+            });
+
+            setTimeout(() => {
+              window.location.reload();
+            }, 2000);
+          } else {
+            throw new Error('Payment verification failed');
+          }
+        } catch (error) {
+          console.error('Payment verification error:', error);
+          toast({
+            title: "Payment Verification Failed",
+            description: "Please contact support if your payment was deducted.",
+            variant: "destructive",
+          });
+        }
+      },
+      prefill: {
+        name: data.user.name,
+        email: data.user.email
+      },
+      theme: {
+        color: '#3B82F6'
+      },
+      modal: {
+        ondismiss: function () {
+          setProcessingPlan(null);
+        }
+      }
+    };
+
+    const rzp = new window.Razorpay(options);
+    rzp.open();
   };
 
   // Main upgrade handler
@@ -334,20 +434,9 @@ export const PlanUpgradeData = () => {
         <h1 className="text-3xl font-bold text-white mb-2">Upgrade Your Plan</h1>
         <p className="text-gray-400 mb-6">Choose the perfect plan for your FAQ generation needs</p>
         
-        {/* Annual/Monthly Toggle */}
+        {/* Monthly Billing Only */}
         <div className="flex items-center justify-center space-x-4 mb-8">
-          <span className={`text-sm ${!isAnnual ? 'text-white' : 'text-gray-400'}`}>Monthly</span>
-          <Switch
-            checked={isAnnual}
-            onCheckedChange={setIsAnnual}
-            className="data-[state=checked]:bg-blue-600"
-          />
-          <span className={`text-sm ${isAnnual ? 'text-white' : 'text-gray-400'}`}>Annual</span>
-          {savings && (
-            <Badge className="bg-green-600/20 text-green-400 border-green-600/30 ml-2">
-              {savings}
-            </Badge>
-          )}
+          <span className="text-sm text-white">Monthly Billing</span>
         </div>
       </div>
 
