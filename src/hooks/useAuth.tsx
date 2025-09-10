@@ -169,13 +169,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       throw new Error(error.message);
     }
 
-    // Temporary fix: Force redirect to localhost dashboard for development
-    if (data.session && window.location.hostname === 'localhost') {
-      console.log('Development mode: Forcing redirect to localhost dashboard');
-      setTimeout(() => {
-        window.location.href = 'http://localhost:8082/dashboard';
-      }, 100);
-    }
+    // Production-ready: Let auth state handle navigation automatically
   };
 
   const signOut = async () => {
