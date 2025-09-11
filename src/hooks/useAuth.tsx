@@ -173,7 +173,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const signOut = async () => {
-    const { error } = await supabase.auth.signOut();
+    // Sign out locally and proactively clear client state to avoid stale session redirects
+    const { error } = await supabase.auth.signOut({ scope: 'local' });
+    // Immediately clear in-memory auth state to prevent auto-redirects on /login
+    setSession(null);
+    setUser(null);
+    try {
+      // Best-effort cleanup of persisted auth tokens in localStorage (Supabase stores under sb-<ref>-auth-token)
+      Object.keys(window.localStorage).forEach((key) => {
+        if (key.startsWith('sb-') && key.endsWith('-auth-token')) {
+          window.localStorage.removeItem(key);
+        }
+      });
+    } catch {}
     if (error) {
       throw new Error(error.message);
     }

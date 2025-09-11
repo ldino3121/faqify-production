@@ -72,39 +72,9 @@ export const PlanUpgradeData = () => {
       setRazorpayLoaded(true);
     }
 
-    // Detect user location for currency
-    // Check localStorage first for manual override
-    const manualCountry = localStorage.getItem('userCountry');
-    if (manualCountry) {
-      console.log('Using manual country override:', manualCountry);
-      setUserCountry(manualCountry);
-      const currencyMap: { [key: string]: string } = {
-        'IN': 'inr',
-        'GB': 'gbp',
-        'DE': 'eur', 'FR': 'eur', 'IT': 'eur', 'ES': 'eur', 'NL': 'eur'
-      };
-      setPreferredCurrency(currencyMap[manualCountry] || 'usd');
-      return;
-    }
-
-    fetch('https://ipapi.co/json/')
-      .then(response => response.json())
-      .then(data => {
-        console.log('IP detection result:', data);
-        const detectedCountry = data.country_code || 'IN'; // Default to India
-        setUserCountry(detectedCountry);
-        const currencyMap: { [key: string]: string } = {
-          'IN': 'inr',
-          'GB': 'gbp',
-          'DE': 'eur', 'FR': 'eur', 'IT': 'eur', 'ES': 'eur', 'NL': 'eur'
-        };
-        setPreferredCurrency(currencyMap[detectedCountry] || 'inr');
-      })
-      .catch(() => {
-        console.log('IP detection failed, defaulting to India');
-        setUserCountry('IN'); // Default to India instead of US
-        setPreferredCurrency('inr');
-      });
+    // International strategy: Standard USD pricing for all users
+    setUserCountry('US');
+    setPreferredCurrency('usd');
   }, []);
 
   const plans: Plan[] = [
@@ -115,7 +85,7 @@ export const PlanUpgradeData = () => {
       period: "forever",
       description: "Perfect for trying out FAQify",
       features: [
-        "10 FAQ generations per month",
+        "5 FAQ generations per month",
         "Website URL analysis",
         "Text content analysis",
         "Document upload (PDF, DOCX)",
@@ -127,14 +97,14 @@ export const PlanUpgradeData = () => {
         "Email support"
       ],
       limitations: [],
-      cta: "Current Plan",
+      cta: currentPlan === "Free" ? "Current Plan" : "Start Free",
       popular: false,
       current: currentPlan === "Free",
-      disabled: true
+      disabled: currentPlan === "Free"
     },
     {
       name: "Pro",
-      price: userCountry === 'IN' ? "₹199" : "$9",
+      price: "$9",
       originalPrice: null,
       period: "per month",
       description: "Ideal for small businesses and content creators",
@@ -158,7 +128,7 @@ export const PlanUpgradeData = () => {
     },
     {
       name: "Business",
-      price: userCountry === 'IN' ? "₹999" : "$29",
+      price: "$29",
       originalPrice: null,
       period: "per month",
       description: "For agencies and large organizations",
@@ -269,7 +239,7 @@ export const PlanUpgradeData = () => {
     }
   };
 
-  // Handle subscription payment (auto-renewal for Indian users)
+  // Handle subscription payment (auto-renewal)
   const handleSubscriptionPayment = async (planName: string) => {
     console.log('🚀 Creating Razorpay subscription for:', planName);
 
@@ -277,8 +247,8 @@ export const PlanUpgradeData = () => {
       planId: planName,
       userEmail: user?.email || '',
       userName: user?.user_metadata?.full_name || user?.email || 'User',
-      currency: 'INR',
-      userCountry: 'IN'
+      currency: 'USD',
+      userCountry: 'US'
     };
 
     console.log('📋 Subscription request body:', requestBody);

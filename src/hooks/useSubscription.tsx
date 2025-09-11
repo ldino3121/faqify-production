@@ -223,27 +223,13 @@ export const useSubscription = () => {
   };
 
   const changePlan = async (newPlanTier: 'Free' | 'Pro' | 'Business', isUpgrade: boolean = true) => {
-    if (!user) return { success: false, reason: 'User not authenticated' };
-
-    try {
-      const { data, error } = await supabase.rpc('change_subscription_plan', {
-        user_uuid: user.id,
-        new_plan_tier: newPlanTier,
-        is_upgrade: isUpgrade
-      });
-
-      if (error) {
-        console.error('Error changing plan:', error);
-        return { success: false, reason: error.message };
-      }
-
-      // Refresh subscription data
-      await fetchSubscription();
-      return data;
-    } catch (error) {
-      console.error('Error changing plan:', error);
-      return { success: false, reason: 'Error changing plan' };
-    }
+    // SECURITY: Plan changes must go through payment verification
+    // This function is disabled to prevent unauthorized plan assignments
+    console.warn('Direct plan changes are disabled. Use payment flow instead.');
+    return {
+      success: false,
+      reason: 'Direct plan changes are disabled. Please use the payment system to upgrade your plan.'
+    };
   };
 
   const getSubscriptionStatus = () => {

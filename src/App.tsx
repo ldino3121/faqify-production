@@ -7,7 +7,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { usePricingMigration } from "@/hooks/usePricingMigration";
+// Removed auto-migration to prevent unauthorized plan assignments
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import SignUp from "./pages/SignUp";
@@ -23,8 +23,7 @@ import NotFound from "./pages/NotFound";
 const queryClient = new QueryClient();
 
 const AppContent = () => {
-  // Initialize pricing migration on app startup
-  usePricingMigration();
+  // Removed auto-migration to prevent unauthorized plan assignments
 
   return (
     <BrowserRouter>

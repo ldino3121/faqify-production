@@ -23,7 +23,8 @@ export const DashboardHeader = ({ sidebarOpen, setSidebarOpen }: DashboardHeader
   const handleSignOut = async () => {
     try {
       await signOut();
-      navigate('/');
+      // Force a hard navigation to clear any in-memory state and query params
+      window.location.href = '/login?logout=1';
     } catch (error) {
       toast({
         title: "Error",

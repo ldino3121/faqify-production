@@ -10,7 +10,7 @@ interface SubscriptionRequest {
   planId: 'Pro' | 'Business';
   userEmail: string;
   userName: string;
-  currency?: 'INR' | 'USD';
+  currency?: 'USD';
   userCountry?: string;
 }
 
@@ -49,8 +49,8 @@ serve(async (req) => {
       throw new Error('Invalid plan selected')
     }
 
-    // Determine currency based on user location
-    const targetCurrency = currency || (userCountry === 'IN' ? 'INR' : 'USD')
+    // International strategy: Standard USD pricing
+    const targetCurrency = 'USD'
 
     // Razorpay configuration
     const razorpayKeyId = Deno.env.get('RAZORPAY_KEY_ID')
@@ -79,9 +79,9 @@ serve(async (req) => {
 
     console.log('Found plan in database:', selectedPlan);
 
-    // Set currency-specific amount
+    // Set USD pricing
     const currencyPlan = {
-      amount: targetCurrency === 'INR' ? selectedPlan.price_inr || (selectedPlan.price_monthly * 83) : selectedPlan.price_monthly,
+      amount: selectedPlan.price_monthly,
       currency: targetCurrency
     };
 

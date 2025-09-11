@@ -79,7 +79,7 @@ serve(async (req) => {
     }
 
     // Parse request body
-    const { planId, currency = 'inr', userCountry = 'IN', paymentType = 'onetime' }: RazorpayOrderRequest = await req.json();
+    const { planId, currency = 'usd', userCountry = 'US', paymentType = 'onetime' }: RazorpayOrderRequest = await req.json();
 
     console.log('Request details:', {
       planId,
@@ -176,23 +176,8 @@ serve(async (req) => {
       targetCurrency
     });
 
+    // International strategy: Standard USD pricing only
     switch (targetCurrency) {
-      case 'inr':
-        // Use India-specific pricing: Pro ₹199, Business ₹999
-        if (plan.name === 'Pro') {
-          amount = 19900; // ₹199 in paise
-        } else if (plan.name === 'Business') {
-          amount = 99900; // ₹999 in paise
-        } else {
-          amount = plan.price_inr || (plan.price_monthly * 83); // Fallback conversion
-        }
-        break;
-      case 'eur':
-        amount = plan.price_eur || Math.round(plan.price_monthly * 0.85);
-        break;
-      case 'gbp':
-        amount = plan.price_gbp || Math.round(plan.price_monthly * 0.75);
-        break;
       case 'usd':
       default:
         amount = plan.price_monthly;

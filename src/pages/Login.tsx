@@ -20,7 +20,10 @@ const Login = () => {
 
   // Redirect to dashboard if user is already authenticated
   useEffect(() => {
-    if (user && !loading) {
+    const params = new URLSearchParams(window.location.search);
+    const fromLogout = params.get('logout') === '1';
+
+    if (user && !loading && !fromLogout) {
       // Force localhost redirect for development
       if (window.location.hostname === 'localhost') {
         window.location.href = 'http://localhost:8082/dashboard';

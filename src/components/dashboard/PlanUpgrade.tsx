@@ -15,6 +15,8 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useRazorpaySubscription } from "@/hooks/useRazorpaySubscription";
+import { useSubscription } from "@/hooks/useSubscription";
+import { supabase } from "@/integrations/supabase/client";
 
 type PlanType = "Free" | "Pro" | "Business";
 
@@ -33,11 +35,37 @@ interface Plan {
 }
 
 export const PlanUpgrade = () => {
-  const [currentPlan, setCurrentPlan] = useState<PlanType>("Free");
   const [paymentType, setPaymentType] = useState<'one_time' | 'subscription'>('subscription');
   const [processingPlan, setProcessingPlan] = useState<string | null>(null);
+  const [razorpayLoaded, setRazorpayLoaded] = useState(false);
   const { toast } = useToast();
   const { createAndOpenSubscription, loading: subscriptionLoading } = useRazorpaySubscription();
+  const { subscription, loading: subscriptionDataLoading } = useSubscription();
+
+  // Get current plan from real subscription data
+  const currentPlan = subscription?.plan_tier || "Free";
+
+  // Load Razorpay script
+  useEffect(() => {
+    const loadRazorpay = () => {
+      return new Promise((resolve) => {
+        const script = document.createElement('script');
+        script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+        script.onload = () => {
+          setRazorpayLoaded(true);
+          resolve(true);
+        };
+        script.onerror = () => resolve(false);
+        document.body.appendChild(script);
+      });
+    };
+
+    if (!window.Razorpay) {
+      loadRazorpay();
+    } else {
+      setRazorpayLoaded(true);
+    }
+  }, []);
 
 
 
@@ -70,10 +98,10 @@ export const PlanUpgrade = () => {
         "Email support"
       ],
       limitations: [],
-      cta: currentPlan === "Free" ? "Current Plan" : "Downgrade",
+      cta: currentPlan === "Free" ? "Current Plan" : "Start Free",
       popular: false,
       current: currentPlan === "Free",
-      disabled: currentPlan === "Free"
+      disabled: false
     },
     {
       name: "Pro",
@@ -98,7 +126,7 @@ export const PlanUpgrade = () => {
       cta: currentPlan === "Pro" ? "Current Plan" : "Upgrade to Pro",
       popular: true,
       current: currentPlan === "Pro",
-      disabled: currentPlan === "Pro"
+      disabled: false
     },
     {
       name: "Business",
@@ -125,11 +153,23 @@ export const PlanUpgrade = () => {
       cta: currentPlan === "Business" ? "Current Plan" : "Upgrade to Business",
       popular: false,
       current: currentPlan === "Business",
-      disabled: currentPlan === "Business"
+      disabled: false
     }
   ];
 
   const handleUpgrade = async (planName: string) => {
+    // Allow re-purchasing same plan if FAQ credits are exhausted
+    // Only block if user is on same plan AND has remaining FAQs
+    if (planName === currentPlan && subscription && subscription.faq_usage_current < subscription.faq_usage_limit) {
+      toast({
+        title: "Plan Already Active",
+        description: `You're already on the ${planName} plan with ${subscription.faq_usage_limit - subscription.faq_usage_current} FAQs remaining.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Don't process Free plan clicks
     if (planName === "Free") return;
 
     if (paymentType === 'subscription') {
@@ -147,8 +187,8 @@ export const PlanUpgrade = () => {
     setProcessingPlan(planId);
 
     try {
-      const effectiveCountry = countryOverride || userCountry;
-      const currency = effectiveCountry === 'IN' ? 'INR' : 'USD';
+      // Default to USD pricing for subscriptions (international strategy)
+      const currency = 'USD';
 
       toast({
         title: "Creating Subscription",
@@ -177,20 +217,106 @@ export const PlanUpgrade = () => {
     }
   };
 
-  const handleOneTimeUpgrade = (planName: string) => {
-    toast({
-      title: `Upgrading to ${planName}`,
-      description: "Redirecting to secure payment gateway...",
-    });
-
-    // Simulate payment redirect
-    setTimeout(() => {
+  const handleOneTimeUpgrade = async (planName: string) => {
+    if (!window.Razorpay) {
       toast({
-        title: "Payment Successful!",
-        description: `Welcome to ${planName}! Your new features are now active.`,
+        title: "Payment System Loading",
+        description: "Please wait for the payment system to load and try again.",
+        variant: "destructive",
       });
-      setCurrentPlan(planName as PlanType);
-    }, 2000);
+      return;
+    }
+
+    try {
+      setProcessingPlan(planName);
+
+      toast({
+        title: `Creating ${planName} Order`,
+        description: "Setting up your payment...",
+      });
+
+      // Create Razorpay order via edge function
+      const { data, error } = await supabase.functions.invoke('create-razorpay-order', {
+        body: {
+          planId: planName.toLowerCase(),
+          currency: 'usd',
+          userCountry: 'US',
+          paymentType: 'onetime'
+        }
+      });
+
+      if (error || !data.success || !data.order) {
+        throw new Error('Failed to create payment order');
+      }
+
+      // Configure Razorpay options
+      const options = {
+        key: data.order.key,
+        amount: data.order.amount,
+        currency: data.order.currency.toUpperCase(),
+        name: 'FAQify',
+        description: `${data.plan.name} Plan (30 Days)`,
+        order_id: data.order.id,
+        handler: async function (response: any) {
+          try {
+            // Verify payment on backend
+            const { data: verifyData, error: verifyError } = await supabase.functions.invoke('verify-razorpay-payment', {
+              body: {
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature
+              }
+            });
+
+            if (verifyError) throw verifyError;
+
+            if (verifyData.success) {
+              toast({
+                title: "Payment Successful!",
+                description: `Your ${planName} plan is now active for 30 days. Redirecting...`,
+              });
+
+              setTimeout(() => {
+                window.location.reload();
+              }, 2000);
+            } else {
+              throw new Error('Payment verification failed');
+            }
+          } catch (error) {
+            console.error('Payment verification error:', error);
+            toast({
+              title: "Payment Verification Failed",
+              description: "Please contact support if your payment was deducted.",
+              variant: "destructive",
+            });
+          }
+        },
+        prefill: {
+          name: data.user.name,
+          email: data.user.email
+        },
+        theme: {
+          color: '#3B82F6'
+        },
+        modal: {
+          ondismiss: function () {
+            setProcessingPlan(null);
+          }
+        }
+      };
+
+      const rzp = new window.Razorpay(options);
+      rzp.open();
+
+    } catch (error) {
+      console.error('Error creating Razorpay order:', error);
+      toast({
+        title: "Payment Failed",
+        description: "Failed to start payment process. Please try again.",
+        variant: "destructive",
+      });
+      setProcessingPlan(null);
+    }
   };
 
   return (
@@ -307,7 +433,14 @@ export const PlanUpgrade = () => {
 
               <Button
                 onClick={() => handleUpgrade(plan.name)}
-                disabled={plan.disabled || processingPlan === plan.name || subscriptionLoading}
+                disabled={
+                  processingPlan === plan.name ||
+                  subscriptionLoading ||
+                  subscriptionDataLoading ||
+                  (!razorpayLoaded && plan.name !== "Free") ||
+                  // Allow re-purchasing same plan if FAQ credits exhausted
+                  (plan.current && plan.name !== "Free" && subscription && subscription.faq_usage_current < subscription.faq_usage_limit)
+                }
                 className={`w-full py-3 ${
                   plan.current
                     ? 'bg-green-600 hover:bg-green-700 text-white'
@@ -320,6 +453,11 @@ export const PlanUpgrade = () => {
                   <>
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
                     {paymentType === 'subscription' ? 'Creating Subscription...' : 'Processing...'}
+                  </>
+                ) : !razorpayLoaded && plan.name !== "Free" ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Loading Payment...
                   </>
                 ) : plan.current ? (
                   <>
