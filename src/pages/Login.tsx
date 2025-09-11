@@ -24,12 +24,9 @@ const Login = () => {
     const fromLogout = params.get('logout') === '1';
 
     if (user && !loading && !fromLogout) {
-      // Force localhost redirect for development
-      if (window.location.hostname === 'localhost') {
-        window.location.href = 'http://localhost:8082/dashboard';
-      } else {
-        navigate('/dashboard', { replace: true });
-      }
+      console.log('User authenticated, redirecting to dashboard...');
+      // Force full page redirect for reliable navigation
+      window.location.href = '/dashboard';
     }
   }, [user, loading, navigate]);
 
@@ -39,12 +36,19 @@ const Login = () => {
 
     try {
       await signIn(email, password);
-      // Don't navigate manually - let the auth state change handle it
+
       toast({
         title: "Success!",
-        description: "You have been signed in successfully.",
+        description: "You have been signed in successfully. Redirecting...",
       });
+
+      // Force redirect after successful login
+      setTimeout(() => {
+        window.location.href = '/dashboard';
+      }, 1000);
+
     } catch (error) {
+      console.error('Login error:', error);
       toast({
         title: "Login Failed",
         description: error instanceof Error ? error.message : "Failed to sign in",

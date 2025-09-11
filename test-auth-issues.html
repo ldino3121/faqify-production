@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔐 Authentication Issues Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .container {
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            border: 1px solid #444;
+        }
+        .success { background: #4CAF50; color: white; padding: 10px; border-radius: 5px; margin: 10px 0; }
+        .error { background: #f44336; color: white; padding: 10px; border-radius: 5px; margin: 10px 0; }
+        .warning { background: #ff9800; color: white; padding: 10px; border-radius: 5px; margin: 10px 0; }
+        .info { background: #2196F3; color: white; padding: 10px; border-radius: 5px; margin: 10px 0; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+            font-weight: bold;
+        }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #666; cursor: not-allowed; }
+        input {
+            width: 100%;
+            padding: 10px;
+            margin: 5px 0;
+            border: 1px solid #444;
+            border-radius: 5px;
+            background: #333;
+            color: #fff;
+        }
+        pre {
+            background: #1a1a1a;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔐 Authentication Issues Test</h1>
+    <div class="info" style="margin-bottom: 20px; padding: 15px; border-radius: 5px;">
+        <strong>🎯 Purpose:</strong> Test login redirect and signup error handling for carbonface9999@yahoo.com
+    </div>
+    
+    <div class="container">
+        <h2>📊 User Account Check</h2>
+        <div id="user-check-status">
+            <button onclick="checkUserExists()">Check if carbonface9999@yahoo.com exists</button>
+        </div>
+        <div id="user-check-results"></div>
+    </div>
+
+    <div class="container">
+        <h2>🔐 Login Test</h2>
+        <div>
+            <input type="email" id="login-email" placeholder="Email" value="carbonface9999@yahoo.com">
+            <input type="password" id="login-password" placeholder="Password">
+            <button onclick="testLogin()">Test Login</button>
+        </div>
+        <div id="login-results"></div>
+    </div>
+
+    <div class="container">
+        <h2>📝 Signup Test</h2>
+        <div>
+            <input type="email" id="signup-email" placeholder="Email" value="carbonface9999@yahoo.com">
+            <input type="password" id="signup-password" placeholder="Password">
+            <input type="text" id="signup-name" placeholder="Full Name" value="Test User">
+            <button onclick="testSignup()">Test Signup (Should Show Error)</button>
+        </div>
+        <div id="signup-results"></div>
+    </div>
+
+    <div class="container">
+        <h2>🔄 Current Auth State</h2>
+        <div id="auth-state">
+            <button onclick="checkAuthState()">Check Current Auth State</button>
+        </div>
+        <div id="auth-results"></div>
+    </div>
+
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script>
+        // Production Supabase Configuration
+        const supabaseUrl = 'https://dlzshcshqjdghmtzlbma.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRsenNoY3NocWpkZ2htdHpsYm1hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTExODUzODgsImV4cCI6MjA2Njc2MTM4OH0.EL4By0nom419JiorSHKiFckLqnh1sqmFvYnWTylB9Gk';
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+        async function checkUserExists() {
+            document.getElementById('user-check-results').innerHTML = '<div class="info">Checking user existence...</div>';
+            
+            try {
+                // Check in profiles table
+                const { data: profiles, error: profileError } = await supabase
+                    .from('profiles')
+                    .select('*')
+                    .eq('email', 'carbonface9999@yahoo.com');
+
+                let html = '';
+                
+                if (profileError) {
+                    html += `<div class="error">Profile check error: ${profileError.message}</div>`;
+                } else {
+                    html += `<div class="info">Profiles found: ${profiles.length}</div>`;
+                    if (profiles.length > 0) {
+                        html += `<pre>${JSON.stringify(profiles[0], null, 2)}</pre>`;
+                    }
+                }
+
+                // Try to get user info (this will only work if we're authenticated as that user)
+                const { data: { user }, error: userError } = await supabase.auth.getUser();
+                
+                if (user) {
+                    html += `<div class="success">Currently authenticated as: ${user.email}</div>`;
+                } else {
+                    html += `<div class="warning">Not currently authenticated</div>`;
+                }
+
+                document.getElementById('user-check-results').innerHTML = html;
+
+            } catch (error) {
+                document.getElementById('user-check-results').innerHTML = `
+                    <div class="error">Error checking user: ${error.message}</div>
+                `;
+            }
+        }
+
+        async function testLogin() {
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+            
+            document.getElementById('login-results').innerHTML = '<div class="info">Testing login...</div>';
+            
+            try {
+                const { data, error } = await supabase.auth.signInWithPassword({
+                    email,
+                    password,
+                });
+
+                if (error) {
+                    document.getElementById('login-results').innerHTML = `
+                        <div class="error">
+                            <strong>Login Failed:</strong> ${error.message}<br>
+                            <strong>Error Code:</strong> ${error.status || 'N/A'}<br>
+                            <strong>Full Error:</strong> <pre>${JSON.stringify(error, null, 2)}</pre>
+                        </div>
+                    `;
+                } else {
+                    document.getElementById('login-results').innerHTML = `
+                        <div class="success">
+                            <strong>Login Successful!</strong><br>
+                            <strong>User:</strong> ${data.user.email}<br>
+                            <strong>Session:</strong> ${data.session ? 'Created' : 'None'}<br>
+                            <div class="warning">Testing redirect in 3 seconds...</div>
+                        </div>
+                    `;
+                    
+                    // Test redirect
+                    setTimeout(() => {
+                        window.location.href = '/dashboard';
+                    }, 3000);
+                }
+
+            } catch (error) {
+                document.getElementById('login-results').innerHTML = `
+                    <div class="error">Login error: ${error.message}</div>
+                `;
+            }
+        }
+
+        async function testSignup() {
+            const email = document.getElementById('signup-email').value;
+            const password = document.getElementById('signup-password').value;
+            const name = document.getElementById('signup-name').value;
+            
+            document.getElementById('signup-results').innerHTML = '<div class="info">Testing signup...</div>';
+            
+            try {
+                const { data, error } = await supabase.auth.signUp({
+                    email,
+                    password,
+                    options: {
+                        data: {
+                            full_name: name,
+                        },
+                    },
+                });
+
+                if (error) {
+                    document.getElementById('signup-results').innerHTML = `
+                        <div class="error">
+                            <strong>Signup Failed (Expected):</strong> ${error.message}<br>
+                            <strong>Error Code:</strong> ${error.status || 'N/A'}<br>
+                            <strong>Full Error:</strong> <pre>${JSON.stringify(error, null, 2)}</pre>
+                        </div>
+                    `;
+                } else {
+                    document.getElementById('signup-results').innerHTML = `
+                        <div class="warning">
+                            <strong>Signup Succeeded (Unexpected):</strong><br>
+                            <strong>User:</strong> ${data.user?.email}<br>
+                            <strong>Session:</strong> ${data.session ? 'Created' : 'None'}<br>
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        </div>
+                    `;
+                }
+
+            } catch (error) {
+                document.getElementById('signup-results').innerHTML = `
+                    <div class="error">Signup error: ${error.message}</div>
+                `;
+            }
+        }
+
+        async function checkAuthState() {
+            document.getElementById('auth-results').innerHTML = '<div class="info">Checking auth state...</div>';
+            
+            try {
+                const { data: { session }, error } = await supabase.auth.getSession();
+                
+                if (error) {
+                    document.getElementById('auth-results').innerHTML = `
+                        <div class="error">Auth state error: ${error.message}</div>
+                    `;
+                } else if (session) {
+                    document.getElementById('auth-results').innerHTML = `
+                        <div class="success">
+                            <strong>Authenticated as:</strong> ${session.user.email}<br>
+                            <strong>Session expires:</strong> ${new Date(session.expires_at * 1000).toLocaleString()}<br>
+                            <button onclick="signOut()">Sign Out</button>
+                        </div>
+                    `;
+                } else {
+                    document.getElementById('auth-results').innerHTML = `
+                        <div class="warning">Not authenticated</div>
+                    `;
+                }
+
+            } catch (error) {
+                document.getElementById('auth-results').innerHTML = `
+                    <div class="error">Error checking auth state: ${error.message}</div>
+                `;
+            }
+        }
+
+        async function signOut() {
+            try {
+                await supabase.auth.signOut();
+                document.getElementById('auth-results').innerHTML = `
+                    <div class="success">Signed out successfully</div>
+                `;
+            } catch (error) {
+                document.getElementById('auth-results').innerHTML = `
+                    <div class="error">Sign out error: ${error.message}</div>
+                `;
+            }
+        }
+
+        // Auto-check auth state on load
+        document.addEventListener('DOMContentLoaded', () => {
+            checkAuthState();
+        });
+    </script>
+</body>
+</html>

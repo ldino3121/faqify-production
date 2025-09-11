@@ -112,13 +112,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     if (error) {
       console.error('Sign up error:', error);
+      console.error('Error code:', error.status);
+      console.error('Error message:', error.message);
 
-      // Provide helpful message for existing OAuth users
-      if (error.message.includes('already registered') || error.message.includes('already exists')) {
+      // Handle various existing user scenarios
+      if (error.message.includes('already registered') ||
+          error.message.includes('already exists') ||
+          error.message.includes('User already registered') ||
+          error.message.includes('email address is already in use') ||
+          error.status === 422) {
+
         if (email.toLowerCase().includes('@gmail.com')) {
-          throw new Error('This Gmail account may already be registered with Google OAuth. Please try "Continue with Google" to sign in.');
+          throw new Error('Account already exists! This Gmail account may be registered with Google OAuth. Please try "Continue with Google" to sign in.');
         }
-        throw new Error('This email is already registered. Please try signing in instead, or use social login if you registered with Google/GitHub.');
+        throw new Error('Account already exists! This email is already registered. Please try signing in instead, or use social login if you registered with Google/GitHub.');
       }
 
       throw new Error(error.message);
