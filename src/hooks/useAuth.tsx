@@ -110,6 +110,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     console.log('User created:', data.user?.id, data.user?.email);
     console.log('Session created:', !!data.session);
 
+    // Log additional details for debugging
+    if (data.user) {
+      console.log('User created_at:', data.user.created_at);
+      console.log('User email_confirmed_at:', data.user.email_confirmed_at);
+      console.log('User confirmation_sent_at:', data.user.confirmation_sent_at);
+    }
+
     if (error) {
       console.error('Sign up error:', error);
       console.error('Error code:', error.status);
@@ -132,42 +139,39 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       throw new Error(error.message);
     }
 
-    // Handle signup success - email verification is disabled in config
+    // Handle signup response - with confirmations disabled, behavior is different
     if (data.user) {
-      // Check if this is an existing user (created_at is old) vs new user
-      const userCreatedAt = new Date(data.user.created_at);
-      const now = new Date();
-      const timeDiff = now.getTime() - userCreatedAt.getTime();
-      const isExistingUser = timeDiff > 10000; // More than 10 seconds old = existing user
+      console.log('=== ANALYZING SIGNUP RESPONSE ===');
+      console.log('User ID:', data.user.id);
+      console.log('User email:', data.user.email);
+      console.log('User created_at:', data.user.created_at);
+      console.log('Has session:', !!data.session);
+      console.log('Email confirmed:', !!data.user.email_confirmed_at);
 
-      if (isExistingUser && !data.session) {
-        // This is an existing user trying to signup again
-        console.log('Existing user attempted signup - no session provided');
+      // With confirmations disabled, Supabase behavior:
+      // - New user: Returns user + session
+      // - Existing user: Returns existing user + NO session + NO error
+
+      if (!data.session) {
+        // No session = existing user trying to signup again
+        console.log('No session provided - this indicates existing user');
         if (email.toLowerCase().includes('@gmail.com')) {
           throw new Error('Email already exists! This Gmail account may be registered with Google OAuth. Please try "Continue with Google" to sign in.');
         }
         throw new Error('Email already exists! This email is already registered. Please try signing in instead, or use Google login if you registered with Google.');
       }
 
-      if (data.session) {
-        console.log('User signed up successfully with immediate session');
-        toast({
-          title: "Account created!",
-          description: "Welcome to FAQify! Redirecting to your dashboard...",
-        });
+      // Has session = genuinely new user
+      console.log('Session provided - new user created successfully');
+      toast({
+        title: "Account created!",
+        description: "Welcome to FAQify! Redirecting to your dashboard...",
+      });
 
-        // Redirect to dashboard after successful signup
-        setTimeout(() => {
-          window.location.href = '/dashboard';
-        }, 1500);
-
-      } else {
-        console.log('New user created but no session - email verification may be required');
-        toast({
-          title: "Account created!",
-          description: "Please check your email to verify your account, then try signing in.",
-        });
-      }
+      // Redirect to dashboard after successful signup
+      setTimeout(() => {
+        window.location.href = '/dashboard';
+      }, 1500);
     }
   };
 

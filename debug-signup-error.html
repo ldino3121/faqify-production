@@ -83,15 +83,17 @@
             const email = document.getElementById('test-email').value;
             const password = document.getElementById('test-password').value;
             const name = document.getElementById('test-name').value;
-            
+
             document.getElementById('debug-results').innerHTML = '<div class="info">Testing signup with existing email...</div>';
-            
+
             try {
                 console.log('=== SIGNUP ATTEMPT ===');
                 console.log('Email:', email);
                 console.log('Password:', password);
                 console.log('Name:', name);
-                
+
+                const startTime = Date.now();
+
                 const { data, error } = await supabase.auth.signUp({
                     email,
                     password,
@@ -103,11 +105,21 @@
                     },
                 });
 
+                const endTime = Date.now();
+                const responseTime = endTime - startTime;
+
                 console.log('=== SUPABASE RESPONSE ===');
+                console.log('Response time:', responseTime + 'ms');
                 console.log('Data:', data);
                 console.log('Error:', error);
                 console.log('User:', data?.user);
                 console.log('Session:', data?.session);
+
+                if (data?.user) {
+                    console.log('User created_at:', data.user.created_at);
+                    console.log('User email_confirmed_at:', data.user.email_confirmed_at);
+                    console.log('User confirmation_sent_at:', data.user.confirmation_sent_at);
+                }
 
                 let html = '<h3>🔍 Complete Supabase Response:</h3>';
                 
