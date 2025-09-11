@@ -57,10 +57,7 @@ const SignUp = () => {
     
     try {
       await signUp(formData.email, formData.password, formData.name);
-      // Navigate to dashboard after successful signup
-      setTimeout(() => {
-        navigate('/dashboard');
-      }, 1000);
+      // Navigation is now handled in the auth hook
     } catch (error) {
       toast({
         title: "Sign Up Failed",

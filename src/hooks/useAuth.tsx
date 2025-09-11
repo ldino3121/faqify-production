@@ -131,19 +131,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       throw new Error(error.message);
     }
 
-    // For immediate sign-up without email verification
-    if (data.user && data.session) {
-      console.log('User signed up successfully with session');
-      toast({
-        title: "Account created!",
-        description: "You can now access your dashboard.",
-      });
-    } else if (data.user && !data.session) {
-      console.log('User created but no session - needs email verification');
-      toast({
-        title: "Account created!",
-        description: "Please check your email to verify your account.",
-      });
+    // Handle signup success - email verification is disabled in config
+    if (data.user) {
+      if (data.session) {
+        console.log('User signed up successfully with immediate session');
+        toast({
+          title: "Account created!",
+          description: "Welcome to FAQify! Redirecting to your dashboard...",
+        });
+
+        // Redirect to dashboard after successful signup
+        setTimeout(() => {
+          window.location.href = '/dashboard';
+        }, 1500);
+
+      } else {
+        console.log('User created but no session - this should not happen with confirmations disabled');
+        toast({
+          title: "Account created!",
+          description: "Please try signing in with your credentials.",
+        });
+      }
     }
   };
 

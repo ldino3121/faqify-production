@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔐 Signup Flow Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .container {
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            border: 1px solid #444;
+        }
+        .success { background: #4CAF50; color: white; padding: 10px; border-radius: 5px; margin: 10px 0; }
+        .error { background: #f44336; color: white; padding: 10px; border-radius: 5px; margin: 10px 0; }
+        .warning { background: #ff9800; color: white; padding: 10px; border-radius: 5px; margin: 10px 0; }
+        .info { background: #2196F3; color: white; padding: 10px; border-radius: 5px; margin: 10px 0; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+            font-weight: bold;
+        }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #666; cursor: not-allowed; }
+        input {
+            width: 100%;
+            padding: 10px;
+            margin: 5px 0;
+            border: 1px solid #444;
+            border-radius: 5px;
+            background: #333;
+            color: #fff;
+        }
+        pre {
+            background: #1a1a1a;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .step {
+            border-left: 4px solid #007bff;
+            padding-left: 15px;
+            margin: 15px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔐 Signup Flow & Database Test</h1>
+    <div class="info" style="margin-bottom: 20px; padding: 15px; border-radius: 5px;">
+        <strong>🎯 Purpose:</strong> Test complete signup flow and verify database trigger functionality
+    </div>
+    
+    <div class="container">
+        <h2>📊 Database Trigger Check</h2>
+        <div class="step">
+            <strong>Step 1:</strong> Check if handle_new_user() trigger exists and is active
+        </div>
+        <button onclick="checkDatabaseTrigger()">Check Database Trigger</button>
+        <div id="trigger-results"></div>
+    </div>
+
+    <div class="container">
+        <h2>👤 User Data Verification</h2>
+        <div class="step">
+            <strong>Step 2:</strong> Check existing user data for carbonface9999@yahoo.com
+        </div>
+        <button onclick="checkUserData()">Check User Data</button>
+        <div id="user-data-results"></div>
+    </div>
+
+    <div class="container">
+        <h2>🧪 Test Signup Flow</h2>
+        <div class="step">
+            <strong>Step 3:</strong> Test signup with a new test email
+        </div>
+        <div>
+            <input type="email" id="test-email" placeholder="Test Email" value="test-signup-flow@example.com">
+            <input type="password" id="test-password" placeholder="Password" value="TestPassword123!">
+            <input type="text" id="test-name" placeholder="Full Name" value="Test User">
+            <button onclick="testSignupFlow()">Test Complete Signup Flow</button>
+        </div>
+        <div id="signup-flow-results"></div>
+    </div>
+
+    <div class="container">
+        <h2>🔄 Cleanup Test Data</h2>
+        <div class="step">
+            <strong>Step 4:</strong> Clean up test user data (if needed)
+        </div>
+        <button onclick="cleanupTestData()">Cleanup Test User</button>
+        <div id="cleanup-results"></div>
+    </div>
+
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script>
+        // Production Supabase Configuration
+        const supabaseUrl = 'https://dlzshcshqjdghmtzlbma.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRsenNoY3NocWpkZ2htdHpsYm1hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTExODUzODgsImV4cCI6MjA2Njc2MTM4OH0.EL4By0nom419JiorSHKiFckLqnh1sqmFvYnWTylB9Gk';
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+        async function checkDatabaseTrigger() {
+            document.getElementById('trigger-results').innerHTML = '<div class="info">Checking database trigger...</div>';
+            
+            try {
+                // Check if trigger exists (this requires service role, so we'll check indirectly)
+                const { data: profiles, error } = await supabase
+                    .from('profiles')
+                    .select('count')
+                    .limit(1);
+
+                const { data: subscriptions, error: subError } = await supabase
+                    .from('user_subscriptions')
+                    .select('count')
+                    .limit(1);
+
+                let html = '';
+                
+                if (error) {
+                    html += `<div class="error">Cannot access profiles table: ${error.message}</div>`;
+                } else {
+                    html += `<div class="success">✅ Profiles table accessible</div>`;
+                }
+
+                if (subError) {
+                    html += `<div class="error">Cannot access user_subscriptions table: ${subError.message}</div>`;
+                } else {
+                    html += `<div class="success">✅ User_subscriptions table accessible</div>`;
+                }
+
+                html += `<div class="info">📝 Note: Trigger functionality will be tested during signup flow</div>`;
+
+                document.getElementById('trigger-results').innerHTML = html;
+
+            } catch (error) {
+                document.getElementById('trigger-results').innerHTML = `
+                    <div class="error">Error checking database: ${error.message}</div>
+                `;
+            }
+        }
+
+        async function checkUserData() {
+            document.getElementById('user-data-results').innerHTML = '<div class="info">Checking user data...</div>';
+            
+            try {
+                // Check profiles
+                const { data: profiles, error: profileError } = await supabase
+                    .from('profiles')
+                    .select('*')
+                    .eq('email', 'carbonface9999@yahoo.com');
+
+                // Check subscriptions
+                const { data: subscriptions, error: subError } = await supabase
+                    .from('user_subscriptions')
+                    .select('*')
+                    .eq('user_id', profiles?.[0]?.id);
+
+                let html = '<h3>📊 Database Status:</h3>';
+                
+                if (profileError) {
+                    html += `<div class="error">Profile check error: ${profileError.message}</div>`;
+                } else {
+                    html += `<div class="info">Profiles found: ${profiles.length}</div>`;
+                    if (profiles.length > 0) {
+                        html += `<div class="success">✅ Profile exists</div>`;
+                        html += `<pre>${JSON.stringify(profiles[0], null, 2)}</pre>`;
+                    } else {
+                        html += `<div class="warning">⚠️ No profile found for carbonface9999@yahoo.com</div>`;
+                    }
+                }
+
+                if (subError) {
+                    html += `<div class="error">Subscription check error: ${subError.message}</div>`;
+                } else if (profiles.length > 0) {
+                    html += `<div class="info">Subscriptions found: ${subscriptions?.length || 0}</div>`;
+                    if (subscriptions && subscriptions.length > 0) {
+                        html += `<div class="success">✅ Subscription exists</div>`;
+                        html += `<pre>${JSON.stringify(subscriptions[0], null, 2)}</pre>`;
+                    } else {
+                        html += `<div class="warning">⚠️ No subscription found (trigger may not have fired)</div>`;
+                    }
+                }
+
+                document.getElementById('user-data-results').innerHTML = html;
+
+            } catch (error) {
+                document.getElementById('user-data-results').innerHTML = `
+                    <div class="error">Error checking user data: ${error.message}</div>
+                `;
+            }
+        }
+
+        async function testSignupFlow() {
+            const email = document.getElementById('test-email').value;
+            const password = document.getElementById('test-password').value;
+            const name = document.getElementById('test-name').value;
+            
+            document.getElementById('signup-flow-results').innerHTML = '<div class="info">Testing complete signup flow...</div>';
+            
+            let html = '<h3>🧪 Signup Flow Test Results:</h3>';
+            
+            try {
+                // Step 1: Attempt signup
+                html += '<div class="step"><strong>Step 1:</strong> Creating user account...</div>';
+                
+                const { data: signupData, error: signupError } = await supabase.auth.signUp({
+                    email,
+                    password,
+                    options: {
+                        data: {
+                            full_name: name,
+                        },
+                    },
+                });
+
+                if (signupError) {
+                    html += `<div class="error">❌ Signup failed: ${signupError.message}</div>`;
+                    document.getElementById('signup-flow-results').innerHTML = html;
+                    return;
+                }
+
+                html += `<div class="success">✅ User created successfully</div>`;
+                html += `<div class="info">User ID: ${signupData.user?.id}</div>`;
+                html += `<div class="info">Session: ${signupData.session ? 'Created' : 'None'}</div>`;
+
+                // Step 2: Wait a moment for trigger to fire
+                html += '<div class="step"><strong>Step 2:</strong> Waiting for database trigger...</div>';
+                document.getElementById('signup-flow-results').innerHTML = html + '<div class="info">⏳ Waiting 2 seconds...</div>';
+                
+                await new Promise(resolve => setTimeout(resolve, 2000));
+
+                // Step 3: Check if profile was created
+                html += '<div class="step"><strong>Step 3:</strong> Checking profile creation...</div>';
+                
+                const { data: profile, error: profileError } = await supabase
+                    .from('profiles')
+                    .select('*')
+                    .eq('id', signupData.user.id)
+                    .single();
+
+                if (profileError) {
+                    html += `<div class="error">❌ Profile not created: ${profileError.message}</div>`;
+                } else {
+                    html += `<div class="success">✅ Profile created successfully</div>`;
+                    html += `<pre>${JSON.stringify(profile, null, 2)}</pre>`;
+                }
+
+                // Step 4: Check if subscription was created
+                html += '<div class="step"><strong>Step 4:</strong> Checking subscription creation...</div>';
+                
+                const { data: subscription, error: subError } = await supabase
+                    .from('user_subscriptions')
+                    .select('*')
+                    .eq('user_id', signupData.user.id)
+                    .single();
+
+                if (subError) {
+                    html += `<div class="error">❌ Subscription not created: ${subError.message}</div>`;
+                } else {
+                    html += `<div class="success">✅ Subscription created successfully</div>`;
+                    html += `<pre>${JSON.stringify(subscription, null, 2)}</pre>`;
+                }
+
+                // Step 5: Test login
+                html += '<div class="step"><strong>Step 5:</strong> Testing login with new account...</div>';
+                
+                const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
+                    email,
+                    password,
+                });
+
+                if (loginError) {
+                    html += `<div class="error">❌ Login failed: ${loginError.message}</div>`;
+                } else {
+                    html += `<div class="success">✅ Login successful</div>`;
+                    html += `<div class="info">Session created: ${!!loginData.session}</div>`;
+                }
+
+                html += '<div class="warning">🧹 Remember to cleanup test data when done!</div>';
+
+                document.getElementById('signup-flow-results').innerHTML = html;
+
+            } catch (error) {
+                html += `<div class="error">Test error: ${error.message}</div>`;
+                document.getElementById('signup-flow-results').innerHTML = html;
+            }
+        }
+
+        async function cleanupTestData() {
+            const email = document.getElementById('test-email').value;
+            
+            document.getElementById('cleanup-results').innerHTML = '<div class="info">Cleaning up test data...</div>';
+            
+            try {
+                // Note: This requires service role access to delete from auth.users
+                // For now, we'll just show what would be cleaned up
+                
+                const { data: profile, error } = await supabase
+                    .from('profiles')
+                    .select('id')
+                    .eq('email', email)
+                    .single();
+
+                if (error) {
+                    document.getElementById('cleanup-results').innerHTML = `
+                        <div class="warning">No test data found to cleanup for ${email}</div>
+                    `;
+                } else {
+                    document.getElementById('cleanup-results').innerHTML = `
+                        <div class="info">
+                            <strong>Test data found for cleanup:</strong><br>
+                            - Profile ID: ${profile.id}<br>
+                            - Email: ${email}<br><br>
+                            <div class="warning">⚠️ Manual cleanup required via Supabase dashboard</div>
+                            <div class="info">Go to Authentication > Users and delete the test user</div>
+                        </div>
+                    `;
+                }
+
+            } catch (error) {
+                document.getElementById('cleanup-results').innerHTML = `
+                    <div class="error">Cleanup error: ${error.message}</div>
+                `;
+            }
+        }
+
+        // Auto-run initial checks
+        document.addEventListener('DOMContentLoaded', () => {
+            checkDatabaseTrigger();
+        });
+    </script>
+</body>
+</html>
