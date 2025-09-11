@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔍 Debug Signup Error</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .container {
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            border: 1px solid #444;
+        }
+        .success { background: #4CAF50; color: white; padding: 10px; border-radius: 5px; margin: 10px 0; }
+        .error { background: #f44336; color: white; padding: 10px; border-radius: 5px; margin: 10px 0; }
+        .warning { background: #ff9800; color: white; padding: 10px; border-radius: 5px; margin: 10px 0; }
+        .info { background: #2196F3; color: white; padding: 10px; border-radius: 5px; margin: 10px 0; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+            font-weight: bold;
+        }
+        button:hover { background: #0056b3; }
+        input {
+            width: 100%;
+            padding: 10px;
+            margin: 5px 0;
+            border: 1px solid #444;
+            border-radius: 5px;
+            background: #333;
+            color: #fff;
+        }
+        pre {
+            background: #1a1a1a;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 Debug Signup Error Response</h1>
+    <div class="info" style="margin-bottom: 20px; padding: 15px; border-radius: 5px;">
+        <strong>🎯 Purpose:</strong> Debug exactly what Supabase returns when signing up with existing email
+    </div>
+    
+    <div class="container">
+        <h2>🧪 Test Existing Email Signup</h2>
+        <div>
+            <input type="email" id="test-email" placeholder="Email" value="carbonface9999@yahoo.com">
+            <input type="password" id="test-password" placeholder="Password" value="TestPassword123">
+            <input type="text" id="test-name" placeholder="Name" value="Different Name">
+            <button onclick="debugSignup()">Debug Signup Response</button>
+        </div>
+        <div id="debug-results"></div>
+    </div>
+
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script>
+        // Production Supabase Configuration
+        const supabaseUrl = 'https://dlzshcshqjdghmtzlbma.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRsenNoY3NocWpkZ2htdHpsYm1hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTExODUzODgsImV4cCI6MjA2Njc2MTM4OH0.EL4By0nom419JiorSHKiFckLqnh1sqmFvYnWTylB9Gk';
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+        async function debugSignup() {
+            const email = document.getElementById('test-email').value;
+            const password = document.getElementById('test-password').value;
+            const name = document.getElementById('test-name').value;
+            
+            document.getElementById('debug-results').innerHTML = '<div class="info">Testing signup with existing email...</div>';
+            
+            try {
+                console.log('=== SIGNUP ATTEMPT ===');
+                console.log('Email:', email);
+                console.log('Password:', password);
+                console.log('Name:', name);
+                
+                const { data, error } = await supabase.auth.signUp({
+                    email,
+                    password,
+                    options: {
+                        emailRedirectTo: `${window.location.origin}/dashboard`,
+                        data: {
+                            full_name: name,
+                        },
+                    },
+                });
+
+                console.log('=== SUPABASE RESPONSE ===');
+                console.log('Data:', data);
+                console.log('Error:', error);
+                console.log('User:', data?.user);
+                console.log('Session:', data?.session);
+
+                let html = '<h3>🔍 Complete Supabase Response:</h3>';
+                
+                if (error) {
+                    html += `<div class="error">
+                        <strong>❌ ERROR DETECTED:</strong><br>
+                        <strong>Message:</strong> ${error.message}<br>
+                        <strong>Status:</strong> ${error.status || 'N/A'}<br>
+                        <strong>Code:</strong> ${error.code || 'N/A'}<br>
+                        <strong>Full Error Object:</strong>
+                        <pre>${JSON.stringify(error, null, 2)}</pre>
+                    </div>`;
+                } else {
+                    html += `<div class="warning">⚠️ NO ERROR - This is the problem!</div>`;
+                }
+
+                if (data) {
+                    html += `<div class="info">
+                        <strong>📊 DATA OBJECT:</strong><br>
+                        <strong>User exists:</strong> ${!!data.user}<br>
+                        <strong>Session exists:</strong> ${!!data.session}<br>
+                        <strong>User ID:</strong> ${data.user?.id || 'None'}<br>
+                        <strong>User Email:</strong> ${data.user?.email || 'None'}<br>
+                        <strong>User Created At:</strong> ${data.user?.created_at || 'None'}<br>
+                        <strong>Full Data Object:</strong>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    </div>`;
+                }
+
+                // Analyze the scenario
+                html += '<h3>🎯 Analysis:</h3>';
+                
+                if (error) {
+                    html += `<div class="success">✅ This is the EXPECTED behavior - error should be caught</div>`;
+                } else if (data.user && !data.session) {
+                    html += `<div class="error">❌ PROBLEM FOUND: User returned but no session - this triggers the wrong message!</div>`;
+                    html += `<div class="warning">This is why you see "Please try signing in with your credentials"</div>`;
+                } else if (data.user && data.session) {
+                    html += `<div class="warning">⚠️ User and session both returned - this would create a duplicate account!</div>`;
+                } else {
+                    html += `<div class="info">🤔 Unexpected scenario</div>`;
+                }
+
+                document.getElementById('debug-results').innerHTML = html;
+
+            } catch (error) {
+                console.error('Catch block error:', error);
+                document.getElementById('debug-results').innerHTML = `
+                    <div class="error">
+                        <strong>JavaScript Error:</strong> ${error.message}<br>
+                        <pre>${JSON.stringify(error, null, 2)}</pre>
+                    </div>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>

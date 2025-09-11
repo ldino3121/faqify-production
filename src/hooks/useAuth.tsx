@@ -134,6 +134,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     // Handle signup success - email verification is disabled in config
     if (data.user) {
+      // Check if this is an existing user (created_at is old) vs new user
+      const userCreatedAt = new Date(data.user.created_at);
+      const now = new Date();
+      const timeDiff = now.getTime() - userCreatedAt.getTime();
+      const isExistingUser = timeDiff > 10000; // More than 10 seconds old = existing user
+
+      if (isExistingUser && !data.session) {
+        // This is an existing user trying to signup again
+        console.log('Existing user attempted signup - no session provided');
+        if (email.toLowerCase().includes('@gmail.com')) {
+          throw new Error('Email already exists! This Gmail account may be registered with Google OAuth. Please try "Continue with Google" to sign in.');
+        }
+        throw new Error('Email already exists! This email is already registered. Please try signing in instead, or use Google login if you registered with Google.');
+      }
+
       if (data.session) {
         console.log('User signed up successfully with immediate session');
         toast({
@@ -147,10 +162,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }, 1500);
 
       } else {
-        console.log('User created but no session - this should not happen with confirmations disabled');
+        console.log('New user created but no session - email verification may be required');
         toast({
           title: "Account created!",
-          description: "Please try signing in with your credentials.",
+          description: "Please check your email to verify your account, then try signing in.",
         });
       }
     }
