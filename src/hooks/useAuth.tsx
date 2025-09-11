@@ -115,17 +115,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       console.error('Error code:', error.status);
       console.error('Error message:', error.message);
 
-      // Handle various existing user scenarios
+      // Handle various existing user scenarios - email is the unique identifier
       if (error.message.includes('already registered') ||
           error.message.includes('already exists') ||
           error.message.includes('User already registered') ||
           error.message.includes('email address is already in use') ||
+          error.message.includes('duplicate key value') ||
           error.status === 422) {
 
         if (email.toLowerCase().includes('@gmail.com')) {
-          throw new Error('Account already exists! This Gmail account may be registered with Google OAuth. Please try "Continue with Google" to sign in.');
+          throw new Error('Email already exists! This Gmail account may be registered with Google OAuth. Please try "Continue with Google" to sign in.');
         }
-        throw new Error('Account already exists! This email is already registered. Please try signing in instead, or use social login if you registered with Google/GitHub.');
+        throw new Error('Email already exists! This email is already registered. Please try signing in instead, or use Google login if you registered with Google.');
       }
 
       throw new Error(error.message);
@@ -174,11 +175,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (error.message === 'Invalid login credentials') {
         // Check if this looks like a Gmail address (common OAuth scenario)
         if (email.toLowerCase().includes('@gmail.com')) {
-          throw new Error('This Gmail account may be registered with Google OAuth. Please try "Continue with Google" instead, or use a different email for password login.');
+          throw new Error('Invalid login credentials. This Gmail account may be registered with Google OAuth. Please try "Continue with Google" instead.');
         }
 
         // Generic helpful message
-        throw new Error('Invalid login credentials. If you signed up with Google or GitHub, please use the social login buttons above.');
+        throw new Error('Invalid login credentials. If you signed up with Google, please use the "Continue with Google" button above.');
       }
 
       throw new Error(error.message);

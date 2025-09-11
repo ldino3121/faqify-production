@@ -69,11 +69,11 @@ export const DashboardHeader = ({ sidebarOpen, setSidebarOpen }: DashboardHeader
               <p className="text-sm font-medium text-white">{userName}</p>
               <p className="text-xs text-gray-400">{userEmail}</p>
             </div>
-            <Button 
-              variant="ghost" 
-              size="sm" 
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={handleSignOut}
-              className="text-white hover:bg-gray-800"
+              className="text-white hover:bg-red-600 hover:text-white transition-colors"
             >
               <LogOut className="h-4 w-4" />
             </Button>
