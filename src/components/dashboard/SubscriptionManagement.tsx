@@ -19,7 +19,11 @@ import {
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 
-export const SubscriptionManagement: React.FC = () => {
+interface SubscriptionManagementProps {
+  onNavigateToUpgrade?: () => void;
+}
+
+export const SubscriptionManagement: React.FC<SubscriptionManagementProps> = ({ onNavigateToUpgrade }) => {
   const { subscription, loading: subscriptionLoading } = useSubscription();
   const [hasError, setHasError] = useState(false);
   const [subscriptionDetails, setSubscriptionDetails] = useState<any>(null);
@@ -111,7 +115,7 @@ export const SubscriptionManagement: React.FC = () => {
               You're currently on the Free plan with {subscription.faq_usage_limit} FAQs per month.
             </p>
             <Button
-              onClick={() => window.location.href = '/dashboard?tab=upgrade'}
+              onClick={() => onNavigateToUpgrade?.()}
               className="bg-blue-600 hover:bg-blue-700"
             >
               Upgrade to Pro

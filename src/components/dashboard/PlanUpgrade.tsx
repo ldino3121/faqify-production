@@ -101,34 +101,13 @@ export const PlanUpgrade = () => {
 
 
 
-  // Smart pricing based on user location
+  // Always show USD pricing - Razorpay will handle currency conversion
   const getPrice = (usdPrice: number) => {
-    switch (userCurrency) {
-      case 'inr':
-        return {
-          amount: usdPrice * 83, // Approximate USD to INR conversion
-          symbol: '₹',
-          currency: 'INR'
-        };
-      case 'eur':
-        return {
-          amount: Math.round(usdPrice * 0.85), // Approximate USD to EUR conversion
-          symbol: '€',
-          currency: 'EUR'
-        };
-      case 'gbp':
-        return {
-          amount: Math.round(usdPrice * 0.75), // Approximate USD to GBP conversion
-          symbol: '£',
-          currency: 'GBP'
-        };
-      default:
-        return {
-          amount: usdPrice,
-          symbol: '$',
-          currency: 'USD'
-        };
-    }
+    return {
+      amount: usdPrice,
+      symbol: '$',
+      currency: 'USD'
+    };
   };
 
   const plans: Plan[] = [
@@ -532,61 +511,7 @@ export const PlanUpgrade = () => {
         ))}
       </div>
 
-      {/* Feature Comparison */}
-      <Card className="bg-gray-900/50 border-gray-800 max-w-4xl mx-auto">
-        <CardHeader>
-          <CardTitle className="text-white text-center">Feature Comparison</CardTitle>
-          <CardDescription className="text-gray-400 text-center">
-            Detailed breakdown of what's included in each plan
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-800">
-                  <th className="text-left py-3 text-white">Feature</th>
-                  <th className="text-center py-3 text-white">Free</th>
-                  <th className="text-center py-3 text-white">Pro</th>
-                  <th className="text-center py-3 text-white">Business</th>
-                </tr>
-              </thead>
-              <tbody className="text-sm">
-                <tr className="border-b border-gray-800">
-                  <td className="py-3 text-gray-300">FAQ Generations</td>
-                  <td className="text-center py-3 text-gray-400">10 (one-time)</td>
-                  <td className="text-center py-3 text-white">500/month</td>
-                  <td className="text-center py-3 text-white">2,500/month</td>
-                </tr>
-                <tr className="border-b border-gray-800">
-                  <td className="py-3 text-gray-300">Document Upload</td>
-                  <td className="text-center py-3 text-red-400">✕</td>
-                  <td className="text-center py-3 text-green-400">✓</td>
-                  <td className="text-center py-3 text-green-400">✓</td>
-                </tr>
-                <tr className="border-b border-gray-800">
-                  <td className="py-3 text-gray-300">White-label Embedding</td>
-                  <td className="text-center py-3 text-red-400">✕</td>
-                  <td className="text-center py-3 text-red-400">✕</td>
-                  <td className="text-center py-3 text-green-400">✓</td>
-                </tr>
-                <tr className="border-b border-gray-800">
-                  <td className="py-3 text-gray-300">API Access</td>
-                  <td className="text-center py-3 text-red-400">✕</td>
-                  <td className="text-center py-3 text-red-400">✕</td>
-                  <td className="text-center py-3 text-green-400">✓</td>
-                </tr>
-                <tr>
-                  <td className="py-3 text-gray-300">Support Level</td>
-                  <td className="text-center py-3 text-gray-400">Email</td>
-                  <td className="text-center py-3 text-white">Priority</td>
-                  <td className="text-center py-3 text-white">24/7 Priority</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
+
 
       {/* FAQ about Plans */}
       <Card className="bg-gray-900/50 border-gray-800 max-w-4xl mx-auto">

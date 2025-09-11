@@ -23,7 +23,10 @@ const Dashboard = () => {
       <div className="relative">
         {/* Overview Tab */}
         <div className={activeTab === "overview" ? "block" : "hidden"}>
-          <DashboardOverviewData key={`overview-${refreshKey}`} />
+          <DashboardOverviewData
+            key={`overview-${refreshKey}`}
+            onNavigateToUpgrade={() => setActiveTab("upgrade")}
+          />
         </div>
 
         {/* Create Tab - Always rendered to preserve state */}

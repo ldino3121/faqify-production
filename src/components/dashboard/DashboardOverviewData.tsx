@@ -33,7 +33,11 @@ interface DashboardStats {
   }>;
 }
 
-export const DashboardOverviewData = () => {
+interface DashboardOverviewDataProps {
+  onNavigateToUpgrade?: () => void;
+}
+
+export const DashboardOverviewData = ({ onNavigateToUpgrade }: DashboardOverviewDataProps) => {
   const { user } = useAuth();
   const { subscription, loading: subscriptionLoading } = useSubscription();
   const [stats, setStats] = useState<DashboardStats>({
@@ -371,7 +375,7 @@ export const DashboardOverviewData = () => {
       {subscription && (
         <div>
           <h2 className="text-2xl font-bold text-white mb-4">Subscription Management</h2>
-          <SubscriptionManagement />
+          <SubscriptionManagement onNavigateToUpgrade={onNavigateToUpgrade} />
         </div>
       )}
     </div>
