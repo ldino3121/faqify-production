@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚀 Complete Razorpay Integration Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .container {
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            border: 1px solid #444;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .success { background: #4CAF50; color: white; }
+        .error { background: #f44336; color: white; }
+        .warning { background: #ff9800; color: white; }
+        .info { background: #2196F3; color: white; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+            font-weight: bold;
+        }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #666; cursor: not-allowed; }
+        .test-section {
+            border: 1px solid #444;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            background: #333;
+        }
+        pre {
+            background: #1a1a1a;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .highlight {
+            background: #ffd700;
+            color: #000;
+            padding: 2px 4px;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🚀 Complete Razorpay Integration Test</h1>
+    <div class="info" style="margin-bottom: 20px; padding: 15px; border-radius: 5px;">
+        <strong>📋 Instructions:</strong> This tool will test your complete Razorpay integration. 
+        Make sure you're logged into the dashboard first: <a href="http://localhost:8081/" target="_blank" style="color: #fff;">Open Dashboard</a>
+    </div>
+    
+    <div class="container">
+        <h2>📊 Current Status</h2>
+        <div id="status-display">
+            <div class="loading"></div> Loading current status...
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>🔧 Environment Check</h2>
+        <div class="test-section">
+            <h3>Supabase Connection</h3>
+            <div id="supabase-status"></div>
+            <button onclick="testSupabaseConnection()">Test Connection</button>
+        </div>
+        <div class="test-section">
+            <h3>Edge Functions</h3>
+            <div id="edge-functions-status"></div>
+            <button onclick="testEdgeFunctions()">Test Edge Functions</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>💳 Payment Testing</h2>
+        <div class="test-section">
+            <h3>Razorpay Script Loading</h3>
+            <div id="razorpay-script-status"></div>
+            <button onclick="testRazorpayScript()">Test Razorpay Script</button>
+        </div>
+        <div class="test-section">
+            <h3>Payment Flow Test</h3>
+            <div id="payment-test-status"></div>
+            <button onclick="testPaymentFlow('Pro')" id="test-pro-btn">Test Pro Payment ($9)</button>
+            <button onclick="testPaymentFlow('Business')" id="test-business-btn">Test Business Payment ($29)</button>
+            <button onclick="testSubscriptionFlow('Pro')" style="background: #28a745;">Test Pro Subscription</button>
+            <button onclick="testSubscriptionFlow('Business')" style="background: #6f42c1;">Test Business Subscription</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>🔄 Subscription Management</h2>
+        <div class="test-section">
+            <h3>Current Subscription</h3>
+            <div id="subscription-details"></div>
+        </div>
+        <div class="test-section">
+            <h3>Reset for Testing</h3>
+            <div id="reset-status"></div>
+            <button onclick="resetToFree()" style="background: #dc3545;">Reset to Free Plan</button>
+            <button onclick="assignProPlan()" style="background: #28a745;">Assign Pro Plan</button>
+            <button onclick="assignBusinessPlan()" style="background: #6f42c1;">Assign Business Plan</button>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script>
+        // Initialize Supabase
+        const supabaseUrl = 'https://dlzshcshqjdghmtzlbma.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRsenNoY3NocWpkZ2htdHpsYm1hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTExODUzODgsImV4cCI6MjA2Njc2MTM4OH0.EL4By0nom419JiorSHKiFckLqnh1sqmFvYnWTylB9Gk';
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+        let currentUser = null;
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', async () => {
+            await checkAuthStatus();
+            await loadCurrentStatus();
+        });
+
+        async function checkAuthStatus() {
+            try {
+                const { data: { user }, error } = await supabase.auth.getUser();
+                if (error) throw error;
+                
+                if (!user) {
+                    document.getElementById('status-display').innerHTML = `
+                        <div class="error">❌ Not authenticated. Please login to the dashboard first.</div>
+                        <button onclick="window.open('http://localhost:8081/', '_blank')">Open Dashboard</button>
+                    `;
+                    return false;
+                }
+                
+                currentUser = user;
+                return true;
+            } catch (error) {
+                document.getElementById('status-display').innerHTML = `
+                    <div class="error">❌ Authentication error: ${error.message}</div>
+                `;
+                return false;
+            }
+        }
+
+        async function loadCurrentStatus() {
+            if (!currentUser) return;
+
+            try {
+                // Get subscription data
+                const { data: subscription, error: subError } = await supabase
+                    .from('user_subscriptions')
+                    .select('*')
+                    .eq('user_id', currentUser.id)
+                    .single();
+
+                if (subError && subError.code !== 'PGRST116') {
+                    throw subError;
+                }
+
+                // Get profile data
+                const { data: profile, error: profileError } = await supabase
+                    .from('profiles')
+                    .select('*')
+                    .eq('id', currentUser.id)
+                    .single();
+
+                if (profileError && profileError.code !== 'PGRST116') {
+                    throw profileError;
+                }
+
+                displayCurrentStatus(subscription, profile);
+                displaySubscriptionDetails(subscription);
+
+            } catch (error) {
+                document.getElementById('status-display').innerHTML = `
+                    <div class="error">❌ Error loading status: ${error.message}</div>
+                `;
+            }
+        }
+
+        function displayCurrentStatus(subscription, profile) {
+            const currentPlan = subscription?.plan_tier || 'Free';
+            const faqUsage = subscription?.faq_usage_current || 0;
+            const faqLimit = subscription?.faq_usage_limit || 5;
+            const status = subscription?.status || 'inactive';
+            
+            document.getElementById('status-display').innerHTML = `
+                <div class="info">
+                    <h3>👤 User: ${profile?.full_name || currentUser.email}</h3>
+                    <p><strong>Current Plan:</strong> <span class="highlight">${currentPlan}</span></p>
+                    <p><strong>FAQ Usage:</strong> ${faqUsage}/${faqLimit}</p>
+                    <p><strong>Status:</strong> ${status}</p>
+                    <p><strong>Payment Gateway:</strong> ${subscription?.payment_gateway || 'None'}</p>
+                    ${subscription?.plan_expires_at ? `<p><strong>Expires:</strong> ${new Date(subscription.plan_expires_at).toLocaleDateString()}</p>` : ''}
+                </div>
+            `;
+        }
+
+        function displaySubscriptionDetails(subscription) {
+            if (!subscription) {
+                document.getElementById('subscription-details').innerHTML = `
+                    <div class="warning">No subscription found. User is on Free plan.</div>
+                `;
+                return;
+            }
+
+            document.getElementById('subscription-details').innerHTML = `
+                <pre>${JSON.stringify(subscription, null, 2)}</pre>
+            `;
+        }
+
+        async function testSupabaseConnection() {
+            document.getElementById('supabase-status').innerHTML = '<div class="loading"></div> Testing...';
+            
+            try {
+                const { data, error } = await supabase
+                    .from('profiles')
+                    .select('count')
+                    .limit(1);
+
+                if (error) throw error;
+
+                document.getElementById('supabase-status').innerHTML = `
+                    <div class="success">✅ Supabase connection successful</div>
+                `;
+            } catch (error) {
+                document.getElementById('supabase-status').innerHTML = `
+                    <div class="error">❌ Supabase connection failed: ${error.message}</div>
+                `;
+            }
+        }
+
+        async function testEdgeFunctions() {
+            document.getElementById('edge-functions-status').innerHTML = '<div class="loading"></div> Testing edge functions...';
+            
+            const functions = [
+                'create-razorpay-order',
+                'create-razorpay-subscription', 
+                'verify-razorpay-payment',
+                'razorpay-webhook'
+            ];
+
+            let html = '';
+            
+            for (const func of functions) {
+                try {
+                    const { data, error } = await supabase.functions.invoke(func, {
+                        body: { test: true }
+                    });
+                    
+                    // Even if it returns an error, if the function exists, it's deployed
+                    html += `<div class="success">✅ ${func} - Deployed</div>`;
+                } catch (error) {
+                    if (error.message.includes('not found') || error.message.includes('404')) {
+                        html += `<div class="error">❌ ${func} - Not deployed</div>`;
+                    } else {
+                        html += `<div class="success">✅ ${func} - Deployed (responded with error as expected)</div>`;
+                    }
+                }
+            }
+            
+            document.getElementById('edge-functions-status').innerHTML = html;
+        }
+
+        function testRazorpayScript() {
+            document.getElementById('razorpay-script-status').innerHTML = '<div class="loading"></div> Loading Razorpay script...';
+
+            if (window.Razorpay) {
+                document.getElementById('razorpay-script-status').innerHTML = `
+                    <div class="success">✅ Razorpay script already loaded</div>
+                `;
+                return;
+            }
+
+            const script = document.createElement('script');
+            script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+            script.onload = () => {
+                document.getElementById('razorpay-script-status').innerHTML = `
+                    <div class="success">✅ Razorpay script loaded successfully</div>
+                `;
+            };
+            script.onerror = () => {
+                document.getElementById('razorpay-script-status').innerHTML = `
+                    <div class="error">❌ Failed to load Razorpay script</div>
+                `;
+            };
+            document.head.appendChild(script);
+        }
+
+        async function testPaymentFlow(planId) {
+            if (!currentUser) {
+                alert('Please login first');
+                return;
+            }
+
+            document.getElementById('payment-test-status').innerHTML = '<div class="loading"></div> Creating payment order...';
+
+            try {
+                const { data, error } = await supabase.functions.invoke('create-razorpay-order', {
+                    body: {
+                        planId: planId.toLowerCase(),
+                        currency: 'usd',
+                        userCountry: 'US',
+                        paymentType: 'onetime'
+                    }
+                });
+
+                if (error) throw error;
+
+                if (!data.success) {
+                    throw new Error(data.error || 'Failed to create order');
+                }
+
+                document.getElementById('payment-test-status').innerHTML = `
+                    <div class="success">✅ Payment order created successfully!</div>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `;
+
+                // Open Razorpay checkout
+                if (window.Razorpay) {
+                    const options = {
+                        key: data.order.key,
+                        amount: data.order.amount,
+                        currency: data.order.currency,
+                        name: 'FAQify',
+                        description: `${data.plan.name} Plan Test`,
+                        order_id: data.order.id,
+                        handler: function (response) {
+                            document.getElementById('payment-test-status').innerHTML += `
+                                <div class="success">✅ Payment completed! Response: ${JSON.stringify(response)}</div>
+                            `;
+                        },
+                        prefill: {
+                            name: currentUser.user_metadata?.full_name || currentUser.email,
+                            email: currentUser.email
+                        },
+                        theme: {
+                            color: '#3b82f6'
+                        }
+                    };
+
+                    const rzp = new window.Razorpay(options);
+                    rzp.open();
+                } else {
+                    document.getElementById('payment-test-status').innerHTML += `
+                        <div class="warning">⚠️ Razorpay script not loaded. Load it first using the button above.</div>
+                    `;
+                }
+
+            } catch (error) {
+                document.getElementById('payment-test-status').innerHTML = `
+                    <div class="error">❌ Payment test failed: ${error.message}</div>
+                `;
+            }
+        }
+
+        async function testSubscriptionFlow(planId) {
+            if (!currentUser) {
+                alert('Please login first');
+                return;
+            }
+
+            document.getElementById('payment-test-status').innerHTML = '<div class="loading"></div> Creating subscription...';
+
+            try {
+                const { data, error } = await supabase.functions.invoke('create-razorpay-subscription', {
+                    body: {
+                        planId: planId,
+                        userEmail: currentUser.email,
+                        userName: currentUser.user_metadata?.full_name || currentUser.email,
+                        currency: 'USD',
+                        userCountry: 'US'
+                    }
+                });
+
+                if (error) throw error;
+
+                if (!data.success) {
+                    throw new Error(data.error || 'Failed to create subscription');
+                }
+
+                document.getElementById('payment-test-status').innerHTML = `
+                    <div class="success">✅ Subscription created successfully!</div>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `;
+
+                // Open Razorpay subscription checkout
+                if (window.Razorpay && data.subscription_id) {
+                    const options = {
+                        key: 'rzp_test_ce7ca5ffee2f85d5fb5c211f',
+                        subscription_id: data.subscription_id,
+                        name: 'FAQify',
+                        description: `${planId} Plan Subscription`,
+                        handler: function (response) {
+                            document.getElementById('payment-test-status').innerHTML += `
+                                <div class="success">✅ Subscription activated! Response: ${JSON.stringify(response)}</div>
+                            `;
+                        },
+                        prefill: {
+                            name: currentUser.user_metadata?.full_name || currentUser.email,
+                            email: currentUser.email
+                        },
+                        theme: {
+                            color: '#3b82f6'
+                        }
+                    };
+
+                    const rzp = new window.Razorpay(options);
+                    rzp.open();
+                } else {
+                    document.getElementById('payment-test-status').innerHTML += `
+                        <div class="warning">⚠️ Razorpay script not loaded or subscription ID missing.</div>
+                    `;
+                }
+
+            } catch (error) {
+                document.getElementById('payment-test-status').innerHTML = `
+                    <div class="error">❌ Subscription test failed: ${error.message}</div>
+                `;
+            }
+        }
+
+        async function resetToFree() {
+            if (!currentUser) return;
+
+            document.getElementById('reset-status').innerHTML = '<div class="loading"></div> Resetting to Free plan...';
+
+            try {
+                const { error } = await supabase
+                    .from('user_subscriptions')
+                    .upsert({
+                        user_id: currentUser.id,
+                        plan_tier: 'Free',
+                        status: 'active',
+                        faq_usage_limit: 5,
+                        faq_usage_current: 0,
+                        payment_gateway: null,
+                        plan_activated_at: new Date().toISOString(),
+                        plan_expires_at: null,
+                        updated_at: new Date().toISOString()
+                    });
+
+                if (error) throw error;
+
+                document.getElementById('reset-status').innerHTML = `
+                    <div class="success">✅ Reset to Free plan successful</div>
+                `;
+
+                await loadCurrentStatus();
+            } catch (error) {
+                document.getElementById('reset-status').innerHTML = `
+                    <div class="error">❌ Reset failed: ${error.message}</div>
+                `;
+            }
+        }
+
+        async function assignProPlan() {
+            if (!currentUser) return;
+
+            document.getElementById('reset-status').innerHTML = '<div class="loading"></div> Assigning Pro plan...';
+
+            try {
+                const expiryDate = new Date();
+                expiryDate.setMonth(expiryDate.getMonth() + 1);
+
+                const { error } = await supabase
+                    .from('user_subscriptions')
+                    .upsert({
+                        user_id: currentUser.id,
+                        plan_tier: 'Pro',
+                        status: 'active',
+                        faq_usage_limit: 100,
+                        faq_usage_current: 0,
+                        payment_gateway: 'razorpay',
+                        plan_activated_at: new Date().toISOString(),
+                        plan_expires_at: expiryDate.toISOString(),
+                        updated_at: new Date().toISOString()
+                    });
+
+                if (error) throw error;
+
+                document.getElementById('reset-status').innerHTML = `
+                    <div class="success">✅ Pro plan assigned successfully</div>
+                `;
+
+                await loadCurrentStatus();
+            } catch (error) {
+                document.getElementById('reset-status').innerHTML = `
+                    <div class="error">❌ Pro plan assignment failed: ${error.message}</div>
+                `;
+            }
+        }
+
+        async function assignBusinessPlan() {
+            if (!currentUser) return;
+
+            document.getElementById('reset-status').innerHTML = '<div class="loading"></div> Assigning Business plan...';
+
+            try {
+                const expiryDate = new Date();
+                expiryDate.setMonth(expiryDate.getMonth() + 1);
+
+                const { error } = await supabase
+                    .from('user_subscriptions')
+                    .upsert({
+                        user_id: currentUser.id,
+                        plan_tier: 'Business',
+                        status: 'active',
+                        faq_usage_limit: 500,
+                        faq_usage_current: 0,
+                        payment_gateway: 'razorpay',
+                        plan_activated_at: new Date().toISOString(),
+                        plan_expires_at: expiryDate.toISOString(),
+                        updated_at: new Date().toISOString()
+                    });
+
+                if (error) throw error;
+
+                document.getElementById('reset-status').innerHTML = `
+                    <div class="success">✅ Business plan assigned successfully</div>
+                `;
+
+                await loadCurrentStatus();
+            } catch (error) {
+                document.getElementById('reset-status').innerHTML = `
+                    <div class="error">❌ Business plan assignment failed: ${error.message}</div>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>

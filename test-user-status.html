@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Status Debug</title>
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .result { background: #f5f5f5; padding: 15px; margin: 10px 0; border-radius: 5px; }
+        .error { background: #ffebee; color: #c62828; }
+        .success { background: #e8f5e8; color: #2e7d32; }
+        pre { white-space: pre-wrap; word-wrap: break-word; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>🔍 User Status Debug for darkyellow548@gmail.com</h1>
+    
+    <button onclick="checkUserStatus()">Check User Status</button>
+    <button onclick="testPaymentFlow()">Test Payment Flow</button>
+    <button onclick="testAuthFlow()">Test Auth Flow</button>
+    
+    <div id="results"></div>
+
+    <script>
+        const SUPABASE_URL = 'https://dlzshcshqjdghmtzlbma.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRsenNoY3NocWpkZ2htdHpsYm1hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTExODUzODgsImV4cCI6MjA2Njc2MTM4OH0.EL4By0nom419JiorSHKiFckLqnh1sqmFvYnWTylB9Gk';
+
+        function addResult(title, data, isError = false) {
+            const results = document.getElementById('results');
+            const div = document.createElement('div');
+            div.className = `result ${isError ? 'error' : 'success'}`;
+            div.innerHTML = `
+                <h3>${title}</h3>
+                <pre>${JSON.stringify(data, null, 2)}</pre>
+            `;
+            results.appendChild(div);
+        }
+
+        async function checkUserStatus() {
+            try {
+                addResult('🔄 Checking User Status...', 'Loading...');
+                
+                const response = await fetch(`${SUPABASE_URL}/functions/v1/debug-user-status`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+                        'apikey': SUPABASE_ANON_KEY,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    addResult('✅ User Status Retrieved', data);
+                    
+                    // Analyze the data
+                    if (data.user) {
+                        addResult('👤 User Profile', {
+                            email: data.user.email,
+                            id: data.user.id,
+                            created: data.user.created_at
+                        });
+                    }
+                    
+                    if (data.subscription) {
+                        addResult('💳 Subscription Status', {
+                            plan: data.subscription.plan_tier,
+                            gateway: data.subscription.payment_gateway,
+                            usage: `${data.subscription.faq_usage_current}/${data.subscription.faq_usage_limit}`,
+                            status: data.subscription.status,
+                            expires: data.subscription.plan_expires_at
+                        });
+                    } else {
+                        addResult('⚠️ No Subscription Found', data.subscriptionError, true);
+                    }
+                    
+                    if (data.recentTransactions && data.recentTransactions.length > 0) {
+                        addResult('💰 Recent Transactions', data.recentTransactions);
+                    } else {
+                        addResult('📝 No Transactions Found', 'No payment history');
+                    }
+                } else {
+                    addResult('❌ Error Checking Status', data, true);
+                }
+            } catch (error) {
+                addResult('❌ Network Error', error.message, true);
+            }
+        }
+
+        async function testPaymentFlow() {
+            addResult('🔄 Testing Payment Flow...', 'This will test if payment buttons work correctly');
+
+            try {
+                // Test create-razorpay-order function
+                const response = await fetch(`${SUPABASE_URL}/functions/v1/create-razorpay-order`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+                        'apikey': SUPABASE_ANON_KEY,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        planId: 'pro',
+                        currency: 'usd',
+                        userCountry: 'US',
+                        paymentType: 'onetime'
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    addResult('✅ Payment Order Created', {
+                        message: 'Razorpay order creation successful',
+                        orderId: data.order?.id,
+                        amount: data.order?.amount,
+                        key: data.order?.key
+                    });
+
+                    // Test if we can open Razorpay
+                    if (data.order && window.Razorpay) {
+                        addResult('🚀 Testing Razorpay Gateway...', 'Attempting to open payment gateway');
+
+                        const options = {
+                            key: data.order.key,
+                            amount: data.order.amount,
+                            currency: data.order.currency,
+                            name: 'FAQify Test',
+                            description: 'Test Payment',
+                            order_id: data.order.id,
+                            handler: function(response) {
+                                addResult('✅ Payment Gateway Working', {
+                                    message: 'Razorpay gateway opened successfully',
+                                    paymentId: response.razorpay_payment_id,
+                                    orderId: response.razorpay_order_id
+                                });
+                            },
+                            modal: {
+                                ondismiss: function() {
+                                    addResult('ℹ️ Payment Cancelled', 'User closed payment gateway');
+                                }
+                            }
+                        };
+
+                        const rzp = new window.Razorpay(options);
+                        rzp.open();
+                    } else {
+                        addResult('⚠️ Razorpay Not Loaded', 'Razorpay script not available for testing');
+                    }
+                } else {
+                    addResult('❌ Payment Flow Error', data, true);
+                }
+            } catch (error) {
+                addResult('❌ Payment Test Failed', error.message, true);
+            }
+        }
+
+        async function testAuthFlow() {
+            addResult('🔄 Testing Auth Flow...', 'Checking authentication state');
+            
+            // This would need to be tested in the actual app context
+            addResult('ℹ️ Auth Test Info', {
+                message: 'Authentication testing requires the main app context',
+                recommendation: 'Test logout/login flow in the actual dashboard'
+            });
+        }
+
+        // Auto-run user status check on page load
+        window.onload = () => {
+            checkUserStatus();
+        };
+    </script>
+</body>
+</html>

@@ -258,13 +258,20 @@ serve(async (req) => {
           break;
         }
 
+        // Get plan details from subscription notes
+        const planTier = subscription.notes?.plan_tier || 'Pro';
+        const faqLimit = subscription.notes?.faq_limit || '100';
+
         // Update user subscription
         const { error } = await supabase
           .from('user_subscriptions')
           .update({
             razorpay_subscription_id: subscription.id,
             status: 'active',
-            current_period_end: new Date(subscription.current_end * 1000).toISOString(),
+            plan_tier: planTier,
+            faq_usage_limit: parseInt(faqLimit),
+            plan_activated_at: new Date().toISOString(),
+            plan_expires_at: new Date(subscription.current_end * 1000).toISOString(),
             updated_at: new Date().toISOString()
           })
           .eq('user_id', userId);
@@ -273,6 +280,39 @@ serve(async (req) => {
           console.error('Error updating subscription:', error);
         } else {
           console.log('Subscription activated for user:', userId);
+        }
+        break;
+      }
+
+      case 'subscription.pending': {
+        const subscription = event.payload.subscription.entity;
+        console.log('Subscription pending:', subscription.id);
+
+        // Find user by subscription ID
+        const { data: userSubscription, error: userError } = await supabase
+          .from('user_subscriptions')
+          .select('*')
+          .eq('razorpay_subscription_id', subscription.id)
+          .single();
+
+        if (userError || !userSubscription) {
+          console.error('User subscription not found for pending:', subscription.id);
+          break;
+        }
+
+        // Update subscription status to pending (don't downgrade plan yet)
+        const { error: updateError } = await supabase
+          .from('user_subscriptions')
+          .update({
+            status: 'pending',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', userSubscription.id);
+
+        if (updateError) {
+          console.error('Error updating pending subscription:', updateError);
+        } else {
+          console.log('Subscription marked as pending:', userSubscription.id);
         }
         break;
       }

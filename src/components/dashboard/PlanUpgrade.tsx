@@ -38,6 +38,8 @@ export const PlanUpgrade = () => {
   const [paymentType, setPaymentType] = useState<'one_time' | 'subscription'>('subscription');
   const [processingPlan, setProcessingPlan] = useState<string | null>(null);
   const [razorpayLoaded, setRazorpayLoaded] = useState(false);
+  const [userCountry, setUserCountry] = useState<string>('US');
+  const [userCurrency, setUserCurrency] = useState<string>('usd');
   const { toast } = useToast();
   const { createAndOpenSubscription, loading: subscriptionLoading } = useRazorpaySubscription();
   const { subscription, loading: subscriptionDataLoading } = useSubscription();
@@ -45,7 +47,7 @@ export const PlanUpgrade = () => {
   // Get current plan from real subscription data
   const currentPlan = subscription?.plan_tier || "Free";
 
-  // Load Razorpay script
+  // Load Razorpay script and detect user location
   useEffect(() => {
     const loadRazorpay = () => {
       return new Promise((resolve) => {
@@ -60,22 +62,73 @@ export const PlanUpgrade = () => {
       });
     };
 
+    // Detect user location for currency
+    const detectLocation = async () => {
+      try {
+        // Try to get user's timezone first
+        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+        // Simple timezone to country mapping for major regions
+        if (timezone.includes('Asia/Kolkata') || timezone.includes('Asia/Calcutta')) {
+          setUserCountry('IN');
+          setUserCurrency('inr');
+        } else if (timezone.includes('Europe/')) {
+          setUserCountry('EU');
+          setUserCurrency('eur');
+        } else if (timezone.includes('Europe/London')) {
+          setUserCountry('GB');
+          setUserCurrency('gbp');
+        } else {
+          // Default to US/USD for other regions
+          setUserCountry('US');
+          setUserCurrency('usd');
+        }
+      } catch (error) {
+        console.log('Location detection failed, using default USD');
+        setUserCountry('US');
+        setUserCurrency('usd');
+      }
+    };
+
     if (!window.Razorpay) {
       loadRazorpay();
     } else {
       setRazorpayLoaded(true);
     }
+
+    detectLocation();
   }, []);
 
 
 
-  // Simple USD pricing only
+  // Smart pricing based on user location
   const getPrice = (usdPrice: number) => {
-    return {
-      amount: usdPrice,
-      symbol: '$',
-      currency: 'USD'
-    };
+    switch (userCurrency) {
+      case 'inr':
+        return {
+          amount: usdPrice * 83, // Approximate USD to INR conversion
+          symbol: '₹',
+          currency: 'INR'
+        };
+      case 'eur':
+        return {
+          amount: Math.round(usdPrice * 0.85), // Approximate USD to EUR conversion
+          symbol: '€',
+          currency: 'EUR'
+        };
+      case 'gbp':
+        return {
+          amount: Math.round(usdPrice * 0.75), // Approximate USD to GBP conversion
+          symbol: '£',
+          currency: 'GBP'
+        };
+      default:
+        return {
+          amount: usdPrice,
+          symbol: '$',
+          currency: 'USD'
+        };
+    }
   };
 
   const plans: Plan[] = [
@@ -187,14 +240,12 @@ export const PlanUpgrade = () => {
     setProcessingPlan(planId);
 
     try {
-      // Default to USD pricing for subscriptions (international strategy)
-      const currency = 'USD';
-
       toast({
         title: "Creating Subscription",
         description: `Setting up your ${planId} plan subscription...`,
       });
 
+      // Use standard USD pricing - Razorpay handles automatic conversion
       const result = await createAndOpenSubscription(planId);
 
       if (result.success) {
@@ -239,8 +290,8 @@ export const PlanUpgrade = () => {
       const { data, error } = await supabase.functions.invoke('create-razorpay-order', {
         body: {
           planId: planName.toLowerCase(),
-          currency: 'usd',
-          userCountry: 'US',
+          currency: userCurrency,
+          userCountry: userCountry,
           paymentType: 'onetime'
         }
       });

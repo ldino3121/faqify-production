@@ -163,9 +163,14 @@ serve(async (req) => {
       });
     }
 
-    // Determine currency and amount based on user location
-    const targetCurrency = currency.toLowerCase();
+    // Smart currency detection for Indian users
+    let targetCurrency = currency.toLowerCase();
     let amount: number;
+
+    // Auto-detect currency for Indian users
+    if (userCountry === 'IN' || userCountry === 'India') {
+      targetCurrency = 'inr';
+    }
 
     console.log('Plan pricing details:', {
       planName: plan.name,
@@ -173,14 +178,25 @@ serve(async (req) => {
       price_inr: plan.price_inr,
       price_eur: plan.price_eur,
       price_gbp: plan.price_gbp,
-      targetCurrency
+      targetCurrency,
+      userCountry
     });
 
-    // International strategy: Standard USD pricing only
+    // Currency-based pricing with INR support for Indian users
     switch (targetCurrency) {
+      case 'inr':
+        amount = plan.price_inr || plan.price_monthly * 83; // Fallback conversion
+        break;
+      case 'eur':
+        amount = plan.price_eur || plan.price_monthly;
+        break;
+      case 'gbp':
+        amount = plan.price_gbp || plan.price_monthly;
+        break;
       case 'usd':
       default:
         amount = plan.price_monthly;
+        targetCurrency = 'usd';
         break;
     }
 
@@ -213,14 +229,16 @@ serve(async (req) => {
     const receipt = `ord_${userIdShort}_${timestamp}`; // Format: ord_12345678_87654321 (max 24 chars)
 
     const orderData = {
-      amount: amount, // Amount in smallest currency unit
+      amount: amount, // Amount in smallest currency unit (paise for INR, cents for USD)
       currency: targetCurrency.toUpperCase(),
       receipt: receipt,
       notes: {
         user_id: user.id,
         plan_id: planId,
         user_email: profile.email,
-        plan_name: plan.name
+        plan_name: plan.name,
+        user_country: userCountry,
+        payment_type: paymentType
       }
     };
 

@@ -10,7 +10,7 @@ interface SubscriptionRequest {
   planId: 'Pro' | 'Business';
   userEmail: string;
   userName: string;
-  currency?: 'USD';
+  currency?: 'USD' | 'INR' | 'EUR' | 'GBP';
   userCountry?: string;
 }
 
@@ -49,8 +49,9 @@ serve(async (req) => {
       throw new Error('Invalid plan selected')
     }
 
-    // International strategy: Standard USD pricing
-    const targetCurrency = 'USD'
+    // Keep pricing in USD - Razorpay will handle automatic currency conversion
+    const targetCurrency = 'USD';
+    const planAmount = selectedPlan.price_monthly;
 
     // Razorpay configuration
     const razorpayKeyId = Deno.env.get('RAZORPAY_KEY_ID')
@@ -79,14 +80,14 @@ serve(async (req) => {
 
     console.log('Found plan in database:', selectedPlan);
 
-    // Set USD pricing
+    // Set USD pricing - Razorpay will handle automatic conversion
     const currencyPlan = {
-      amount: selectedPlan.price_monthly,
+      amount: planAmount,
       currency: targetCurrency
     };
 
-    // Get the Razorpay Plan ID from the plan we already fetched
-    let razorpayPlanId = selectedPlan?.razorpay_plan_id_inr;
+    // Use existing Razorpay Plan IDs (these should be USD plans)
+    let razorpayPlanId = selectedPlan?.razorpay_plan_id;
 
     // If no plan ID in database, use your actual Razorpay Plan IDs from dashboard
     if (!razorpayPlanId) {

@@ -351,6 +351,14 @@ export const useRazorpaySubscription = () => {
         subscription_id: subscriptionId,
         name: 'FAQify',
         description: `${planId} Plan Subscription`,
+        // Enable all payment methods for Indian users
+        method: {
+          upi: true,
+          card: true,
+          netbanking: true,
+          wallet: true,
+          emi: true
+        },
         handler: async (response: any) => {
           console.log('Razorpay subscription response:', response);
 
@@ -365,10 +373,16 @@ export const useRazorpaySubscription = () => {
         },
         prefill: {
           name: user?.user_metadata?.full_name || user?.email || 'User',
-          email: user?.email || ''
+          email: user?.email || '',
+          contact: user?.user_metadata?.phone || ''
         },
         theme: {
           color: '#3b82f6'
+        },
+        modal: {
+          ondismiss: function () {
+            console.log('Subscription checkout dismissed');
+          }
         }
       };
 
