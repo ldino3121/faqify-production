@@ -129,69 +129,91 @@ serve(async (req) => {
       throw new Error(`No Razorpay Plan ID found for ${planId} plan with currency ${targetCurrency}`);
     }
 
-    // Create subscription in Razorpay
-    const subscriptionData = {
-      plan_id: razorpayPlanId,
-      customer_notify: 1,
-      quantity: 1,
-      total_count: 0, // 0 = unlimited (auto-renewal)
-      start_at: Math.floor(Date.now() / 1000), // Start immediately
+    // Create subscription LINK instead of subscription checkout
+    // This is simpler and more reliable for auto-renew payments
+    const subscriptionLinkData = {
+      type: 'subscription',
+      view_less: 1,
+      amount: currencyPlan.amount, // Amount in paise
+      currency: targetCurrency.toUpperCase(),
+      description: `${planId} Plan Subscription - FAQify`,
+      customer: {
+        name: userName,
+        email: userEmail
+      },
+      notify: {
+        sms: false,
+        email: true
+      },
+      reminder_enable: true,
+      options: {
+        checkout: {
+          name: 'FAQify',
+          description: `${planId} Plan Auto-Renewal Subscription`
+        }
+      },
       notes: {
         user_id: user.id,
         user_email: userEmail,
         user_name: userName,
         plan_tier: planId,
+        plan_id: razorpayPlanId,
         faq_limit: selectedPlan.faq_limit.toString(),
         currency: targetCurrency,
         user_country: userCountry || 'Unknown',
         created_via: 'faqify_app',
-        payment_type: 'subscription'
+        payment_type: 'subscription_link'
       }
     }
 
     // Create Razorpay subscription
     const authHeader = 'Basic ' + btoa(`${razorpayKeyId}:${razorpayKeySecret}`)
 
-    console.log('🚀 Creating Razorpay subscription with data:', {
-      plan_id: subscriptionData.plan_id,
-      customer_notify: subscriptionData.customer_notify,
-      total_count: subscriptionData.total_count,
-      quantity: subscriptionData.quantity,
-      start_at: subscriptionData.start_at,
-      notes: subscriptionData.notes
+    console.log('🚀 Creating Razorpay subscription LINK with data:', {
+      type: subscriptionLinkData.type,
+      amount: subscriptionLinkData.amount,
+      currency: subscriptionLinkData.currency,
+      description: subscriptionLinkData.description,
+      customer: subscriptionLinkData.customer,
+      notes: subscriptionLinkData.notes
     })
 
-    const razorpayResponse = await fetch('https://api.razorpay.com/v1/subscriptions', {
+    // Use subscription LINKS API instead of subscription checkout
+    const razorpayResponse = await fetch('https://api.razorpay.com/v1/subscription_links', {
       method: 'POST',
       headers: {
         'Authorization': authHeader,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(subscriptionData),
+      body: JSON.stringify(subscriptionLinkData),
     })
 
     if (!razorpayResponse.ok) {
       const errorData = await razorpayResponse.text()
-      console.error('Razorpay subscription creation failed:', {
+      console.error('Razorpay subscription LINK creation failed:', {
         status: razorpayResponse.status,
         statusText: razorpayResponse.statusText,
         error: errorData,
         planId: razorpayPlanId,
-        subscriptionData
+        subscriptionLinkData
       })
-      throw new Error(`Failed to create subscription: HTTP ${razorpayResponse.status} - ${errorData}`)
+      throw new Error(`Failed to create subscription link: HTTP ${razorpayResponse.status} - ${errorData}`)
     }
 
-    const razorpaySubscription = await razorpayResponse.json()
+    const razorpaySubscriptionLink = await razorpayResponse.json()
 
-    console.log('Razorpay subscription created:', razorpaySubscription.id)
+    console.log('✅ Razorpay subscription LINK created:', {
+      id: razorpaySubscriptionLink.id,
+      short_url: razorpaySubscriptionLink.short_url,
+      status: razorpaySubscriptionLink.status
+    })
 
-    // Store subscription in database
+    // Store subscription LINK in database
     const { error: dbError } = await supabaseClient
       .from('payment_transactions')
       .insert({
         user_id: user.id,
-        razorpay_order_id: razorpaySubscription.id,
+        razorpay_order_id: razorpaySubscriptionLink.id,
         razorpay_payment_id: null, // Will be updated after payment
         razorpay_signature: null, // Will be updated after payment
         amount: currencyPlan.amount,
@@ -199,10 +221,11 @@ serve(async (req) => {
         status: 'created',
         plan_tier: planId as any,
         plan_duration: 'monthly',
-        payment_type: 'subscription',
+        payment_type: 'subscription_link',
         metadata: {
-          razorpay_subscription: razorpaySubscription,
-          subscription_id: razorpaySubscription.id,
+          razorpay_subscription_link: razorpaySubscriptionLink,
+          subscription_link_id: razorpaySubscriptionLink.id,
+          short_url: razorpaySubscriptionLink.short_url,
           plan_id: razorpayPlanId,
           billing_cycle: 'monthly',
           auto_renewal: true
@@ -214,11 +237,13 @@ serve(async (req) => {
       throw new Error('Failed to store subscription data')
     }
 
-    // Return subscription details for frontend
+    // Return subscription LINK details for frontend
     return new Response(
       JSON.stringify({
         success: true,
-        subscription_id: razorpaySubscription.id,
+        subscription_link_id: razorpaySubscriptionLink.id,
+        short_url: razorpaySubscriptionLink.short_url,
+        payment_url: razorpaySubscriptionLink.short_url,
         plan_id: razorpayPlanId,
         amount: currencyPlan.amount,
         currency: targetCurrency,

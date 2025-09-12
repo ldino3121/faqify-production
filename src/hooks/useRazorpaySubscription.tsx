@@ -314,10 +314,21 @@ export const useRazorpaySubscription = () => {
           description: `${planId} plan subscription created successfully!`,
         });
 
+        // For subscription links, redirect user to payment URL
+        if (data.short_url || data.payment_url) {
+          toast({
+            title: "Redirecting to Payment",
+            description: "Opening Razorpay payment page...",
+          });
+
+          // Open payment URL in same window
+          window.location.href = data.short_url || data.payment_url;
+        }
+
         return {
           success: true,
-          subscription_id: data.subscription_id,
-          short_url: data.short_url
+          subscription_link_id: data.subscription_link_id,
+          short_url: data.short_url || data.payment_url
         };
 
       } catch (error) {
@@ -421,10 +432,23 @@ export const useRazorpaySubscription = () => {
           if (error) throw error;
           if (!data.success) throw new Error(data.error || 'Failed to create subscription');
 
+          // For subscription links, redirect immediately
+          if (data.short_url || data.payment_url) {
+            toast({
+              title: "Redirecting to Payment",
+              description: "Opening Razorpay subscription payment...",
+            });
+
+            // Redirect to payment URL
+            setTimeout(() => {
+              window.location.href = data.short_url || data.payment_url;
+            }, 1000);
+          }
+
           return {
             success: true,
-            subscription_id: data.subscription_id,
-            short_url: data.short_url
+            subscription_link_id: data.subscription_link_id,
+            short_url: data.short_url || data.payment_url
           };
 
         } catch (error) {
