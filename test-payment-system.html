@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FAQify Payment System Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #1a1a1a; color: white; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .test-section { background: #2a2a2a; padding: 20px; margin: 20px 0; border-radius: 8px; }
+        .result { background: #333; padding: 10px; margin: 10px 0; border-radius: 4px; }
+        .success { border-left: 4px solid #4CAF50; }
+        .error { border-left: 4px solid #f44336; }
+        .warning { border-left: 4px solid #ff9800; }
+        button { background: #007bff; color: white; border: none; padding: 10px 20px; margin: 5px; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        pre { background: #1a1a1a; padding: 10px; border-radius: 4px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 FAQify Payment System Diagnostic</h1>
+
+        <div class="test-section">
+            <h2>1. Database Plan Check</h2>
+            <button onclick="checkDatabasePlans()">Check Database Plans</button>
+            <div id="dbResult"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>2. Edge Function Test</h2>
+            <button onclick="testSubscriptionFunction()">Test Subscription Function</button>
+            <button onclick="testOrderFunction()">Test Order Function</button>
+            <div id="edgeResult"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>3. Frontend Component Test</h2>
+            <button onclick="testFrontendPricing()">Test Frontend Pricing</button>
+            <div id="frontendResult"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>4. Complete Payment Flow Test</h2>
+            <button onclick="testCompleteFlow()">Test Complete Flow</button>
+            <div id="flowResult"></div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize Supabase
+        const supabaseUrl = 'https://dlzshcshqjdghmtzlbma.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRsenNoY3NocWpkZ2htdHpsYm1hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MjAwMjI0NzEsImV4cCI6MjAzNTU5ODQ3MX0.Vdwq7NjXKGkpOEBKAMA_VXnyIgNy8NVWjBe_-Ug_Ue4';
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+        function log(message, type = 'info') {
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+
+        function displayResult(elementId, content, type = 'info') {
+            const element = document.getElementById(elementId);
+            const resultDiv = document.createElement('div');
+            resultDiv.className = `result ${type}`;
+            resultDiv.innerHTML = content;
+            element.appendChild(resultDiv);
+        }
+
+        async function checkDatabasePlans() {
+            log('🔍 Checking database plans...');
+            displayResult('dbResult', '🔍 Checking database subscription plans...', 'info');
+
+            try {
+                const { data, error } = await supabase
+                    .from('subscription_plans')
+                    .select('*')
+                    .order('price_monthly');
+
+                if (error) throw error;
+
+                let resultHTML = '<h3>📊 Database Plans:</h3>';
+                data.forEach(plan => {
+                    resultHTML += `
+                        <div style="margin: 10px 0; padding: 10px; background: #1a1a1a; border-radius: 4px;">
+                            <strong>${plan.name}</strong><br>
+                            💰 Price Monthly: ${plan.price_monthly}<br>
+                            💰 Price INR: ${plan.price_inr || 'Not set'}<br>
+                            📊 FAQ Limit: ${plan.faq_limit}<br>
+                            🔑 Razorpay Plan ID (INR): ${plan.razorpay_plan_id_inr || 'Not set'}<br>
+                            🔑 Razorpay Plan ID (Old): ${plan.razorpay_plan_id || 'Not set'}
+                        </div>
+                    `;
+                });
+
+                displayResult('dbResult', resultHTML, 'success');
+
+                // Check if we have the correct plan IDs
+                const proPlan = data.find(p => p.name === 'Pro');
+                const businessPlan = data.find(p => p.name === 'Business');
+
+                if (proPlan?.razorpay_plan_id_inr === 'plan_RGcv1a3WtevwV8' &&
+                    businessPlan?.razorpay_plan_id_inr === 'plan_RGcucvclIXXAgp') {
+                    displayResult('dbResult', '✅ Database has correct plan IDs!', 'success');
+                } else {
+                    displayResult('dbResult', '❌ Database missing correct plan IDs. Need to run SQL update.', 'error');
+                }
+
+            } catch (error) {
+                displayResult('dbResult', `❌ Database Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testSubscriptionFunction() {
+            log('🧪 Testing subscription edge function...');
+            displayResult('edgeResult', '🧪 Testing create-razorpay-subscription function...', 'info');
+
+            try {
+                const { data, error } = await supabase.functions.invoke('create-razorpay-subscription', {
+                    body: {
+                        planId: 'Pro',
+                        userEmail: 'test@example.com',
+                        userName: 'Test User',
+                        currency: 'INR',
+                        userCountry: 'IN'
+                    }
+                });
+
+                if (error) throw error;
+
+                displayResult('edgeResult', `
+                    <h3>✅ Subscription Function Response:</h3>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `, 'success');
+
+            } catch (error) {
+                displayResult('edgeResult', `❌ Subscription Function Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testOrderFunction() {
+            log('🧪 Testing order edge function...');
+            displayResult('edgeResult', '🧪 Testing create-razorpay-order function...', 'info');
+
+            try {
+                const { data, error } = await supabase.functions.invoke('create-razorpay-order', {
+                    body: {
+                        planId: 'Pro',
+                        currency: 'inr',
+                        userCountry: 'IN',
+                        paymentType: 'onetime'
+                    }
+                });
+
+                if (error) throw error;
+
+                displayResult('edgeResult', `
+                    <h3>✅ Order Function Response:</h3>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `, 'success');
+
+            } catch (error) {
+                displayResult('edgeResult', `❌ Order Function Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testFrontendPricing() {
+            log('🎨 Testing frontend pricing...');
+            displayResult('frontendResult', '🎨 Testing frontend pricing display...', 'info');
+
+            // Simulate the frontend pricing logic
+            const plans = [
+                {
+                    id: 'free',
+                    name: 'Free',
+                    price_monthly: 0,
+                    faq_limit: 10
+                },
+                {
+                    id: 'pro',
+                    name: 'Pro',
+                    price_monthly: 750,
+                    faq_limit: 100
+                },
+                {
+                    id: 'business',
+                    name: 'Business',
+                    price_monthly: 2500,
+                    faq_limit: 500
+                }
+            ];
+
+            const getPrice = (plan) => {
+                return {
+                    amount: plan.price_monthly,
+                    symbol: '₹',
+                    currency: 'INR'
+                };
+            };
+
+            let resultHTML = '<h3>💰 Frontend Pricing Display:</h3>';
+            plans.forEach(plan => {
+                const price = getPrice(plan);
+                resultHTML += `
+                    <div style="margin: 10px 0; padding: 10px; background: #1a1a1a; border-radius: 4px;">
+                        <strong>${plan.name}</strong><br>
+                        💰 Display: ${price.symbol}${price.amount}<br>
+                        📊 FAQ Limit: ${plan.faq_limit} per month
+                    </div>
+                `;
+            });
+
+            displayResult('frontendResult', resultHTML, 'success');
+        }
+
+        async function testCompleteFlow() {
+            log('🔄 Testing complete payment flow...');
+            displayResult('flowResult', '🔄 Testing complete payment flow...', 'info');
+
+            // Test the complete flow
+            try {
+                // Step 1: Check database
+                displayResult('flowResult', '1️⃣ Checking database plans...', 'info');
+                await checkDatabasePlans();
+
+                // Step 2: Test edge functions
+                displayResult('flowResult', '2️⃣ Testing edge functions...', 'info');
+                await testSubscriptionFunction();
+                await testOrderFunction();
+
+                // Step 3: Test frontend
+                displayResult('flowResult', '3️⃣ Testing frontend pricing...', 'info');
+                await testFrontendPricing();
+
+                displayResult('flowResult', '✅ Complete flow test finished! Check results above.', 'success');
+
+            } catch (error) {
+                displayResult('flowResult', `❌ Complete Flow Error: ${error.message}`, 'error');
+            }
+        }
+
+        // Auto-run basic checks on page load
+        window.addEventListener('load', () => {
+            log('🚀 FAQify Payment System Diagnostic loaded');
+            displayResult('dbResult', '👋 Ready to test! Click buttons above to run diagnostics.', 'info');
+        });
+    </script>
+</body>
+</html>
