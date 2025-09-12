@@ -58,8 +58,21 @@ serve(async (req) => {
     const razorpayKeySecret = Deno.env.get('RAZORPAY_SECRET_KEY')
 
     if (!razorpayKeyId || !razorpayKeySecret) {
+      console.error('Missing Razorpay credentials:', {
+        hasKeyId: !!razorpayKeyId,
+        hasSecret: !!razorpayKeySecret,
+        keyIdLength: razorpayKeyId?.length || 0,
+        secretLength: razorpayKeySecret?.length || 0
+      })
       throw new Error('Razorpay credentials not configured')
     }
+
+    console.log('✅ Razorpay credentials found:', {
+      keyId: razorpayKeyId?.substring(0, 10) + '...',
+      hasSecret: !!razorpayKeySecret,
+      keyIdLength: razorpayKeyId?.length,
+      secretLength: razorpayKeySecret?.length
+    })
 
     // Get plan details from database instead of hardcoded mapping
     const supabaseAdminClient = createClient(
@@ -138,7 +151,16 @@ serve(async (req) => {
 
     // Create Razorpay subscription
     const authHeader = 'Basic ' + btoa(`${razorpayKeyId}:${razorpayKeySecret}`)
-    
+
+    console.log('🚀 Creating Razorpay subscription with data:', {
+      plan_id: subscriptionData.plan_id,
+      customer_notify: subscriptionData.customer_notify,
+      total_count: subscriptionData.total_count,
+      quantity: subscriptionData.quantity,
+      start_at: subscriptionData.start_at,
+      notes: subscriptionData.notes
+    })
+
     const razorpayResponse = await fetch('https://api.razorpay.com/v1/subscriptions', {
       method: 'POST',
       headers: {

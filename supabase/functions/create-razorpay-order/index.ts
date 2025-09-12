@@ -182,19 +182,19 @@ serve(async (req) => {
       userCountry
     });
 
-    // Currency-based pricing with FIXED INR support
+    // Currency-based pricing with FIXED INR support (in paise)
     switch (targetCurrency) {
       case 'inr':
-        // Use correct INR pricing for new plans
+        // Use correct INR pricing for new plans (convert to paise)
         if (plan.name === 'Pro') {
-          amount = 750; // ₹750 for Pro plan
+          amount = 750 * 100; // ₹750 = 75000 paise for Pro plan
         } else if (plan.name === 'Business') {
-          amount = 2500; // ₹2500 for Business plan
+          amount = 2500 * 100; // ₹2500 = 250000 paise for Business plan
         } else if (plan.name === 'Free') {
           amount = 0; // Free plan
         } else {
-          // Fallback to database value or conversion
-          amount = plan.price_inr || plan.price_monthly * 83;
+          // Fallback to database value or conversion (convert to paise)
+          amount = (plan.price_inr || plan.price_monthly * 83) * 100;
         }
         break;
       case 'eur':
