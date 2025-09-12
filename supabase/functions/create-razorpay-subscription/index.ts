@@ -79,15 +79,22 @@ serve(async (req) => {
     }
 
     console.log('Found plan in database:', selectedPlan);
+    console.log('Plan pricing details:', {
+      name: selectedPlan.name,
+      price_monthly: selectedPlan.price_monthly,
+      price_inr: selectedPlan.price_inr,
+      razorpay_plan_id_inr: selectedPlan.razorpay_plan_id_inr,
+      faq_limit: selectedPlan.faq_limit
+    });
 
-    // Set USD pricing - Razorpay will handle automatic conversion
+    // Set INR pricing - using actual amounts in paise
     const currencyPlan = {
-      amount: planAmount,
+      amount: planAmount * 100, // Convert to paise (₹750 = 75000 paise)
       currency: targetCurrency
     };
 
-    // Use existing Razorpay Plan IDs (these should be USD plans)
-    let razorpayPlanId = selectedPlan?.razorpay_plan_id;
+    // Use INR Razorpay Plan IDs from database
+    let razorpayPlanId = selectedPlan?.razorpay_plan_id_inr;
 
     // If no plan ID in database, use your NEW INR Razorpay Plan IDs from dashboard
     if (!razorpayPlanId) {

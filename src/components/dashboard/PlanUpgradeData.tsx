@@ -247,8 +247,8 @@ export const PlanUpgradeData = () => {
       planId: planName,
       userEmail: user?.email || '',
       userName: user?.user_metadata?.full_name || user?.email || 'User',
-      currency: 'USD',
-      userCountry: 'US'
+      currency: 'INR', // Force INR for new pricing
+      userCountry: 'IN' // Force Indian pricing
     };
 
     console.log('📋 Subscription request body:', requestBody);

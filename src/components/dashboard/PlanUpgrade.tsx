@@ -270,9 +270,9 @@ export const PlanUpgrade = () => {
       // Create Razorpay order via edge function
       const { data, error } = await supabase.functions.invoke('create-razorpay-order', {
         body: {
-          planId: planName.toLowerCase(),
-          currency: userCurrency,
-          userCountry: userCountry,
+          planId: planName, // Keep original case: "Pro" or "Business"
+          currency: 'inr', // Use INR for new pricing
+          userCountry: 'IN', // Force Indian pricing
           paymentType: 'onetime'
         }
       });

@@ -298,8 +298,8 @@ export const useRazorpaySubscription = () => {
             planId,
             userEmail: user.email || '',
             userName: user.user_metadata?.full_name || user.email || 'User',
-            currency: currency || 'INR',
-            userCountry: userCountry || 'IN'
+            currency: 'INR', // Force INR for new pricing
+            userCountry: 'IN' // Force Indian pricing
           }
         });
 
@@ -412,7 +412,9 @@ export const useRazorpaySubscription = () => {
             body: {
               planId,
               userEmail: user.email || '',
-              userName: user.user_metadata?.full_name || user.email || 'User'
+              userName: user.user_metadata?.full_name || user.email || 'User',
+              currency: 'INR', // Force INR for new pricing
+              userCountry: 'IN' // Force Indian pricing
             }
           });
 
