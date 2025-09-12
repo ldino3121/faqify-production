@@ -80,7 +80,7 @@ export const Pricing = () => {
       id: 'free',
       name: 'Free',
       price_monthly: 0,
-      faq_limit: 5, // Free plan: 5 FAQs per month
+      faq_limit: 10, // Free plan: 10 FAQs per month
       features: [
         'Website URL analysis',
         'Text content analysis',
@@ -96,7 +96,7 @@ export const Pricing = () => {
     {
       id: 'pro',
       name: 'Pro',
-      price_monthly: 9,
+      price_monthly: 750, // ₹750 per month
       faq_limit: 100,
       features: [
         'Website URL analysis',
@@ -113,7 +113,7 @@ export const Pricing = () => {
     {
       id: 'business',
       name: 'Business',
-      price_monthly: 29,
+      price_monthly: 2500, // ₹2500 per month
       faq_limit: 500,
       features: [
         'Website URL analysis',
@@ -309,12 +309,12 @@ export const Pricing = () => {
     handleRazorpayPayment(planId);
   };
 
-  // Simple USD pricing only
+  // INR pricing for Razorpay international activation
   const getPrice = (plan: Plan) => {
     return {
       amount: plan.price_monthly,
-      symbol: '$',
-      currency: 'USD'
+      symbol: '₹',
+      currency: 'INR'
     };
   };
 

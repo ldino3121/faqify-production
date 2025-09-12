@@ -101,24 +101,24 @@ export const PlanUpgrade = () => {
 
 
 
-  // Always show USD pricing - Razorpay will handle currency conversion
-  const getPrice = (usdPrice: number) => {
+  // INR pricing for Razorpay international activation
+  const getPrice = (inrPrice: number) => {
     return {
-      amount: usdPrice,
-      symbol: '$',
-      currency: 'USD'
+      amount: inrPrice,
+      symbol: '₹',
+      currency: 'INR'
     };
   };
 
   const plans: Plan[] = [
     {
       name: "Free",
-      price: "$0",
+      price: "₹0",
       originalPrice: null,
       period: "forever",
       description: "Perfect for trying out FAQify",
       features: [
-        "5 FAQ generations per month",
+        "10 FAQ generations per month",
         "Website URL analysis",
         "Text content analysis",
         "Document upload (PDF, DOCX)",
@@ -138,7 +138,7 @@ export const PlanUpgrade = () => {
     {
       name: "Pro",
       price: (() => {
-        const monthlyPrice = getPrice(9);
+        const monthlyPrice = getPrice(750);
         return `${monthlyPrice.symbol}${monthlyPrice.amount}`;
       })(),
       originalPrice: null,
@@ -147,12 +147,14 @@ export const PlanUpgrade = () => {
       features: [
         "100 FAQ generations per month",
         "Website URL analysis",
-        "Text & document upload",
-        "Advanced embedding options",
-        "Priority email support",
-        "Export to multiple formats",
-        "Custom styling options",
-        "Analytics dashboard"
+        "Text content analysis",
+        "Document upload (PDF, DOCX)",
+        "AI-powered FAQ generation",
+        "Embed widget",
+        "WordPress integration",
+        "Analytics dashboard",
+        "Export functionality",
+        "Priority email support"
       ],
       limitations: [],
       cta: currentPlan === "Pro" ? "Current Plan" : "Upgrade to Pro",
@@ -163,7 +165,7 @@ export const PlanUpgrade = () => {
     {
       name: "Business",
       price: (() => {
-        const monthlyPrice = getPrice(29);
+        const monthlyPrice = getPrice(2500);
         return `${monthlyPrice.symbol}${monthlyPrice.amount}`;
       })(),
       originalPrice: null,
@@ -171,15 +173,15 @@ export const PlanUpgrade = () => {
       description: "For agencies and large websites",
       features: [
         "500 FAQ generations per month",
-        "All input methods included",
-        "White-label embedding",
-        "Custom branding options",
-        "24/7 priority support",
-        "API access",
-        "Team collaboration tools",
-        "Advanced analytics",
-        "Custom integrations",
-        "Dedicated account manager"
+        "Website URL analysis",
+        "Text content analysis",
+        "Document upload (PDF, DOCX)",
+        "AI-powered FAQ generation",
+        "Embed widget",
+        "WordPress integration",
+        "Analytics dashboard",
+        "Export functionality",
+        "Priority support & phone support"
       ],
       limitations: [],
       cta: currentPlan === "Business" ? "Current Plan" : "Upgrade to Business",
