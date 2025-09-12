@@ -314,21 +314,23 @@ export const useRazorpaySubscription = () => {
           description: `${planId} plan subscription created successfully!`,
         });
 
-        // For subscription links, redirect user to payment URL
-        if (data.short_url || data.payment_url) {
+        // For subscriptions, open Razorpay checkout
+        if (data.subscription_id) {
           toast({
-            title: "Redirecting to Payment",
-            description: "Opening Razorpay payment page...",
+            title: "Opening Payment",
+            description: "Opening Razorpay subscription checkout...",
           });
 
-          // Open payment URL in same window
-          window.location.href = data.short_url || data.payment_url;
+          // Use subscription checkout instead of redirect
+          setTimeout(() => {
+            openRazorpaySubscriptionCheckout(data.subscription_id, planId);
+          }, 1000);
         }
 
         return {
           success: true,
-          subscription_link_id: data.subscription_link_id,
-          short_url: data.short_url || data.payment_url
+          subscription_id: data.subscription_id,
+          status: data.status
         };
 
       } catch (error) {
@@ -432,23 +434,23 @@ export const useRazorpaySubscription = () => {
           if (error) throw error;
           if (!data.success) throw new Error(data.error || 'Failed to create subscription');
 
-          // For subscription links, redirect immediately
-          if (data.short_url || data.payment_url) {
+          // For subscriptions, open checkout
+          if (data.subscription_id) {
             toast({
-              title: "Redirecting to Payment",
-              description: "Opening Razorpay subscription payment...",
+              title: "Opening Payment",
+              description: "Opening Razorpay subscription checkout...",
             });
 
-            // Redirect to payment URL
+            // Open subscription checkout
             setTimeout(() => {
-              window.location.href = data.short_url || data.payment_url;
+              openRazorpaySubscriptionCheckout(data.subscription_id, planId);
             }, 1000);
           }
 
           return {
             success: true,
-            subscription_link_id: data.subscription_link_id,
-            short_url: data.short_url || data.payment_url
+            subscription_id: data.subscription_id,
+            status: data.status
           };
 
         } catch (error) {
