@@ -49,9 +49,9 @@ serve(async (req) => {
       throw new Error('Invalid plan selected')
     }
 
-    // Keep pricing in USD - Razorpay will handle automatic currency conversion
-    const targetCurrency = 'USD';
-    const planAmount = selectedPlan.price_monthly;
+    // Use INR pricing for Razorpay international activation
+    const targetCurrency = 'INR';
+    const planAmount = selectedPlan.price_monthly; // Now in INR (750/2500)
 
     // Razorpay configuration
     const razorpayKeyId = Deno.env.get('RAZORPAY_KEY_ID')
@@ -89,15 +89,15 @@ serve(async (req) => {
     // Use existing Razorpay Plan IDs (these should be USD plans)
     let razorpayPlanId = selectedPlan?.razorpay_plan_id;
 
-    // If no plan ID in database, use your actual Razorpay Plan IDs from dashboard
+    // If no plan ID in database, use your NEW INR Razorpay Plan IDs from dashboard
     if (!razorpayPlanId) {
-      console.log('No plan ID in database, using actual Razorpay plan IDs from dashboard');
+      console.log('No plan ID in database, using NEW INR Razorpay plan IDs from dashboard');
       if (planId === 'Pro') {
-        // Using actual Pro Plan ID from your Razorpay dashboard
-        razorpayPlanId = 'plan_REN5cBATpXrR7S';
+        // NEW Pro Plan ID for ₹750 from your Razorpay dashboard
+        razorpayPlanId = 'plan_RGcv1a3WtevwV8';
       } else if (planId === 'Business') {
-        // Using actual Business Plan ID from your Razorpay dashboard
-        razorpayPlanId = 'plan_RENZeCMJQuFc8n';
+        // NEW Business Plan ID for ₹2500 from your Razorpay dashboard
+        razorpayPlanId = 'plan_RGcucvclIXXAgp';
       }
     }
 
