@@ -83,6 +83,10 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
   const [faqEligibility, setFaqEligibility] = useState<any>(null);
   const remainingUsage = subscription ? subscription.faq_usage_limit - subscription.faq_usage_current : 0;
 
+	  // Derived expiry flag for messaging
+	  const isExpired = !!(subscription && subscription.plan_tier !== 'Free' && subscription.plan_expires_at && (new Date() >= new Date(subscription.plan_expires_at)));
+
+
   // Check FAQ generation eligibility including expiry
   useEffect(() => {
     const checkEligibility = async () => {
@@ -606,7 +610,7 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
 
       setProgress(100);
       setGeneratedFAQs(responseData.faqs);
-      
+
       // Auto-generate a title based on the input
       let autoTitle;
 
@@ -968,7 +972,7 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
           <h1 className="text-3xl font-bold text-white mb-2">Create FAQ</h1>
           <p className="text-gray-400">Generate professional FAQs from any content source</p>
         </div>
-        
+
         <div className="text-right">
           <div className="text-sm text-gray-400 mb-1">Monthly FAQ Usage</div>
           <Badge variant={remainingUsage > 5 ? "secondary" : "destructive"}>
@@ -985,10 +989,10 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
               <AlertCircle className="h-5 w-5 text-red-400" />
               <div>
                 <p className="text-red-400 font-medium">
-                  Monthly Pass expired
+                  Monthly limit reached
                 </p>
                 <p className="text-sm text-red-300">
-                  Renew your plan to continue generating FAQs.
+                  You've reached your monthly FAQ limit. Upgrade your plan or wait until your cycle resets.
                 </p>
               </div>
               <Button
@@ -996,7 +1000,7 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
                 className="bg-red-600 hover:bg-red-700 text-white ml-auto"
                 onClick={onNavigateToUpgrade}
               >
-                Renew Plan
+                Upgrade Plan
               </Button>
             </div>
           </CardContent>
@@ -1011,7 +1015,7 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
               <AlertCircle className="h-5 w-5 text-yellow-400" />
               <div>
                 <p className="text-yellow-400 font-medium">
-                  Monthly Pass expiring soon - {remainingUsage} FAQ{remainingUsage === 1 ? '' : 's'} remaining
+                  Only {remainingUsage} FAQ{remainingUsage === 1 ? '' : 's'} remaining this month
                 </p>
                 <p className="text-sm text-yellow-300">
                   Consider renewing for more FAQ generation capacity.
@@ -1167,7 +1171,7 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
                       </>
                     ) : (
                       <>
-                        <span className="text-red-400">⚠</span> Monthly Pass expire. You have {remainingUsage} FAQ{remainingUsage !== 1 ? 's' : ''} remaining.
+                        {isExpired ? (<>\n                          <span className=\"text-red-400\">⚠</span> Monthly Pass expired.\n                        </>) : (<>\n                          <span className=\"text-red-400\">⚠</span> Not enough quota for {faqCount} FAQ{faqCount !== 1 ? 's' : ''}. You have {remainingUsage} FAQ{remainingUsage !== 1 ? 's' : ''} remaining.\n                        </>)}
                       </>
                     )}
                   </p>
