@@ -1173,11 +1173,11 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
                       <>
                         {isExpired ? (
                           <>
-                            <span className=\"text-red-400\">⚠</span> Monthly Pass expired.
+                            <span className="text-red-400">⚠</span> Monthly Pass expired.
                           </>
                         ) : (
                           <>
-                            <span className=\"text-red-400\">⚠</span> Not enough quota for {faqCount} FAQ{faqCount !== 1 ? '' : 's'}. You have {remainingUsage} FAQ{remainingUsage !== 1 ? '' : 's'} remaining.
+                            <span className="text-red-400">⚠</span> Not enough quota for {faqCount} FAQ{faqCount !== 1 ? 's' : ''}. You have {remainingUsage} FAQ{remainingUsage !== 1 ? 's' : ''} remaining.
                           </>
                         )}
                       </>
