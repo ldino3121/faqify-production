@@ -83,8 +83,8 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
   const [faqEligibility, setFaqEligibility] = useState<any>(null);
   const remainingUsage = subscription ? subscription.faq_usage_limit - subscription.faq_usage_current : 0;
 
-	  // Derived expiry flag for messaging
-	  const isExpired = !!(subscription && subscription.plan_tier !== 'Free' && subscription.plan_expires_at && (new Date() >= new Date(subscription.plan_expires_at)));
+	  // Derived expiry flag for messaging (prefer backend-computed flag)
+	  const isExpired = !!(subscription?.is_expired ?? (subscription && subscription.plan_tier !== 'Free' && subscription.plan_expires_at && (new Date() >= new Date(subscription.plan_expires_at))));
 
 
   // Check FAQ generation eligibility including expiry
