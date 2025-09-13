@@ -155,12 +155,12 @@ serve(async (req) => {
         plan_expires_at: planExpiresAt.toISOString(),
         plan_changed_at: now.toISOString(),
         updated_at: now.toISOString(),
-        // Set auto-renewal and payment type for paid plans
-        auto_renewal: true,
-        payment_type: 'recurring',
+        // One-time order: no auto-renewal
+        auto_renewal: false,
+        payment_type: 'onetime',
         billing_cycle: 'monthly',
-        subscription_source: 'razorpay',
-        next_billing_date: planExpiresAt.toISOString(),
+        subscription_source: 'razorpay_onetime',
+        next_billing_date: null,
         cancelled_at: null,
         cancellation_reason: null
       })

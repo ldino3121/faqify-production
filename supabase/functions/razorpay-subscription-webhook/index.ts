@@ -169,7 +169,7 @@ async function handleSubscriptionCharged(supabase: any, subscription: any, payme
         status: 'completed',
         updated_at: new Date().toISOString()
       })
-      .eq('razorpay_order_id', subscription.id)
+      .eq('razorpay_subscription_id', subscription.id)
   }
 
   // Extend subscription period

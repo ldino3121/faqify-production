@@ -49,13 +49,9 @@ serve(async (req) => {
       throw new Error('Invalid plan selected')
     }
 
-    // Use INR pricing for Razorpay international activation
-    const targetCurrency = 'INR';
-    const planAmount = selectedPlan.price_monthly; // Now in INR (750/2500)
-
     // Razorpay configuration
     const razorpayKeyId = Deno.env.get('RAZORPAY_KEY_ID')
-    const razorpayKeySecret = Deno.env.get('RAZORPAY_SECRET_KEY')
+    const razorpayKeySecret = Deno.env.get('RAZORPAY_SECRET_KEY') ?? Deno.env.get('RAZORPAY_KEY_SECRET')
 
     if (!razorpayKeyId || !razorpayKeySecret) {
       console.error('Missing Razorpay credentials:', {
@@ -100,9 +96,20 @@ serve(async (req) => {
       faq_limit: selectedPlan.faq_limit
     });
 
-    // Set INR pricing - using actual amounts in paise
+    // Set INR pricing for records - normalize to paise
+    const targetCurrency = 'INR';
+    // Normalize amount to paise regardless of whether DB stores rupees or paise
+    const amountPaise = (() => {
+      const p = selectedPlan?.price_inr;
+      if (typeof p === 'number' && p > 0) {
+        // If value looks like paise (>= 1000), use as-is; otherwise treat as rupees and convert
+        return p >= 1000 ? Math.round(p) : Math.round(p * 100);
+      }
+      const fallback = selectedPlan?.price_monthly ?? 0; // assume rupees
+      return Math.round(fallback * 100);
+    })();
     const currencyPlan = {
-      amount: planAmount * 100, // Convert to paise (₹750 = 75000 paise)
+      amount: amountPaise,
       currency: targetCurrency
     };
 
@@ -131,9 +138,10 @@ serve(async (req) => {
 
     // Create ACTUAL SUBSCRIPTION for auto-renewal (not subscription link)
     // This creates a proper recurring subscription with auto-renewal
+    // Razorpay requires total_count >= 1. Use a large value to simulate ongoing auto-renewal.
     const subscriptionData = {
       plan_id: razorpayPlanId,
-      total_count: 0, // 0 = unlimited billing cycles (auto-renewal)
+      total_count: 120, // 10 years of monthly cycles (max allowed by API)
       quantity: 1,
       customer_notify: 1,
       notes: {

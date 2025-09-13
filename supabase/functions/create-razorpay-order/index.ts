@@ -315,7 +315,7 @@ serve(async (req) => {
           .single()
         ).data?.id,
         payment_gateway: 'razorpay',
-        transaction_type: 'subscription',
+        transaction_type: 'onetime',
         razorpay_order_id: razorpayOrder.id,
         amount: amount,
         currency: targetCurrency,
@@ -325,8 +325,8 @@ serve(async (req) => {
         metadata: {
           razorpay_order: razorpayOrder,
           user_country: userCountry,
-          payment_type: 'recurring',
-          auto_renewal: true
+          payment_type: 'onetime',
+          auto_renewal: false
         }
       });
 
