@@ -82,57 +82,52 @@ export const useSubscription = () => {
     if (!user) return;
 
     try {
-      // First check and handle expired subscriptions
-      await supabase.rpc('check_and_handle_expired_subscriptions');
+      setLoading(true);
 
-      // Then check and reset monthly usage if needed
-      await supabase.rpc('check_and_reset_user_usage', {
-        user_uuid: user.id
-      });
+      // Get subscription data directly from table
+      const { data, error } = await supabase
+        .from('user_subscriptions')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
 
-      // Get subscription with expiry information
-      const { data: subscriptionData, error: subscriptionError } = await supabase
-        .rpc('get_subscription_with_expiry', {
-          user_uuid: user.id
-        });
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error fetching subscription:', error);
+        return;
+      }
 
-      if (subscriptionError) {
-        console.error('Error fetching subscription with expiry:', subscriptionError);
-        // Fallback to regular subscription fetch
-        const { data, error } = await supabase
-          .from('user_subscriptions')
-          .select('*')
-          .eq('user_id', user.id)
-          .single();
+      if (data) {
+        // Normalize field names across historical schemas
+        const normalizedPlanTier = (data as any).plan_tier ?? (data as any).plan_id;
+        const normalizedActivatedAt = (data as any).plan_activated_at ?? (data as any).activated_at ?? (data as any).created_at ?? null;
+        const normalizedExpiresAt = (data as any).plan_expires_at ?? (data as any).expires_at ?? (data as any).current_period_end ?? null;
 
-        if (error && error.code !== 'PGRST116') {
-          console.error('Error fetching subscription:', error);
-          return;
-        }
-
-        // Calculate expiry info manually if function fails
+        // Calculate expiry info manually
         const now = new Date();
-        const expiryDate = data?.plan_expires_at ? new Date(data.plan_expires_at) : null;
+        const expiryDate = normalizedExpiresAt ? new Date(normalizedExpiresAt) : null;
         const daysRemaining = expiryDate ? Math.max(0, Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))) : 0;
 
         setSubscription({
           ...data,
+          // Ensure consistent properties expected by the UI
+          plan_tier: normalizedPlanTier,
+          plan_activated_at: normalizedActivatedAt,
+          plan_expires_at: normalizedExpiresAt,
+          current_period_end: (data as any).current_period_end ?? normalizedExpiresAt,
           days_remaining: daysRemaining,
           is_expired: expiryDate ? now > expiryDate : false,
           expires_soon: daysRemaining <= 7 && daysRemaining > 0,
-          // Add default values for new fields if not present (backward compatibility)
-          auto_renewal: data?.auto_renewal ?? (data?.plan_tier !== 'Free'),
-          cancelled_at: data?.cancelled_at ?? null,
-          cancellation_reason: data?.cancellation_reason ?? null,
-          payment_type: data?.payment_type ?? (data?.plan_tier === 'Free' ? 'one_time' : 'recurring'),
-          next_billing_date: data?.next_billing_date ?? null,
-          billing_cycle: data?.billing_cycle ?? 'monthly',
-          subscription_source: data?.subscription_source ?? 'manual',
-          is_cancelled: !!(data?.cancelled_at),
-          continues_until: (data?.cancelled_at && data?.plan_expires_at) ? data.plan_expires_at : null
+          // Defaults / compatibility
+          auto_renewal: (data as any).auto_renewal ?? (normalizedPlanTier !== 'Free'),
+          cancelled_at: (data as any).cancelled_at ?? null,
+          cancellation_reason: (data as any).cancellation_reason ?? null,
+          payment_type: (data as any).payment_type ?? (normalizedPlanTier === 'Free' ? 'one_time' : 'recurring'),
+          next_billing_date: (data as any).next_billing_date ?? null,
+          billing_cycle: (data as any).billing_cycle ?? 'monthly',
+          subscription_source: (data as any).subscription_source ?? 'manual',
+          is_cancelled: !!((data as any).cancelled_at),
+          continues_until: ((data as any).cancelled_at && normalizedExpiresAt) ? normalizedExpiresAt : null
         });
-      } else {
-        setSubscription(subscriptionData);
       }
     } catch (error) {
       console.error('Error fetching subscription:', error);
@@ -145,47 +140,76 @@ export const useSubscription = () => {
     if (!subscription || !user) return { canGenerate: false, reason: 'No subscription found' };
 
     try {
-      // First check plan expiry for paid plans
-      if (subscription.plan_tier !== 'Free' && subscription.plan_expires_at) {
-        const now = new Date();
-        const expiryDate = new Date(subscription.plan_expires_at);
+      const now = new Date();
+      const expiryDate = subscription.plan_expires_at ? new Date(subscription.plan_expires_at) : null;
 
-        if (now > expiryDate) {
-          return {
-            canGenerate: false,
-            reason: `Your Monthly Pass expired on ${expiryDate.toLocaleDateString()}. Please renew to continue generating FAQs.`,
-            currentUsage: subscription.faq_usage_current,
-            usageLimit: subscription.faq_usage_limit,
-            remainingFaqs: 0,
-            planTier: subscription.plan_tier,
-            planExpiresAt: subscription.plan_expires_at,
-            daysRemaining: 0,
-            isWithinPeriod: false,
-            isExpired: true
-          };
-        }
+      // Block if expired (paid plans only). Expiry at or before "now" is considered expired.
+      if (subscription.plan_tier !== 'Free' && expiryDate && now >= expiryDate) {
+        return {
+          canGenerate: false,
+          reason: `Your plan expired on ${expiryDate.toLocaleDateString()}. Please renew to continue generating FAQs.`,
+          currentUsage: subscription.faq_usage_current,
+          usageLimit: subscription.faq_usage_limit,
+          remainingFaqs: 0,
+          planTier: subscription.plan_tier,
+          planExpiresAt: subscription.plan_expires_at,
+          daysRemaining: 0,
+          isWithinPeriod: false,
+          isExpired: true
+        };
       }
 
-      const { data, error } = await supabase.rpc('can_generate_faqs', {
-        user_uuid: user.id,
-        faq_count: faqCount
-      });
+      // Block if quota exceeded
+      const remainingFaqs = Math.max(0, subscription.faq_usage_limit - subscription.faq_usage_current);
+      if (faqCount > remainingFaqs) {
+        return {
+          canGenerate: false,
+          reason: `You have ${remainingFaqs} FAQs remaining in your quota. You're trying to generate ${faqCount} FAQs.`,
+          currentUsage: subscription.faq_usage_current,
+          usageLimit: subscription.faq_usage_limit,
+          remainingFaqs,
+          planTier: subscription.plan_tier,
+          planExpiresAt: subscription.plan_expires_at,
+          daysRemaining: subscription.days_remaining,
+          isWithinPeriod: true,
+          isExpired: false
+        };
+      }
 
-      if (error) {
-        console.error('Error checking FAQ eligibility:', error);
-        return { canGenerate: false, reason: 'Error checking eligibility' };
+      // Optionally defer to backend rule if available; ignore if function missing
+      try {
+        const { data, error } = await supabase.rpc('can_generate_faqs', {
+          user_uuid: user.id,
+          faq_count: faqCount
+        });
+        if (!error && data && data.can_generate !== undefined) {
+          return {
+            canGenerate: !!data.can_generate,
+            reason: data.reason ?? 'OK',
+            currentUsage: data.current_usage ?? subscription.faq_usage_current,
+            usageLimit: data.usage_limit ?? subscription.faq_usage_limit,
+            remainingFaqs: data.remaining_faqs ?? remainingFaqs,
+            planTier: data.plan_tier ?? subscription.plan_tier,
+            planExpiresAt: data.plan_expires_at ?? subscription.plan_expires_at,
+            daysRemaining: data.days_remaining ?? subscription.days_remaining,
+            isWithinPeriod: data.is_within_period ?? true,
+            isExpired: !!data.is_expired
+          };
+        }
+      } catch (_) {
+        // ignore RPC errors and fall back to local check
       }
 
       return {
-        canGenerate: data.can_generate,
-        reason: data.reason,
-        currentUsage: data.current_usage,
-        usageLimit: data.usage_limit,
-        remainingFaqs: data.remaining_faqs,
-        planTier: data.plan_tier,
-        planExpiresAt: data.plan_expires_at,
-        daysRemaining: data.days_remaining,
-        isWithinPeriod: data.is_within_period,
+        canGenerate: true,
+        reason: 'OK',
+        currentUsage: subscription.faq_usage_current,
+        usageLimit: subscription.faq_usage_limit,
+        remainingFaqs,
+        planTier: subscription.plan_tier,
+        planExpiresAt: subscription.plan_expires_at,
+        daysRemaining: subscription.days_remaining,
+        isWithinPeriod: true,
         isExpired: false
       };
     } catch (error) {
@@ -236,8 +260,8 @@ export const useSubscription = () => {
     if (!subscription) return null;
 
     const now = new Date();
-    const expiresAt = new Date(subscription.plan_expires_at);
-    const daysRemaining = Math.ceil((expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    const expiresAt = subscription.plan_expires_at ? new Date(subscription.plan_expires_at) : null;
+    const daysRemaining = expiresAt ? Math.ceil((expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : 0;
 
     return {
       planTier: subscription.plan_tier,
@@ -248,8 +272,8 @@ export const useSubscription = () => {
       planActivatedAt: subscription.plan_activated_at,
       planExpiresAt: subscription.plan_expires_at,
       daysRemaining: subscription.plan_tier === 'Free' ? Infinity : Math.max(0, daysRemaining),
-      isActive: subscription.status === 'active' && (subscription.plan_tier === 'Free' || expiresAt > now),
-      isExpired: subscription.plan_tier !== 'Free' && expiresAt <= now,
+      isActive: subscription.status === 'active' && (subscription.plan_tier === 'Free' || (expiresAt ? expiresAt > now : true)),
+      isExpired: subscription.plan_tier !== 'Free' && (!!expiresAt ? expiresAt <= now : false),
       lastResetDate: subscription.last_reset_date
     };
   };

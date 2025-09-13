@@ -1214,9 +1214,11 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
                   <span>Usage: {subscription.faq_usage_current}/{subscription.faq_usage_limit}</span>
                   <span>{remainingUsage} remaining</span>
                 </div>
-                {!canCreateFAQ && (
+                {!canCreateFAQ && faqEligibility && (
                   <div className="mt-2 text-yellow-400 text-xs">
-                    ⚠️ You've reached your monthly Expire Date. Please renew your plan.
+                    {faqEligibility.isExpired
+                      ? '⚠️ Your plan has expired. Please renew to continue.'
+                      : '⚠️ You do not have enough remaining quota for the selected number of FAQs.'}
                   </div>
                 )}
               </div>
