@@ -11,6 +11,8 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   signInWithGoogle: () => Promise<void>;
+  requestPasswordReset: (email: string) => Promise<void>;
+  completePasswordReset: (newPassword: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -226,6 +228,28 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  // Request a password reset email; user will land on /reset-password
+  const requestPasswordReset = async (email: string) => {
+    const redirectTo = `${window.location.origin}/reset-password`;
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+    if (error) {
+      throw new Error(error.message);
+    }
+  };
+
+  // Complete the password reset when user arrives via recovery link
+  const completePasswordReset = async (newPassword: string) => {
+    // During recovery, Supabase sets a temporary session; updateUser uses it
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      throw new Error('Recovery link invalid or expired. Please request a new reset email.');
+    }
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) {
+      throw new Error(error.message);
+    }
+  };
+
   const signInWithGoogle = async () => {
     console.log('Attempting Google OAuth sign in...');
     console.log('Current origin:', window.location.origin);
@@ -264,6 +288,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     signIn,
     signOut,
     signInWithGoogle,
+    requestPasswordReset,
+    completePasswordReset,
   };
 
   return (

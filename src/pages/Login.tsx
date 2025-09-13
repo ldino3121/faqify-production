@@ -196,6 +196,13 @@ const Login = () => {
                 </div>
               </div>
 
+
+              <div className="flex justify-end mt-2">
+                <Link to="/reset-password" className="text-sm text-blue-400 hover:text-blue-300 underline">
+                  Forgot password?
+                </Link>
+              </div>
+
               <Button
                 type="submit"
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white border-0"
