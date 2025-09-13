@@ -102,9 +102,21 @@ export const useSubscription = () => {
         const normalizedActivatedAt = (data as any).plan_activated_at ?? (data as any).activated_at ?? (data as any).created_at ?? null;
         const normalizedExpiresAt = (data as any).plan_expires_at ?? (data as any).expires_at ?? (data as any).current_period_end ?? null;
 
+        // If expiry isn't stored, derive it as activated_at + 1 month (business rule)
+        let derivedExpiresAt: string | null = null;
+        if (!normalizedExpiresAt && normalizedActivatedAt) {
+          const d = new Date(normalizedActivatedAt);
+          if (!Number.isNaN(d.getTime())) {
+            const m = new Date(d);
+            m.setMonth(m.getMonth() + 1);
+            derivedExpiresAt = m.toISOString();
+          }
+        }
+        const effectiveExpiresAt = normalizedExpiresAt ?? derivedExpiresAt;
+
         // Calculate expiry info manually
         const now = new Date();
-        const expiryDate = normalizedExpiresAt ? new Date(normalizedExpiresAt) : null;
+        const expiryDate = effectiveExpiresAt ? new Date(effectiveExpiresAt) : null;
         const daysRemaining = expiryDate ? Math.max(0, Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))) : 0;
 
         setSubscription({
@@ -112,8 +124,8 @@ export const useSubscription = () => {
           // Ensure consistent properties expected by the UI
           plan_tier: normalizedPlanTier,
           plan_activated_at: normalizedActivatedAt,
-          plan_expires_at: normalizedExpiresAt,
-          current_period_end: (data as any).current_period_end ?? normalizedExpiresAt,
+          plan_expires_at: effectiveExpiresAt as any,
+          current_period_end: (data as any).current_period_end ?? (effectiveExpiresAt as any),
           days_remaining: daysRemaining,
           is_expired: expiryDate ? now > expiryDate : false,
           expires_soon: daysRemaining <= 7 && daysRemaining > 0,
