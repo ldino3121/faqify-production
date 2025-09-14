@@ -1,6 +1,6 @@
 
-import { Zap, Twitter, Linkedin, Github, Mail } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Zap, Linkedin, Instagram } from "lucide-react";
+
 
 export const Footer = () => {
   const footerLinks = {
@@ -34,18 +34,41 @@ export const Footer = () => {
               Transform your content into professional FAQ sections with AI-powered generation.
               Perfect for WordPress sites and beyond.
             </p>
-            <div className="flex space-x-4">
-              <a href="#" className="text-gray-400 hover:text-white transition-colors">
-                <Twitter className="h-5 w-5" />
+            <div className="flex space-x-3">
+              <a
+                href="https://x.com/FAQify18"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white text-black hover:opacity-90 transition"
+                aria-label="FAQify on X"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 120 120"
+                  className="h-4 w-4"
+                  fill="currentColor"
+                  aria-hidden="true"
+                >
+                  <path d="M89.5 15H103L68.5 54.2 108 105H79.2L54.8 73.5 27 105H13.4L49.7 64.1 12 15h29l22.3 30.1L89.5 15Zm-10.4 81.1h7.6L41.2 23.3h-7.7l45.6 72.8Z"/>
+                </svg>
               </a>
-              <a href="#" className="text-gray-400 hover:text-white transition-colors">
-                <Linkedin className="h-5 w-5" />
+              <a
+                href="https://www.instagram.com/faqify"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#E1306C] text-white hover:opacity-90 transition"
+                aria-label="FAQify on Instagram"
+              >
+                <Instagram className="h-4 w-4" />
               </a>
-              <a href="#" className="text-gray-400 hover:text-white transition-colors">
-                <Github className="h-5 w-5" />
-              </a>
-              <a href="#" className="text-gray-400 hover:text-white transition-colors">
-                <Mail className="h-5 w-5" />
+              <a
+                href="https://www.linkedin.com/company/faqify"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#0A66C2] text-white hover:opacity-90 transition"
+                aria-label="FAQify on LinkedIn"
+              >
+                <Linkedin className="h-4 w-4" />
               </a>
             </div>
           </div>
