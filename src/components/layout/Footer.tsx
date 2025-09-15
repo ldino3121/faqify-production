@@ -146,6 +146,7 @@ export const Footer = () => {
             </p>
             <div className="flex items-center space-x-6 mt-4 md:mt-0">
               <span className="text-gray-400 text-sm">Made with ❤️ for WordPress users</span>
+              <span className="text-gray-400 text-sm">A product by Saubhagya Samridhi</span>
             </div>
           </div>
         </div>
