@@ -27,7 +27,12 @@ export const Footer = () => {
           {/* Brand Section */}
           <div className="lg:col-span-2">
             <div className="flex items-center space-x-2 mb-4">
-              <Zap className="h-8 w-8 text-blue-500" />
+              <svg className="h-8 w-8" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <circle cx="12" cy="12" r="9" stroke="#3b82f6" strokeWidth="2" fill="none"/>
+                <rect x="0" y="11" width="3" height="2" fill="#3b82f6"/>
+                <rect x="21" y="11" width="3" height="2" fill="#3b82f6"/>
+                <path d="M7.5 12c1.5-2 3-2 4.5 0s3 2 4.5 0" stroke="#3b82f6" strokeWidth="2" fill="none" strokeLinecap="round"/>
+              </svg>
               <span className="text-2xl font-bold text-white">FAQify</span>
             </div>
             <p className="text-gray-400 mb-6 max-w-md">

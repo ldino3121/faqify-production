@@ -7,21 +7,28 @@ const About = () => {
   return (
     <div className="min-h-screen bg-black text-white">
       <Header />
-      
+
       <main className="pt-20">
         {/* Hero Section */}
         <section className="py-20 px-4 sm:px-6 lg:px-8">
           <div className="container mx-auto max-w-4xl text-center">
             <div className="flex justify-center mb-6">
-              <Zap className="h-16 w-16 text-blue-500" />
+              <svg className="h-16 w-16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <circle cx="12" cy="12" r="9" stroke="#3b82f6" strokeWidth="2" fill="none"/>
+                <rect x="0" y="11" width="3" height="2" fill="#3b82f6"/>
+                <rect x="21" y="11" width="3" height="2" fill="#3b82f6"/>
+                <path d="M7.5 12c1.5-2 3-2 4.5 0s3 2 4.5 0" stroke="#3b82f6" strokeWidth="2" fill="none" strokeLinecap="round"/>
+              </svg>
             </div>
             <h1 className="text-4xl md:text-6xl font-bold mb-6">
               About <span className="text-blue-500">FAQify</span>
             </h1>
             <p className="text-xl text-gray-400 mb-8 max-w-3xl mx-auto">
-              We're on a mission to transform how businesses create and manage FAQ content, 
+              We're on a mission to transform how businesses create and manage FAQ content,
               making it effortless to provide exceptional customer support through AI-powered solutions.
             </p>
+            <p className="text-sm text-gray-500">A product by Saubhagya Samridhi</p>
+
           </div>
         </section>
 
@@ -32,11 +39,11 @@ const About = () => {
               <div>
                 <h2 className="text-3xl font-bold mb-6">Our Mission</h2>
                 <p className="text-gray-400 text-lg mb-6">
-                  At FAQify, we believe that every business deserves to provide outstanding customer support 
+                  At FAQify, we believe that every business deserves to provide outstanding customer support
                   without the complexity and time investment traditionally required to create comprehensive FAQ sections.
                 </p>
                 <p className="text-gray-400 text-lg">
-                  Our AI-powered platform transforms any content into professional, engaging FAQ sections 
+                  Our AI-powered platform transforms any content into professional, engaging FAQ sections
                   that reduce support tickets, improve user experience, and help businesses scale their customer service efficiently.
                 </p>
               </div>
@@ -81,21 +88,21 @@ const About = () => {
             <div className="space-y-8">
               <div className="text-center">
                 <p className="text-gray-400 text-lg leading-relaxed">
-                  FAQify was born from a simple observation: businesses spend countless hours manually creating 
-                  FAQ sections, often resulting in incomplete or poorly structured content that fails to address 
+                  FAQify was born from a simple observation: businesses spend countless hours manually creating
+                  FAQ sections, often resulting in incomplete or poorly structured content that fails to address
                   customer needs effectively.
                 </p>
               </div>
               <div className="text-center">
                 <p className="text-gray-400 text-lg leading-relaxed">
-                  We saw an opportunity to leverage advanced AI technology to automate this process, 
-                  not just to save time, but to create better, more comprehensive FAQ content that truly serves both 
+                  We saw an opportunity to leverage advanced AI technology to automate this process,
+                  not just to save time, but to create better, more comprehensive FAQ content that truly serves both
                   businesses and their customers.
                 </p>
               </div>
               <div className="text-center">
                 <p className="text-gray-400 text-lg leading-relaxed">
-                  Today, FAQify helps businesses across the globe transform their content into professional 
+                  Today, FAQify helps businesses across the globe transform their content into professional
                   FAQ sections that reduce support workload, improve customer satisfaction, and drive business growth.
                 </p>
               </div>
@@ -113,7 +120,7 @@ const About = () => {
                   <Globe className="h-12 w-12 text-blue-500 mx-auto mb-6" />
                   <h3 className="text-xl font-semibold text-white mb-4">Accessibility</h3>
                   <p className="text-gray-400">
-                    Making professional FAQ creation accessible to businesses of all sizes, 
+                    Making professional FAQ creation accessible to businesses of all sizes,
                     from startups to enterprises.
                   </p>
                 </CardContent>
@@ -123,7 +130,7 @@ const About = () => {
                   <Target className="h-12 w-12 text-blue-500 mx-auto mb-6" />
                   <h3 className="text-xl font-semibold text-white mb-4">Excellence</h3>
                   <p className="text-gray-400">
-                    Delivering high-quality, accurate, and engaging FAQ content that exceeds 
+                    Delivering high-quality, accurate, and engaging FAQ content that exceeds
                     expectations every time.
                   </p>
                 </CardContent>
@@ -133,7 +140,7 @@ const About = () => {
                   <Lightbulb className="h-12 w-12 text-blue-500 mx-auto mb-6" />
                   <h3 className="text-xl font-semibold text-white mb-4">Innovation</h3>
                   <p className="text-gray-400">
-                    Continuously pushing the boundaries of what's possible with AI-powered 
+                    Continuously pushing the boundaries of what's possible with AI-powered
                     content generation technology.
                   </p>
                 </CardContent>
