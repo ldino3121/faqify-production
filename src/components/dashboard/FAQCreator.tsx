@@ -600,8 +600,8 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
 
       // Check if responseData contains an error
       if (responseData.error) {
-        console.error('Data contains error:', responseData.error);
-        throw new Error(responseData.error);
+        console.error('Data contains error:', responseData.error || responseData.message);
+        throw new Error(responseData.message || responseData.error || 'Failed to generate FAQs');
       }
 
       if (!responseData.faqs || !Array.isArray(responseData.faqs)) {
@@ -1108,15 +1108,16 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
                   <label className="text-sm font-medium text-gray-300 mb-2 block">
                     Upload Document
                   </label>
-                  <div className="border-2 border-dashed border-gray-700 rounded-lg p-6 text-center hover:border-gray-600 transition-colors">
+                  <div className={`border-2 border-dashed border-gray-700 rounded-lg p-6 text-center transition-colors ${isExpired ? 'opacity-50 cursor-not-allowed' : 'hover:border-gray-600'}`}>
                     <input
                       type="file"
                       accept=".pdf,.docx,.txt"
                       onChange={handleFileUpload}
+                      disabled={isExpired}
                       className="hidden"
                       id="file-upload"
                     />
-                    <label htmlFor="file-upload" className="cursor-pointer">
+                    <label htmlFor="file-upload" className={`${isExpired ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
                       <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
                       <p className="text-gray-300 mb-1">Click to upload file</p>
                       <p className="text-xs text-gray-400">PDF, DOCX, or TXT files supported</p>
