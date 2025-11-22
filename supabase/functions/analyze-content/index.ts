@@ -777,15 +777,18 @@ ${contentToAnalyze}`
         apiKeyUsed: BULLETPROOF_GEMINI_API_KEY ? `${BULLETPROOF_GEMINI_API_KEY.substring(0, 12)}...` : 'none'
       });
 
-      // Return detailed error information instead of throwing
+      // Return detailed error information with 200 status to avoid SDK-level errors
+      // Supabase SDK treats 4xx/5xx as errors and sets response.data to null
+      // By returning 200 with error flag in body, we ensure response.data is populated
       return new Response(JSON.stringify({
         error: true,
         message: `Gemini API Error: ${response.status} - ${response.statusText}`,
         details: errorText,
         status: response.status,
-        isDemoMode: false
+        isDemoMode: false,
+        faqs: [] // Empty FAQs array to maintain response structure
       }), {
-        status: 400, // Return 400 for client/API errors
+        status: 200, // Return 200 so Supabase SDK populates response.data
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
@@ -919,9 +922,10 @@ ${contentToAnalyze}`
         originalError: error.message,
         stack: error.stack,
         timestamp: new Date().toISOString()
-      }
+      },
+      faqs: [] // Empty FAQs array to maintain response structure
     }), {
-      status: 400, // Return 400 for client errors
+      status: 200, // Return 200 so Supabase SDK populates response.data
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }

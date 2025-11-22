@@ -582,9 +582,10 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
 
       console.log('Raw Edge function response:', response);
 
-      // Check if the response itself indicates an error
+      // Handle SDK-level errors (non-2xx status codes)
+      // Note: Edge function now returns 200 for all responses to avoid this
       if (response.error) {
-        console.error('Response error:', response.error);
+        console.error('SDK-level error:', response.error);
         throw new Error(response.error.message || 'Edge function returned an error');
       }
 
@@ -598,10 +599,11 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
 
       console.log('Edge function response data:', responseData);
 
-      // Check if responseData contains an error
-      if (responseData.error) {
-        console.error('Data contains error:', responseData.error || responseData.message);
-        throw new Error(responseData.message || responseData.error || 'Failed to generate FAQs');
+      // Check if responseData contains an application-level error
+      // Edge function returns error: true with message in body
+      if (responseData.error === true) {
+        console.error('Application error:', responseData.message);
+        throw new Error(responseData.message || 'Failed to generate FAQs');
       }
 
       if (!responseData.faqs || !Array.isArray(responseData.faqs)) {
