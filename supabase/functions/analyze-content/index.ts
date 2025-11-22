@@ -35,7 +35,7 @@ const BULLETPROOF_GEMINI_API_KEY = getBulletproofGeminiApiKey();
 // 🛡️ BULLETPROOF PROTECTION: Prevent any future modifications from breaking FAQ generation
 // This constant ensures FAQ generation ALWAYS works regardless of code changes
 const BULLETPROOF_FAQ_GENERATION_ENABLED = true;
-const BULLETPROOF_GEMINI_MODEL = 'gemini-1.5-flash-latest';
+const BULLETPROOF_GEMINI_MODEL = 'gemini-2.5-flash'; // Updated to use available model
 const BULLETPROOF_API_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models';
 
 // 🚨 WARNING: DO NOT MODIFY THE ABOVE CONSTANTS - THEY ENSURE PRODUCTION STABILITY
@@ -785,7 +785,7 @@ ${contentToAnalyze}`
         status: response.status,
         isDemoMode: false
       }), {
-        status: 200, // Return 200 so frontend gets the error details
+        status: 400, // Return 400 for client/API errors
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
@@ -921,7 +921,7 @@ ${contentToAnalyze}`
         timestamp: new Date().toISOString()
       }
     }), {
-      status: 200, // Return 200 so frontend gets the error details
+      status: 400, // Return 400 for client errors
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }

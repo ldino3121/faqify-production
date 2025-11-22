@@ -1075,7 +1075,8 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
                     placeholder="example.com/your-page or https://example.com/your-page"
                     value={urlInput}
                     onChange={(e) => setUrlInput(e.target.value)}
-                    className="bg-gray-800 border-gray-700 text-white"
+                    disabled={isExpired}
+                    className="bg-gray-800 border-gray-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
                   />
                   <p className="text-xs text-gray-400 mt-1">
                     Enter any website URL to analyze and generate FAQs (https:// will be added automatically if missing)
@@ -1093,7 +1094,8 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
                     rows={8}
                     value={textInput}
                     onChange={(e) => setTextInput(e.target.value)}
-                    className="bg-gray-800 border-gray-700 text-white resize-none"
+                    disabled={isExpired}
+                    className="bg-gray-800 border-gray-700 text-white resize-none disabled:opacity-50 disabled:cursor-not-allowed"
                   />
                   <p className="text-xs text-gray-400 mt-1">
                     Paste any text content, product descriptions, or documentation
@@ -1220,7 +1222,7 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
               <div className="mt-4 p-3 bg-gray-800 rounded-lg text-sm">
                 <div className="flex justify-between items-center text-gray-300">
                   <span>Plan: {subscription.plan_tier}</span>
-                  <span>Status: {subscription.status === 'active' ? '✅ Active' : '❌ Inactive'}</span>
+                  <span>Status: {isExpired ? '❌ Expired' : (subscription.status === 'active' ? '✅ Active' : '❌ Inactive')}</span>
                 </div>
                 <div className="flex justify-between items-center text-gray-300 mt-1">
                   <span>Usage: {subscription.faq_usage_current}/{subscription.faq_usage_limit}</span>
@@ -1231,6 +1233,11 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
                     {faqEligibility.isExpired
                       ? '⚠️ Your plan has expired. Please renew to continue.'
                       : '⚠️ You do not have enough remaining quota for the selected number of FAQs.'}
+                  </div>
+                )}
+                {isExpired && subscription.plan_expires_at && (
+                  <div className="mt-2 text-red-400 text-xs font-semibold">
+                    ⚠️ Plan expired on {new Date(subscription.plan_expires_at).toLocaleDateString()}
                   </div>
                 )}
               </div>
