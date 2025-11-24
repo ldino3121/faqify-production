@@ -8,22 +8,15 @@ const getBulletproofGeminiApiKey = () => {
   // BULLETPROOF STRATEGY: Multiple fallback layers
 
   // Layer 1: Environment variables (preferred for security)
-  let apiKey = Deno.env.get('GEMINI_API_KEY') ||
-               Deno.env.get('GOOGLE_AI_API_KEY') ||
-               Deno.env.get('GOOGLE_GEMINI_API_KEY');
+  const envApiKey = Deno.env.get('GEMINI_API_KEY') ||
+                    Deno.env.get('GOOGLE_AI_API_KEY') ||
+                    Deno.env.get('GOOGLE_GEMINI_API_KEY');
 
-  // Layer 2: GUARANTEED WORKING API KEY (bulletproof fallback)
-  // This ensures FAQ generation NEVER fails due to missing API keys
-  if (!apiKey || apiKey.trim() === '' || apiKey === 'undefined' || apiKey === 'null') {
-    console.log('🛡️ Using bulletproof production Gemini API key');
-    // PRODUCTION-READY API KEY - NEVER REMOVE THIS
-    apiKey = 'AIzaSyCnpPwL11BpSd2jIQwK3N-BlH2g5fMgQOY';
-  }
-
-  // Layer 3: Final validation
-  if (!apiKey || apiKey.length < 20) {
-    console.error('🚨 CRITICAL: No valid Gemini API key found!');
-    throw new Error('Gemini API key configuration failed - contact support');
+  // Layer 2: Strict validation – no hard-coded fallback keys
+  const apiKey = envApiKey?.trim();
+  if (!apiKey || apiKey === 'undefined' || apiKey === 'null') {
+    console.error('🚨 CRITICAL: No Gemini API key found in environment variables.');
+    throw new Error('GEMINI_API_KEY (or GOOGLE_AI_API_KEY / GOOGLE_GEMINI_API_KEY) is not configured.');
   }
 
   return apiKey;

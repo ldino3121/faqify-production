@@ -155,11 +155,12 @@ export const useSubscription = () => {
       const now = new Date();
       const expiryDate = subscription.plan_expires_at ? new Date(subscription.plan_expires_at) : null;
 
-      // Block if expired (paid plans only). Expiry at or before "now" is considered expired.
-      if (subscription.plan_tier !== 'Free' && expiryDate && now >= expiryDate) {
+      // Block if expired for *any* plan, including Free. Expiry at or before "now" is considered expired.
+      const isExpired = subscription.is_expired || (expiryDate && now >= expiryDate);
+      if (isExpired) {
         return {
           canGenerate: false,
-          reason: `Your plan expired on ${expiryDate.toLocaleDateString()}. Please renew to continue generating FAQs.`,
+          reason: `Your plan expired on ${expiryDate ? expiryDate.toLocaleDateString() : 'your last billing date'}. Please renew to continue generating FAQs.`,
           currentUsage: subscription.faq_usage_current,
           usageLimit: subscription.faq_usage_limit,
           remainingFaqs: 0,

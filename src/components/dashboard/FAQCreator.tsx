@@ -83,8 +83,14 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
   const [faqEligibility, setFaqEligibility] = useState<any>(null);
   const remainingUsage = subscription ? subscription.faq_usage_limit - subscription.faq_usage_current : 0;
 
-	  // Derived expiry flag for messaging (prefer backend-computed flag)
-	  const isExpired = !!(subscription?.is_expired ?? (subscription && subscription.plan_tier !== 'Free' && subscription.plan_expires_at && (new Date() >= new Date(subscription.plan_expires_at))));
+  // Global gating flags used across the Create FAQ UI
+  const hasNoQuota = remainingUsage <= 0;
+  const isExpired = !!(
+    faqEligibility?.isExpired ||
+    subscription?.is_expired ||
+    (subscription?.plan_expires_at && new Date() >= new Date(subscription.plan_expires_at))
+  );
+  const isBlocked = isExpired || hasNoQuota;
 
 
   // Check FAQ generation eligibility including expiry
@@ -1077,7 +1083,7 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
                     placeholder="example.com/your-page or https://example.com/your-page"
                     value={urlInput}
                     onChange={(e) => setUrlInput(e.target.value)}
-                    disabled={isExpired}
+                    disabled={isBlocked}
                     className="bg-gray-800 border-gray-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
                   />
                   <p className="text-xs text-gray-400 mt-1">
@@ -1096,7 +1102,7 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
                     rows={8}
                     value={textInput}
                     onChange={(e) => setTextInput(e.target.value)}
-                    disabled={isExpired}
+                    disabled={isBlocked}
                     className="bg-gray-800 border-gray-700 text-white resize-none disabled:opacity-50 disabled:cursor-not-allowed"
                   />
                   <p className="text-xs text-gray-400 mt-1">
@@ -1110,12 +1116,12 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
                   <label className="text-sm font-medium text-gray-300 mb-2 block">
                     Upload Document
                   </label>
-                  <div className={`border-2 border-dashed border-gray-700 rounded-lg p-6 text-center transition-colors ${isExpired ? 'opacity-50 cursor-not-allowed' : 'hover:border-gray-600'}`}>
+                  <div className={`border-2 border-dashed border-gray-700 rounded-lg p-6 text-center transition-colors ${isBlocked ? 'opacity-50 cursor-not-allowed' : 'hover:border-gray-600'}`}>
                     <input
                       type="file"
                       accept=".pdf,.docx,.txt"
                       onChange={handleFileUpload}
-                      disabled={isExpired}
+                      disabled={isBlocked}
                       className="hidden"
                       id="file-upload"
                     />
@@ -1145,6 +1151,7 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
                 <Select
                   value={faqCount.toString()}
                   onValueChange={(value) => setFaqCount(parseInt(value))}
+                  disabled={isBlocked}
                 >
                   <SelectTrigger className="w-32 bg-gray-800 border-gray-700 text-white">
                     <SelectValue />
@@ -1204,7 +1211,7 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
 
             <Button
               onClick={generateFAQs}
-              disabled={isGenerating || !canCreateFAQ || !canGenerateSelectedCount}
+              disabled={isBlocked || isGenerating || !canCreateFAQ || !canGenerateSelectedCount}
               className="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white disabled:bg-gray-600 disabled:cursor-not-allowed"
             >
               {isGenerating ? (

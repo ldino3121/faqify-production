@@ -140,11 +140,13 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('Error in process-document function:', error);
-    return new Response(JSON.stringify({ 
+    // Always return 200 so Supabase SDK populates response.data instead of response.error
+    // and the frontend can show the real error message instead of a generic non-2xx error.
+    return new Response(JSON.stringify({
       success: false,
-      error: error.message || 'Failed to process document' 
+      error: error.message || 'Failed to process document'
     }), {
-      status: 400,
+      status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }

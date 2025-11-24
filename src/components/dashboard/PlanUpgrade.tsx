@@ -62,13 +62,81 @@ export const PlanUpgrade = () => {
       });
     };
 
-    // Detect user location for currency
+    // Detect user location for currency (prefer explicit override, then IP, then timezone)
     const detectLocation = async () => {
       try {
-        // Try to get user's timezone first
-        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        // 1) Explicit override for testing: ?country=US or ?country=IN
+        try {
+          const params = new URLSearchParams(window.location.search);
+          const override = params.get('country') || params.get('countryOverride');
+          if (override) {
+            const upper = override.toUpperCase();
+            if (upper === 'IN') {
+              setUserCountry('IN');
+              setUserCurrency('inr');
+            } else if (upper === 'GB') {
+              setUserCountry('GB');
+              setUserCurrency('gbp');
+            } else if (upper === 'EU') {
+              setUserCountry('EU');
+              setUserCurrency('eur');
+            } else {
+              setUserCountry(upper);
+              setUserCurrency('usd');
+            }
+            return;
+          }
+        } catch (paramError) {
+          console.log('URL country override parsing failed, continuing with auto-detection', paramError);
+        }
 
-        // Simple timezone to country mapping for major regions
+        // 2) IP-based detection using ipapi.co (if enabled)
+        const enableLocationDetection = import.meta.env.VITE_ENABLE_LOCATION_DETECTION;
+        const shouldUseIpLookup =
+          enableLocationDetection === undefined ||
+          enableLocationDetection === 'true' ||
+          enableLocationDetection === true;
+
+        if (shouldUseIpLookup) {
+          try {
+            const response = await fetch('https://ipapi.co/json/');
+            if (response.ok) {
+              const data = await response.json();
+              const countryCode = (data?.country_code || '').toUpperCase();
+
+              if (countryCode === 'IN') {
+                setUserCountry('IN');
+                setUserCurrency('inr');
+                return;
+              }
+
+              if (countryCode === 'GB') {
+                setUserCountry('GB');
+                setUserCurrency('gbp');
+                return;
+              }
+
+              if (countryCode === 'EU') {
+                setUserCountry('EU');
+                setUserCurrency('eur');
+                return;
+              }
+
+              if (countryCode) {
+                // Treat all other countries as international (USD) for now
+                setUserCountry(countryCode);
+                setUserCurrency('usd');
+                return;
+              }
+            }
+          } catch (ipError) {
+            console.log('IP-based location detection failed, falling back to timezone', ipError);
+          }
+        }
+
+        // Fallback: timezone-based detection (works if OS timezone matches location)
+        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+
         if (timezone.includes('Asia/Kolkata') || timezone.includes('Asia/Calcutta')) {
           setUserCountry('IN');
           setUserCurrency('inr');
@@ -84,7 +152,7 @@ export const PlanUpgrade = () => {
           setUserCurrency('usd');
         }
       } catch (error) {
-        console.log('Location detection failed, using default USD');
+        console.log('Location detection failed, using default USD', error);
         setUserCountry('US');
         setUserCurrency('usd');
       }
@@ -226,8 +294,7 @@ export const PlanUpgrade = () => {
         description: `Setting up your ${planId} plan subscription...`,
       });
 
-      // Use standard USD pricing - Razorpay handles automatic conversion
-      const result = await createAndOpenSubscription(planId);
+      const result = await createAndOpenSubscription(planId, userCountry);
 
       if (result.success) {
         toast({
@@ -267,12 +334,12 @@ export const PlanUpgrade = () => {
         description: "Setting up your payment...",
       });
 
-      // Create Razorpay order via edge function
+      // Create Razorpay order via edge function with detected region
       const { data, error } = await supabase.functions.invoke('create-razorpay-order', {
         body: {
           planId: planName, // Keep original case: "Pro" or "Business"
-          currency: 'inr', // Use INR for new pricing
-          userCountry: 'IN', // Force Indian pricing
+          currency: userCurrency,
+          userCountry,
           paymentType: 'onetime'
         }
       });
@@ -281,7 +348,7 @@ export const PlanUpgrade = () => {
         throw new Error('Failed to create payment order');
       }
 
-      // Configure Razorpay options
+      // Configure Razorpay options with location-specific settings
       const options = {
         key: data.order.key,
         amount: data.order.amount,
@@ -289,6 +356,16 @@ export const PlanUpgrade = () => {
         name: 'FAQify',
         description: `${data.plan.name} Plan (30 Days)`,
         order_id: data.order.id,
+        // Location-specific payment method preferences
+        method: userCountry === 'IN' ? {
+          upi: true,
+          card: true,
+          netbanking: true,
+          wallet: true,
+          emi: true
+        } : {
+          card: true
+        },
         handler: async function (response: any) {
           try {
             // Verify payment on backend

@@ -20,9 +20,20 @@ interface RazorpaySubscriptionOptions {
   prefill: {
     name: string;
     email: string;
+    contact?: string;
   };
   theme: {
     color: string;
+  };
+  method?: {
+    upi?: boolean;
+    card?: boolean;
+    netbanking?: boolean;
+    wallet?: boolean;
+    emi?: boolean;
+  };
+  modal?: {
+    ondismiss?: () => void;
   };
 }
 
@@ -291,6 +302,8 @@ export const useRazorpaySubscription = () => {
         return { success: false, error: 'User not authenticated' };
       }
 
+      const effectiveUserCountry = userCountry || 'IN';
+
       setLoading(true);
       try {
         const { data, error } = await supabase.functions.invoke('create-razorpay-subscription', {
@@ -298,8 +311,9 @@ export const useRazorpaySubscription = () => {
             planId,
             userEmail: user.email || '',
             userName: user.user_metadata?.full_name || user.email || 'User',
-            currency: 'INR', // Force INR for new pricing
-            userCountry: 'IN' // Force Indian pricing
+            // Subscription pricing is currently INR-only on the backend.
+            currency: 'INR',
+            userCountry: effectiveUserCountry
           }
         });
 
@@ -323,7 +337,7 @@ export const useRazorpaySubscription = () => {
 
           // Use subscription checkout instead of redirect
           setTimeout(() => {
-            openRazorpaySubscriptionCheckout(data.subscription_id, planId);
+            openRazorpaySubscriptionCheckout(data.subscription_id, planId, effectiveUserCountry);
           }, 1000);
         }
 
@@ -349,7 +363,7 @@ export const useRazorpaySubscription = () => {
       }
     },
 
-    openRazorpaySubscriptionCheckout: (subscriptionId: string, planId: 'Pro' | 'Business') => {
+    openRazorpaySubscriptionCheckout: (subscriptionId: string, planId: 'Pro' | 'Business', userCountry?: string) => {
       if (!window.Razorpay) {
         toast({
           title: "Error",
@@ -359,19 +373,29 @@ export const useRazorpaySubscription = () => {
         return;
       }
 
+      const normalizedCountry = (userCountry || 'IN').toUpperCase();
+      const isIndianUser = normalizedCountry === 'IN' || normalizedCountry === 'INDIA';
+
       const options: RazorpaySubscriptionOptions = {
         key: import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_your_key_id',
         subscription_id: subscriptionId,
         name: 'FAQify',
         description: `${planId} Plan Subscription`,
-        // Enable all payment methods for Indian users
-        method: {
-          upi: true,
-          card: true,
-          netbanking: true,
-          wallet: true,
-          emi: true
-        },
+        method: isIndianUser
+          ? {
+              upi: true,
+              card: true,
+              netbanking: true,
+              wallet: true,
+              emi: true
+            }
+          : {
+              card: true,
+              upi: false,
+              netbanking: false,
+              wallet: false,
+              emi: false
+            },
         handler: async (response: any) => {
           console.log('Razorpay subscription response:', response);
 
@@ -413,100 +437,52 @@ export const useRazorpaySubscription = () => {
       rzp.open();
     },
 
-    createAndOpenSubscription: async (planId: 'Pro' | 'Business') => {
-      const createSubscription = async (): Promise<SubscriptionResult> => {
-        if (!user) {
-          return { success: false, error: 'User not authenticated' };
-        }
-
-        setLoading(true);
-        try {
-          const { data, error } = await supabase.functions.invoke('create-razorpay-subscription', {
-            body: {
-              planId,
-              userEmail: user.email || '',
-              userName: user.user_metadata?.full_name || user.email || 'User',
-              currency: 'INR', // Force INR for new pricing
-              userCountry: 'IN' // Force Indian pricing
-            }
-          });
-
-          if (error) throw error;
-          if (!data.success) throw new Error(data.error || 'Failed to create subscription');
-
-          // For subscriptions, open checkout
-          if (data.subscription_id) {
-            toast({
-              title: "Opening Payment",
-              description: "Opening Razorpay subscription checkout...",
-            });
-
-            // Open subscription checkout
-            setTimeout(() => {
-              openRazorpaySubscriptionCheckout(data.subscription_id, planId);
-            }, 1000);
-          }
-
-          return {
-            success: true,
-            subscription_id: data.subscription_id,
-            status: data.status
-          };
-
-        } catch (error) {
-          console.error('Error creating subscription:', error);
-          return { success: false, error: error instanceof Error ? error.message : 'Failed to create subscription' };
-        } finally {
-          setLoading(false);
-        }
-      };
-
-      const result = await createSubscription();
-
-      if (result.success && result.subscription_id) {
-        setTimeout(() => {
-          // Use the openRazorpaySubscriptionCheckout method defined above
-          if (!window.Razorpay) {
-            toast({
-              title: "Error",
-              description: "Razorpay SDK not loaded. Please refresh the page.",
-              variant: "destructive",
-            });
-            return;
-          }
-
-          const options: RazorpaySubscriptionOptions = {
-            key: import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_your_key_id',
-            subscription_id: result.subscription_id!,
-            name: 'FAQify',
-            description: `${planId} Plan Subscription`,
-            handler: async (response: any) => {
-              console.log('Razorpay subscription response:', response);
-
-              toast({
-                title: "Subscription Activated!",
-                description: `Your ${planId} plan is now active. Redirecting to dashboard...`,
-              });
-
-              setTimeout(() => {
-                window.location.reload();
-              }, 2000);
-            },
-            prefill: {
-              name: user?.user_metadata?.full_name || user?.email || 'User',
-              email: user?.email || ''
-            },
-            theme: {
-              color: '#3b82f6'
-            }
-          };
-
-          const rzp = new window.Razorpay(options);
-          rzp.open();
-        }, 1000);
+    createAndOpenSubscription: async (planId: 'Pro' | 'Business', userCountry?: string) => {
+      if (!user) {
+        return { success: false, error: 'User not authenticated' };
       }
 
-      return result;
+      const effectiveUserCountry = userCountry || 'IN';
+
+      setLoading(true);
+      try {
+        const { data, error } = await supabase.functions.invoke('create-razorpay-subscription', {
+          body: {
+            planId,
+            userEmail: user.email || '',
+            userName: user.user_metadata?.full_name || user.email || 'User',
+            // Subscription pricing is currently INR-only on the backend.
+            currency: 'INR',
+            userCountry: effectiveUserCountry
+          }
+        });
+
+        if (error) throw error;
+        if (!data.success) throw new Error(data.error || 'Failed to create subscription');
+
+        // For subscriptions, open checkout
+        if (data.subscription_id) {
+          toast({
+            title: "Opening Payment",
+            description: "Opening Razorpay subscription checkout...",
+          });
+
+          setTimeout(() => {
+            openRazorpaySubscriptionCheckout(data.subscription_id, planId, effectiveUserCountry);
+          }, 1000);
+        }
+
+        return {
+          success: true,
+          subscription_id: data.subscription_id,
+          status: data.status
+        };
+      } catch (error) {
+        console.error('Error creating subscription:', error);
+        return { success: false, error: error instanceof Error ? error.message : 'Failed to create subscription' };
+      } finally {
+        setLoading(false);
+      }
     },
 
     // Subscription management methods
