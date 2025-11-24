@@ -185,7 +185,9 @@ export const Pricing = () => {
           wallet: paymentMethods.includes('wallets'),
           emi: paymentMethods.includes('emi')
         } : {
-          card: true
+          // For international customers, allow cards + wallets (PayPal) on Standard Checkout
+          card: true,
+          wallet: true
         },
         handler: async function (response: any) {
           try {

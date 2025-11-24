@@ -168,6 +168,17 @@ export const PlanUpgrade = () => {
   }, []);
 
 
+  const normalizedUserCountry = (userCountry || '').toUpperCase();
+  const isIndianUser = normalizedUserCountry === 'IN' || normalizedUserCountry === 'INDIA';
+
+  // For customers outside India, default to one-time payments (no auto-renewal)
+  useEffect(() => {
+    if (!isIndianUser && paymentType === 'subscription') {
+      setPaymentType('one_time');
+    }
+  }, [isIndianUser, paymentType]);
+
+
 
   // INR pricing for Razorpay international activation
   const getPrice = (inrPrice: number) => {
@@ -286,6 +297,16 @@ export const PlanUpgrade = () => {
   const handleSubscriptionUpgrade = async (planId: 'Pro' | 'Business') => {
     if (processingPlan) return;
 
+    // Subscriptions are currently supported only for Indian customers (INR).
+    if (!isIndianUser) {
+      toast({
+        title: "Subscriptions not available in your region",
+        description: "For customers outside India, please use One Time payment (Card / PayPal).",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setProcessingPlan(planId);
 
     try {
@@ -357,14 +378,16 @@ export const PlanUpgrade = () => {
         description: `${data.plan.name} Plan (30 Days)`,
         order_id: data.order.id,
         // Location-specific payment method preferences
-        method: userCountry === 'IN' ? {
+        method: isIndianUser ? {
           upi: true,
           card: true,
           netbanking: true,
           wallet: true,
           emi: true
         } : {
-          card: true
+          // For international customers, allow cards + wallets (PayPal) on Standard Checkout
+          card: true,
+          wallet: true
         },
         handler: async function (response: any) {
           try {
@@ -438,12 +461,17 @@ export const PlanUpgrade = () => {
         <div className="flex items-center justify-center space-x-4 mb-8">
           <div className="flex items-center space-x-2 bg-gray-800 rounded-lg p-1">
             <button
-              onClick={() => setPaymentType('subscription')}
+              onClick={() => {
+                if (isIndianUser) {
+                  setPaymentType('subscription');
+                }
+              }}
+              disabled={!isIndianUser}
               className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                 paymentType === 'subscription'
                   ? 'bg-blue-600 text-white'
                   : 'text-gray-400 hover:text-white'
-              }`}
+              } ${!isIndianUser ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               Auto Renew
             </button>
@@ -474,7 +502,7 @@ export const PlanUpgrade = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-7xl mx-auto">
         {plans.map((plan, index) => (
-          <Card 
+          <Card
             key={index}
             className={`relative bg-gray-900/50 border-gray-800 hover:border-blue-500/50 transition-all duration-300 ${
               plan.popular ? 'ring-2 ring-blue-500/50 border-blue-500 scale-105' : ''
@@ -488,7 +516,7 @@ export const PlanUpgrade = () => {
                 </div>
               </div>
             )}
-            
+
             {plan.current && (
               <div className="absolute -top-4 right-4">
                 <Badge className="bg-green-600 text-white">Current Plan</Badge>
