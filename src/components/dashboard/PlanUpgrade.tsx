@@ -171,12 +171,7 @@ export const PlanUpgrade = () => {
   const normalizedUserCountry = (userCountry || '').toUpperCase();
   const isIndianUser = normalizedUserCountry === 'IN' || normalizedUserCountry === 'INDIA';
 
-  // For customers outside India, default to one-time payments (no auto-renewal)
-  useEffect(() => {
-    if (!isIndianUser && paymentType === 'subscription') {
-      setPaymentType('one_time');
-    }
-  }, [isIndianUser, paymentType]);
+
 
 
 
@@ -296,16 +291,6 @@ export const PlanUpgrade = () => {
 
   const handleSubscriptionUpgrade = async (planId: 'Pro' | 'Business') => {
     if (processingPlan) return;
-
-    // Subscriptions are currently supported only for Indian customers (INR).
-    if (!isIndianUser) {
-      toast({
-        title: "Subscriptions not available in your region",
-        description: "For customers outside India, please use One Time payment (Card / PayPal).",
-        variant: "destructive",
-      });
-      return;
-    }
 
     setProcessingPlan(planId);
 
