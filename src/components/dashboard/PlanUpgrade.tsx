@@ -446,17 +446,12 @@ export const PlanUpgrade = () => {
         <div className="flex items-center justify-center space-x-4 mb-8">
           <div className="flex items-center space-x-2 bg-gray-800 rounded-lg p-1">
             <button
-              onClick={() => {
-                if (isIndianUser) {
-                  setPaymentType('subscription');
-                }
-              }}
-              disabled={!isIndianUser}
+              onClick={() => setPaymentType('subscription')}
               className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                 paymentType === 'subscription'
                   ? 'bg-blue-600 text-white'
                   : 'text-gray-400 hover:text-white'
-              } ${!isIndianUser ? 'opacity-50 cursor-not-allowed' : ''}`}
+              }`}
             >
               Auto Renew
             </button>
