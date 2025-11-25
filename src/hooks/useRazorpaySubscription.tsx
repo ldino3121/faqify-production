@@ -145,15 +145,15 @@ export const useRazorpaySubscription = () => {
         },
         (payload) => {
           console.log('Subscription updated:', payload);
-          
+
           if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
             setSubscription(payload.new as SubscriptionData);
-            
+
             // Show toast notification for plan changes
             if (payload.eventType === 'UPDATE' && payload.old && payload.new) {
               const oldPlan = (payload.old as SubscriptionData).plan_tier;
               const newPlan = (payload.new as SubscriptionData).plan_tier;
-              
+
               if (oldPlan !== newPlan) {
                 toast({
                   title: "Plan Updated!",
@@ -179,10 +179,10 @@ export const useRazorpaySubscription = () => {
         },
         (payload) => {
           console.log('Transaction updated:', payload);
-          
+
           if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
             const transaction = payload.new as PaymentTransaction;
-            
+
             setTransactions(prev => {
               const filtered = prev.filter(t => t.id !== transaction.id);
               return [transaction, ...filtered].slice(0, 10);
@@ -192,7 +192,7 @@ export const useRazorpaySubscription = () => {
             if (payload.eventType === 'UPDATE' && payload.old && payload.new) {
               const oldStatus = (payload.old as PaymentTransaction).status;
               const newStatus = (payload.new as PaymentTransaction).status;
-              
+
               if (oldStatus !== newStatus) {
                 if (newStatus === 'completed') {
                   toast({
@@ -223,15 +223,15 @@ export const useRazorpaySubscription = () => {
   // Helper functions
   const isSubscriptionActive = () => {
     if (!subscription) return false;
-    
+
     if (subscription.plan_tier === 'Free') return true;
-    
+
     if (subscription.status !== 'active') return false;
-    
+
     if (subscription.plan_expires_at) {
       return new Date(subscription.plan_expires_at) > new Date();
     }
-    
+
     return true;
   };
 
@@ -247,12 +247,12 @@ export const useRazorpaySubscription = () => {
 
   const getDaysUntilExpiry = () => {
     if (!subscription?.plan_expires_at) return null;
-    
+
     const expiryDate = new Date(subscription.plan_expires_at);
     const today = new Date();
     const diffTime = expiryDate.getTime() - today.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
+
     return diffDays;
   };
 
@@ -275,24 +275,99 @@ export const useRazorpaySubscription = () => {
     setLoading(false);
   };
 
+	  const openRazorpaySubscriptionCheckout = (subscriptionId: string, planId: 'Pro' | 'Business', userCountry?: string) => {
+	    if (!window.Razorpay) {
+	      toast({
+	        title: "Error",
+	        description: "Razorpay SDK not loaded. Please refresh the page.",
+	        variant: "destructive",
+	      });
+	      return;
+	    }
+
+	    const normalizedCountry = (userCountry || 'IN').toUpperCase();
+	    const isIndianUser = normalizedCountry === 'IN' || normalizedCountry === 'INDIA';
+
+	    const options: RazorpaySubscriptionOptions = {
+	      key: import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_your_key_id',
+	      subscription_id: subscriptionId,
+	      name: 'FAQify',
+	      description: `${planId} Plan Subscription`,
+	      method: isIndianUser
+	        ? {
+	            upi: true,
+	            card: true,
+	            netbanking: true,
+	            wallet: true,
+	            emi: true
+	          }
+	        : {
+	            card: true,
+	            upi: false,
+	            netbanking: false,
+	            wallet: false,
+	            emi: false
+	          },
+	      handler: async (response: any) => {
+	        console.log('Razorpay subscription response:', response);
+
+	        toast({
+	          title: "Subscription Activated!",
+	          description: `Your ${planId} plan is now active. Redirecting to dashboard...`,
+	        });
+
+	        setTimeout(() => {
+	          window.location.reload();
+	        }, 2000);
+	      },
+	      prefill: {
+	        name: user?.user_metadata?.full_name || user?.email || 'User',
+	        email: user?.email || '',
+	        contact: user?.user_metadata?.phone || ''
+	      },
+	      theme: {
+	        color: '#3b82f6'
+	      },
+	      modal: {
+	        ondismiss: function () {
+	          console.log('Subscription checkout dismissed');
+	        }
+	      }
+	    };
+
+	    const rzp = new window.Razorpay(options);
+
+	    rzp.on('payment.failed', (response: any) => {
+	      console.error('Razorpay payment failed:', response);
+	      toast({
+	        title: "Payment Failed",
+	        description: response.error?.description || "Payment failed. Please try again.",
+	        variant: "destructive",
+	      });
+	    });
+
+	    rzp.open();
+	  };
+
+
   return {
     // Data
     subscription,
     transactions,
     loading,
     error,
-    
+
     // Status helpers
     isSubscriptionActive: isSubscriptionActive(),
     remainingFAQs: getRemainingFAQs(),
     usagePercentage: getUsagePercentage(),
     daysUntilExpiry: getDaysUntilExpiry(),
-    
+
     // Transaction helpers
     latestTransaction: getLatestTransaction(),
     pendingTransactions: getPendingTransactions(),
     completedTransactions: getCompletedTransactions(),
-    
+
     // Actions
     refresh,
 
@@ -368,79 +443,7 @@ export const useRazorpaySubscription = () => {
       }
     },
 
-    openRazorpaySubscriptionCheckout: (subscriptionId: string, planId: 'Pro' | 'Business', userCountry?: string) => {
-      if (!window.Razorpay) {
-        toast({
-          title: "Error",
-          description: "Razorpay SDK not loaded. Please refresh the page.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      const normalizedCountry = (userCountry || 'IN').toUpperCase();
-      const isIndianUser = normalizedCountry === 'IN' || normalizedCountry === 'INDIA';
-
-      const options: RazorpaySubscriptionOptions = {
-        key: import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_your_key_id',
-        subscription_id: subscriptionId,
-        name: 'FAQify',
-        description: `${planId} Plan Subscription`,
-        method: isIndianUser
-          ? {
-              upi: true,
-              card: true,
-              netbanking: true,
-              wallet: true,
-              emi: true
-            }
-          : {
-              card: true,
-              upi: false,
-              netbanking: false,
-              wallet: false,
-              emi: false
-            },
-        handler: async (response: any) => {
-          console.log('Razorpay subscription response:', response);
-
-          toast({
-            title: "Subscription Activated!",
-            description: `Your ${planId} plan is now active. Redirecting to dashboard...`,
-          });
-
-          setTimeout(() => {
-            window.location.reload();
-          }, 2000);
-        },
-        prefill: {
-          name: user?.user_metadata?.full_name || user?.email || 'User',
-          email: user?.email || '',
-          contact: user?.user_metadata?.phone || ''
-        },
-        theme: {
-          color: '#3b82f6'
-        },
-        modal: {
-          ondismiss: function () {
-            console.log('Subscription checkout dismissed');
-          }
-        }
-      };
-
-      const rzp = new window.Razorpay(options);
-
-      rzp.on('payment.failed', (response: any) => {
-        console.error('Razorpay payment failed:', response);
-        toast({
-          title: "Payment Failed",
-          description: response.error?.description || "Payment failed. Please try again.",
-          variant: "destructive",
-        });
-      });
-
-      rzp.open();
-    },
+    openRazorpaySubscriptionCheckout,
 
     createAndOpenSubscription: async (planId: 'Pro' | 'Business', userCountry?: string) => {
       if (!user) {
