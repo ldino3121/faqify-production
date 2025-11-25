@@ -175,19 +175,20 @@ export const PlanUpgrade = () => {
 
 
 
-  // INR pricing for Razorpay international activation
-  const getPrice = (inrPrice: number) => {
+  // USD pricing (primary billing currency for subscriptions)
+  // Display amounts in whole USD (e.g. 9 => $9/month, 29 => $29/month)
+  const getPrice = (usdAmount: number) => {
     return {
-      amount: inrPrice,
-      symbol: '₹',
-      currency: 'INR'
+      amount: usdAmount,
+      symbol: '$',
+      currency: 'USD'
     };
   };
 
   const plans: Plan[] = [
     {
       name: "Free",
-      price: "₹0",
+      price: "$0",
       originalPrice: null,
       period: "forever",
       description: "Perfect for trying out FAQify",
@@ -212,7 +213,7 @@ export const PlanUpgrade = () => {
     {
       name: "Pro",
       price: (() => {
-        const monthlyPrice = getPrice(750);
+        const monthlyPrice = getPrice(9); // $9 per month
         return `${monthlyPrice.symbol}${monthlyPrice.amount}`;
       })(),
       originalPrice: null,
@@ -239,7 +240,7 @@ export const PlanUpgrade = () => {
     {
       name: "Business",
       price: (() => {
-        const monthlyPrice = getPrice(2500);
+        const monthlyPrice = getPrice(29); // $29 per month
         return `${monthlyPrice.symbol}${monthlyPrice.amount}`;
       })(),
       originalPrice: null,
@@ -340,11 +341,11 @@ export const PlanUpgrade = () => {
         description: "Setting up your payment...",
       });
 
-      // Create Razorpay order via edge function with detected region
+      // Create Razorpay order via edge function (USD-only pricing)
       const { data, error } = await supabase.functions.invoke('create-razorpay-order', {
         body: {
           planId: planName, // Keep original case: "Pro" or "Business"
-          currency: userCurrency,
+          currency: 'usd',
           userCountry,
           paymentType: 'onetime'
         }
