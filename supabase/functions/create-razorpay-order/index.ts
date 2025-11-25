@@ -163,63 +163,28 @@ serve(async (req) => {
       });
     }
 
-    // Smart currency detection for Indian users
-    let targetCurrency = currency.toLowerCase();
+    // Global USD pricing for all users (one-time payments)
+    let targetCurrency = 'usd';
     let amount: number;
 
-    // Auto-detect currency for Indian users
-    if (userCountry === 'IN' || userCountry === 'India') {
-      targetCurrency = 'inr';
-    }
-
-    console.log('Plan pricing details:', {
+    console.log('Plan pricing details (USD only):', {
       planName: plan.name,
-      price_monthly: plan.price_monthly,
-      price_inr: plan.price_inr,
-      price_eur: plan.price_eur,
-      price_gbp: plan.price_gbp,
+      price_monthly_usd_cents: plan.price_monthly,
+      price_inr_legacy: plan.price_inr,
+      price_eur_legacy: plan.price_eur,
+      price_gbp_legacy: plan.price_gbp,
       targetCurrency,
-      userCountry
+      userCountry,
+      requestedCurrency: currency
     });
 
-    // Currency-based pricing with FIXED INR support (in paise)
-    switch (targetCurrency) {
-      case 'inr':
-        // Use correct INR pricing for new plans (convert to paise)
-        if (plan.name === 'Pro') {
-          amount = 750 * 100; // ₹750 = 75000 paise for Pro plan
-        } else if (plan.name === 'Business') {
-          amount = 2500 * 100; // ₹2500 = 250000 paise for Business plan
-        } else if (plan.name === 'Free') {
-          amount = 0; // Free plan
-        } else {
-          // Fallback to database value or conversion (convert to paise)
-          amount = (plan.price_inr || plan.price_monthly * 83) * 100;
-        }
-        break;
-      case 'eur':
-        amount = plan.price_eur || plan.price_monthly;
-        break;
-      case 'gbp':
-        amount = plan.price_gbp || plan.price_monthly;
-        break;
-      case 'usd':
-      default:
-        amount = plan.price_monthly;
-        targetCurrency = 'usd';
-        break;
-    }
+    // Use price_monthly as USD amount in smallest units (cents)
+    amount = plan.price_monthly;
 
-    console.log('Calculated amount:', { amount, targetCurrency, planName: plan.name });
-    console.log('FIXED PRICING - Using hardcoded INR amounts:', {
-      planName: plan.name,
+    console.log('Calculated USD amount for one-time payment:', {
+      amount,
       targetCurrency,
-      finalAmount: amount,
-      expectedAmounts: {
-        'Pro': '₹750',
-        'Business': '₹2500',
-        'Free': '₹0'
-      }
+      planName: plan.name
     });
 
     if (amount <= 0) {

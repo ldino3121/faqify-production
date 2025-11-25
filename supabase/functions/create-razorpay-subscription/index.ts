@@ -88,47 +88,51 @@ serve(async (req) => {
     }
 
     console.log('Found plan in database:', selectedPlan);
-    console.log('Plan pricing details:', {
+    console.log('Plan pricing details (USD):', {
       name: selectedPlan.name,
-      price_monthly: selectedPlan.price_monthly,
-      price_inr: selectedPlan.price_inr,
-      razorpay_plan_id_inr: selectedPlan.razorpay_plan_id_inr,
+      price_monthly_usd_cents: selectedPlan.price_monthly,
+      price_inr_legacy: selectedPlan.price_inr,
+      razorpay_plan_id_usd: (selectedPlan as any).razorpay_plan_id_usd,
+      razorpay_plan_id_inr_legacy: selectedPlan.razorpay_plan_id_inr,
       faq_limit: selectedPlan.faq_limit
     });
 
-    // Set INR pricing for records - normalize to paise
-    const targetCurrency = 'INR';
-    // Normalize amount to paise regardless of whether DB stores rupees or paise
-    const amountPaise = (() => {
-      const p = selectedPlan?.price_inr;
+    // USD is now the primary subscription currency for all users
+    const targetCurrency = 'USD';
+    // price_monthly is stored in cents for USD (e.g. 900 = $9.00)
+    const amountCents = (() => {
+      const p = selectedPlan?.price_monthly;
       if (typeof p === 'number' && p > 0) {
-        // If value looks like paise (>= 1000), use as-is; otherwise treat as rupees and convert
-        return p >= 1000 ? Math.round(p) : Math.round(p * 100);
+        return Math.round(p);
       }
-      const fallback = selectedPlan?.price_monthly ?? 0; // assume rupees
-      return Math.round(fallback * 100);
+      // Fallback: derive from legacy INR price if needed
+      const legacyInr = selectedPlan?.price_inr ?? 0;
+      if (legacyInr > 0) {
+        return Math.round(legacyInr);
+      }
+      return 0;
     })();
     const currencyPlan = {
-      amount: amountPaise,
+      amount: amountCents,
       currency: targetCurrency
     };
 
-    // Use INR Razorpay Plan IDs from database
-    let razorpayPlanId = selectedPlan?.razorpay_plan_id_inr;
+    // Use USD Razorpay Plan IDs from database (preferred)
+    let razorpayPlanId = (selectedPlan as any).razorpay_plan_id_usd;
 
-    // If no plan ID in database, use your NEW INR Razorpay Plan IDs from dashboard
+    // If no USD plan ID in database, fall back to the explicit USD plan IDs from your dashboard
     if (!razorpayPlanId) {
-      console.log('No plan ID in database, using NEW INR Razorpay plan IDs from dashboard');
+      console.log('No USD plan ID in database, using explicit USD Razorpay plan IDs from dashboard');
       if (planId === 'Pro') {
-        // NEW Pro Plan ID for ₹750 from your Razorpay dashboard
-        razorpayPlanId = 'plan_RGcv1a3WtevwV8';
+        // USD Pro Plan ID for $9 from your Razorpay dashboard
+        razorpayPlanId = 'plan_Rk4UC2Kxsh78K9';
       } else if (planId === 'Business') {
-        // NEW Business Plan ID for ₹2500 from your Razorpay dashboard
-        razorpayPlanId = 'plan_RGcucvclIXXAgp';
+        // USD Business Plan ID for $29 from your Razorpay dashboard
+        razorpayPlanId = 'plan_Rk4Uu6Syvg6cZH';
       }
     }
 
-    console.log('Final Razorpay Plan ID:', razorpayPlanId);
+    console.log('Final Razorpay Plan ID (USD):', razorpayPlanId);
     console.log('Target Currency:', targetCurrency);
     console.log('Plan Configuration:', { planId, targetCurrency, selectedPlan, currencyPlan });
 

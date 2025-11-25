@@ -52,6 +52,13 @@ export const Pricing = () => {
   const { user } = useAuth();
   const { toast } = useToast();
 
+  // Primary billing configuration: USD-only
+  const [userCountry] = useState<string>('IN');
+  const [paymentMethods] = useState<string[]>(['upi', 'cards', 'netbanking', 'wallets', 'emi']);
+  const countryOverride: string | null = null;
+  const locationData: any | null = null;
+  const preferredCurrency = 'usd';
+
   // Load Razorpay script
   useEffect(() => {
     const loadRazorpay = () => {
@@ -96,7 +103,7 @@ export const Pricing = () => {
     {
       id: 'pro',
       name: 'Pro',
-      price_monthly: 750, // ₹750 per month
+      price_monthly: 9, // $9 per month
       faq_limit: 100,
       features: [
         'Website URL analysis',
@@ -113,7 +120,7 @@ export const Pricing = () => {
     {
       id: 'business',
       name: 'Business',
-      price_monthly: 2500, // ₹2500 per month
+      price_monthly: 29, // $29 per month
       faq_limit: 500,
       features: [
         'Website URL analysis',
@@ -154,11 +161,11 @@ export const Pricing = () => {
 
 
 
-      // Create Razorpay order
+      // Create Razorpay order (USD-only pricing)
       const { data, error } = await supabase.functions.invoke('create-razorpay-order', {
         body: {
           planId: planId,
-          currency: preferredCurrency,
+          currency: 'usd',
           userCountry: countryOverride || userCountry
         }
       });
@@ -306,17 +313,33 @@ export const Pricing = () => {
     }
   };
 
-  // Main upgrade handler - uses Razorpay by default
+  // Main upgrade handler - switches between subscription (auto-renew) and one-time payment
   const handleUpgrade = (planId: string) => {
-    handleRazorpayPayment(planId);
+    if (paymentType === 'subscription') {
+      // Use Razorpay Subscriptions for auto-renew
+      if (planId === 'pro') {
+        createAndOpenSubscription('Pro');
+      } else if (planId === 'business') {
+        createAndOpenSubscription('Business');
+      } else {
+        toast({
+          title: 'Subscription Not Available',
+          description: 'Auto-renew is only available for Pro and Business plans.',
+          variant: 'destructive'
+        });
+      }
+    } else {
+      // Use existing one-time Razorpay order flow
+      handleRazorpayPayment(planId);
+    }
   };
 
-  // INR pricing for Razorpay international activation
+  // USD pricing display for landing page (primary billing currency)
   const getPrice = (plan: Plan) => {
     return {
       amount: plan.price_monthly,
-      symbol: '₹',
-      currency: 'INR'
+      symbol: '$',
+      currency: 'USD'
     };
   };
 

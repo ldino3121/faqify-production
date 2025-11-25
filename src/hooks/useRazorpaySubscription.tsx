@@ -311,8 +311,7 @@ export const useRazorpaySubscription = () => {
             planId,
             userEmail: user.email || '',
             userName: user.user_metadata?.full_name || user.email || 'User',
-            // Subscription pricing is currently INR-only on the backend.
-            currency: 'INR',
+            // Backend now handles currency based on plan configuration (USD by default)
             userCountry: effectiveUserCountry
           }
         });
@@ -335,10 +334,16 @@ export const useRazorpaySubscription = () => {
             description: "Opening Razorpay subscription checkout...",
           });
 
-          // Use subscription checkout instead of redirect
-          setTimeout(() => {
+          try {
             openRazorpaySubscriptionCheckout(data.subscription_id, planId, effectiveUserCountry);
-          }, 1000);
+          } catch (err) {
+            console.error('Error opening Razorpay subscription checkout:', err);
+            toast({
+              title: "Unable to Open Payment Window",
+              description: "Your subscription was created but the payment window could not be opened. Please check if your browser blocked the popup and try again.",
+              variant: "destructive",
+            });
+          }
         }
 
         return {
@@ -451,14 +456,18 @@ export const useRazorpaySubscription = () => {
             planId,
             userEmail: user.email || '',
             userName: user.user_metadata?.full_name || user.email || 'User',
-            // Subscription pricing is currently INR-only on the backend.
-            currency: 'INR',
+            // Backend now handles currency based on plan configuration (USD by default)
             userCountry: effectiveUserCountry
           }
         });
 
         if (error) throw error;
         if (!data.success) throw new Error(data.error || 'Failed to create subscription');
+
+        toast({
+          title: "Subscription Created!",
+          description: `Your ${planId} plan subscription is being processed. Complete the payment to activate.`,
+        });
 
         // For subscriptions, open checkout
         if (data.subscription_id) {
@@ -467,9 +476,23 @@ export const useRazorpaySubscription = () => {
             description: "Opening Razorpay subscription checkout...",
           });
 
-          setTimeout(() => {
+          try {
             openRazorpaySubscriptionCheckout(data.subscription_id, planId, effectiveUserCountry);
-          }, 1000);
+          } catch (err) {
+            console.error('Error opening Razorpay subscription checkout:', err);
+            toast({
+              title: "Unable to Open Payment Window",
+              description: "Your subscription was created but the payment window could not be opened. Please check if your browser blocked the popup and try again.",
+              variant: "destructive",
+            });
+          }
+        } else {
+          console.error('create-razorpay-subscription did not return a subscription_id', data);
+          toast({
+            title: "Subscription Not Ready for Payment",
+            description: "We could not start the payment session. Please try again in a few minutes or contact support.",
+            variant: "destructive",
+          });
         }
 
         return {
