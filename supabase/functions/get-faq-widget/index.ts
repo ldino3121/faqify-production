@@ -45,6 +45,7 @@ serve(async (req) => {
       .from('faq_collections')
       .select(`
         id,
+        user_id,
         title,
         description,
         status,
@@ -85,12 +86,21 @@ serve(async (req) => {
       .filter(faq => faq.is_published)
       .sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
 
+    // Branding gate (P1-13): Free tier must always show "Powered by FAQify"
+    const { data: sub } = await supabase
+      .from('user_subscriptions')
+      .select('plan_tier')
+      .eq('user_id', collection.user_id)
+      .maybeSingle();
+    const brandingRequired = ((sub as any)?.plan_tier ?? 'Free') === 'Free';
+
     // Prepare response data
     const responseData = {
       id: collection.id,
       title: collection.title,
       description: collection.description,
       styling_options: collection.styling_options || {},
+      brandingRequired,
       faqs: publishedFAQs.map(faq => ({
         id: faq.id,
         question: faq.question,

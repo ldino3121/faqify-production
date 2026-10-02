@@ -1,6 +1,7 @@
 
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.50.2';
 
 // 🛡️ BULLETPROOF GOOGLE GEMINI API CONFIGURATION
 // This configuration is designed to NEVER FAIL regardless of environment changes
@@ -37,6 +38,13 @@ const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// Public app origin for bot identification (env-driven; placeholder until the
+// production domain is configured). See PUBLIC_APP_URL / P0-1.
+const APP_ORIGIN = (Deno.env.get('PUBLIC_APP_URL') ?? 'https://YOUR-DOMAIN.example').replace(/\/+$/, '');
+const APP_HOST = (() => {
+  try { return new URL(APP_ORIGIN).hostname; } catch { return 'YOUR-DOMAIN.example'; }
+})();
 
 // PRODUCTION MODE - NEVER allow demo mode
 const FORCE_PRODUCTION_MODE = true;
@@ -141,6 +149,59 @@ serve(async (req) => {
       fileName
     });
 
+    // 🔒 AUTH + QUOTA ENFORCEMENT (defense in depth; verify_jwt is also enabled).
+    // The client already pre-checks, but we must never trust it for billing/cost.
+    const supabaseAdmin = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+    );
+
+    const authHeader = req.headers.get('Authorization') || '';
+    const token = authHeader.replace('Bearer ', '').trim();
+    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
+    if (authError || !user) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const { data: eligibility, error: eligibilityError } = await supabaseAdmin.rpc('can_generate_faqs', {
+      user_uuid: user.id,
+      faq_count: validFaqCount,
+    });
+    if (eligibilityError) {
+      // Fail-open only if the RPC is unavailable (the client also checks quota).
+      console.error('Eligibility check failed (proceeding):', eligibilityError);
+    } else if (!eligibility?.can_generate) {
+      return new Response(JSON.stringify({
+        error: eligibility?.reason || 'FAQ quota exceeded',
+        code: 'QUOTA_EXCEEDED',
+      }), {
+        status: 429,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Lightweight hourly rate limit (P1-13): max 20 generations/hour per user.
+    try {
+      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+      const { count } = await supabaseAdmin
+        .from('usage_analytics')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('action', 'faq_usage_incremented')
+        .gte('created_at', oneHourAgo);
+      if ((count ?? 0) >= 20) {
+        return new Response(JSON.stringify({ error: 'Rate limit exceeded. Please try again later.', code: 'RATE_LIMITED' }), {
+          status: 429,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    } catch (e) {
+      console.warn('Rate limit check skipped (non-fatal):', e);
+    }
+
     let contentToAnalyze = '';
 
     if (type === 'url' && url) {
@@ -224,9 +285,9 @@ serve(async (req) => {
               // Bot-friendly approach
               fetchOptions = {
                 headers: {
-                  'User-Agent': 'FAQify-Bot/1.0 (+https://faqify.app/bot)',
+                  'User-Agent': `FAQify-Bot/1.0 (+${APP_ORIGIN}/bot)`,
                   'Accept': 'text/html',
-                  'From': 'bot@faqify.app'
+                  'From': `bot@${APP_HOST}`
                 },
                 signal: AbortSignal.timeout(15000),
                 redirect: 'follow'
@@ -684,16 +745,8 @@ serve(async (req) => {
     console.log('Content length being sent to Gemini:', contentToAnalyze.length);
     console.log('Bulletproof Gemini API Key configured:', !!BULLETPROOF_GEMINI_API_KEY);
 
-    // 🛡️ BULLETPROOF Google Gemini API call - GUARANTEED to work
-    const bulletproofApiUrl = `${BULLETPROOF_API_ENDPOINT}/${BULLETPROOF_GEMINI_MODEL}:generateContent?key=${BULLETPROOF_GEMINI_API_KEY}`;
-    console.log('🛡️ Using bulletproof API URL:', bulletproofApiUrl.replace(BULLETPROOF_GEMINI_API_KEY, 'API_KEY_HIDDEN'));
-
-    const response = await fetch(bulletproofApiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+    // 🛡️ Google Gemini API call with retry + fallback model (model resilience)
+    const requestPayload = {
         contents: [{
           parts: [{
             text: `You are an expert FAQ generator with ULTRA-ADVANCED content analysis capabilities. Your CRITICAL MISSION is to analyze ONLY the main article content and generate EXACTLY ${validFaqCount} relevant FAQs about the PRIMARY SUBJECT.
@@ -751,33 +804,62 @@ Content to analyze (EXTRACT MAIN TOPIC ONLY, IGNORE AUTHOR INFO):
 ${contentToAnalyze}`
           }]
         }],
-        generationConfig: {
-          temperature: 0.3, // Lower temperature for more consistent output
-          topK: 20,         // Reduced for more focused responses
-          topP: 0.8,        // More deterministic
-          maxOutputTokens: 3072, // Increased to accommodate more FAQs
+          generationConfig: {
+            temperature: 0.3, // Lower temperature for more consistent output
+            topK: 20,         // Reduced for more focused responses
+            topP: 0.8,        // More deterministic
+            maxOutputTokens: 3072, // Increased to accommodate more FAQs
+          }
+    };
+
+    // Retry (2x per model) on rate-limit / server / network errors, then fall back
+    // to a cheaper model so generation survives a primary-model outage.
+    const GEMINI_MODEL_CHAIN = [BULLETPROOF_GEMINI_MODEL, 'gemini-2.5-flash-lite'];
+    let response: Response | undefined = undefined;
+    let lastAttemptError = 'no attempt made';
+
+    modelLoop: for (const modelName of GEMINI_MODEL_CHAIN) {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const modelUrl = `${BULLETPROOF_API_ENDPOINT}/${modelName}:generateContent?key=${BULLETPROOF_GEMINI_API_KEY}`;
+        try {
+          response = await fetch(modelUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(requestPayload),
+          });
+        } catch (netErr) {
+          lastAttemptError = `Network error: ${netErr instanceof Error ? netErr.message : String(netErr)}`;
+          response = undefined;
         }
-      }),
-    });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('🚨 GOOGLE GEMINI API ERROR:', {
-        status: response.status,
-        statusText: response.statusText,
-        errorText: errorText,
-        headers: Object.fromEntries(response.headers.entries()),
-        apiKeyUsed: BULLETPROOF_GEMINI_API_KEY ? `${BULLETPROOF_GEMINI_API_KEY.substring(0, 12)}...` : 'none'
-      });
+        if (response?.ok) {
+          if (modelName !== BULLETPROOF_GEMINI_MODEL) {
+            console.log(`Fallback model used: ${modelName}`);
+          }
+          break modelLoop;
+        }
 
-      // Return detailed error information with 200 status to avoid SDK-level errors
-      // Supabase SDK treats 4xx/5xx as errors and sets response.data to null
-      // By returning 200 with error flag in body, we ensure response.data is populated
+        lastAttemptError = response ? `HTTP ${response.status}` : lastAttemptError;
+        const retryable = !response || response.status === 429 || response.status >= 500;
+        if (!retryable || attempt > 0) break; // non-retryable → move to the fallback model
+        await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+      }
+    }
+
+    if (!response || !response.ok) {
+      let errorText = lastAttemptError;
+      const status = response?.status ?? 0;
+      if (response) {
+        try { errorText = await response.text(); } catch { /* keep lastAttemptError */ }
+      }
+      console.error('GOOGLE GEMINI API ERROR:', { status, errorText, lastAttemptError });
+
+      // Return 200 with error flag so Supabase SDK populates response.data
       return new Response(JSON.stringify({
         error: true,
-        message: `Gemini API Error: ${response.status} - ${response.statusText}`,
+        message: `Gemini API Error: ${status} - ${lastAttemptError}`,
         details: errorText,
-        status: response.status,
+        status,
         isDemoMode: false,
         faqs: [] // Empty FAQs array to maintain response structure
       }), {

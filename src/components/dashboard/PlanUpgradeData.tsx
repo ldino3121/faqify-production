@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useSubscription } from "@/hooks/useSubscription";
 import { supabase } from "@/integrations/supabase/client";
+import { PLANS } from "@/config/plans";
 
 // Declare Razorpay for TypeScript
 declare global {
@@ -77,80 +78,27 @@ export const PlanUpgradeData = () => {
     setPreferredCurrency('usd');
   }, []);
 
-  const plans: Plan[] = [
-    {
-      name: "Free",
-      price: "$0",
+  const plans: Plan[] = PLANS.map((p) => {
+    const isCurrent = currentPlan === p.tier;
+    const cta = isCurrent ? "Current Plan" : p.tier === "Free" ? "Start Free" : `Upgrade to ${p.tier}`;
+    const features =
+      p.tier === "Free"
+        ? p.features
+        : [`${p.faqLimit} FAQ generations per month`, ...p.features];
+    return {
+      name: p.tier,
+      price: `$${p.priceMonthlyUsd}`,
       originalPrice: null,
-      period: "forever",
-      description: "Perfect for trying out FAQify",
-      features: [
-        "5 FAQ generations per month",
-        "Website URL analysis",
-        "Text content analysis",
-        "Document upload (PDF, DOCX)",
-        "AI-powered FAQ generation",
-        "Embed widget",
-        "WordPress integration",
-        "Analytics dashboard",
-        "Export functionality",
-        "Email support"
-      ],
+      period: p.tier === "Free" ? "forever" : "per month",
+      description: p.description,
+      features,
       limitations: [],
-      cta: currentPlan === "Free" ? "Current Plan" : "Start Free",
-      popular: false,
-      current: currentPlan === "Free",
-      disabled: currentPlan === "Free"
-    },
-    {
-      name: "Pro",
-      price: "$9",
-      originalPrice: null,
-      period: "per month",
-      description: "Ideal for small businesses and content creators",
-      features: [
-        "100 FAQ generations per month",
-        "Website URL analysis",
-        "Text content analysis",
-        "Document upload (PDF, DOCX)",
-        "AI-powered FAQ generation",
-        "Embed widget",
-        "WordPress integration",
-        "Analytics dashboard",
-        "Export functionality",
-        "Priority email support"
-      ],
-      limitations: [],
-      cta: currentPlan === "Pro" ? "Current Plan" : "Upgrade to Pro",
-      popular: true,
-      current: currentPlan === "Pro",
-      disabled: currentPlan === "Pro"
-    },
-    {
-      name: "Business",
-      price: "$29",
-      originalPrice: null,
-      period: "per month",
-      description: "For agencies and large organizations",
-      features: [
-        "500 FAQ generations per month",
-        "Website URL analysis",
-        "Text content analysis",
-        "Document upload (PDF, DOCX)",
-        "AI-powered FAQ generation",
-        "Embed widget",
-        "WordPress integration",
-        "Analytics dashboard",
-        "Export functionality",
-        "Priority support & phone support"
-      ],
-      limitations: [],
-      cta: currentPlan === "Business" ? "Current Plan" : "Upgrade to Business",
-      popular: false,
-      current: currentPlan === "Business",
-      disabled: currentPlan === "Business"
-    }
-  ];
+      cta,
+      popular: p.popular,
+      current: isCurrent,
+      disabled: isCurrent,
+    };
+  });
 
   // Helper function to get price in user's currency
   const getPriceInCurrency = (usdPrice: number) => {

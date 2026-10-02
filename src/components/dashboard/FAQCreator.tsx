@@ -383,6 +383,9 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
         description: `Your FAQ collection "${finalTitle}" has been saved.`,
       });
 
+      // Funnel: collection persisted (P1-10)
+      trackAnalyticsEvent('collection_saved', { collectionId: collection.id, faqCount: faqs.length });
+
       console.log('Save successful! Collection ID:', collection.id);
       return { success: true, collectionId: collection.id };
     } catch (error) {
@@ -655,6 +658,9 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
         }
       }
 
+      // Funnel: generation succeeded (P1-10)
+      trackAnalyticsEvent('generation_success', { count: responseData?.faqs?.length ?? 0, source: activeTab });
+
       const saveResult = await saveFAQsToDatabase(
         responseData.faqs,
         sourceUrl,
@@ -715,6 +721,10 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
 
     } catch (error) {
       console.error('Error generating FAQs:', error);
+      trackAnalyticsEvent('generation_failed', {
+        error: error instanceof Error ? error.message : 'unknown',
+        source: activeTab,
+      });
       toast({
         title: "Generation Failed",
         description: error instanceof Error ? error.message : "Failed to generate FAQs. Please try again.",
@@ -942,14 +952,16 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
         }
       });
 
-      // 🚀 PRODUCTION-READY: Generate self-contained embed code
+      // 🚀 PRODUCTION-READY: Generate self-contained embed code (with search enabled)
       const embedCode = WIDGET_CONFIG.generateEmbedCode(collectionId, 'light', {
         showPoweredBy: true,
         animation: true,
-        collapsible: true
+        collapsible: true,
+        search: true
       });
 
       copyToClipboard(embedCode);
+      trackAnalyticsEvent('embed_copied', { collectionId });
       toast({
         title: "Embed Code Copied!",
         description: `Paste this code into your website to display ${faqs.length} FAQs.`,

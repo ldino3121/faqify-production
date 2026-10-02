@@ -15,11 +15,23 @@
     <meta property="og:title" content="FAQify - AI-Powered FAQ Generator" />
     <meta property="og:description" content="Generate intelligent FAQs for your website with AI-powered content analysis" />
     <meta property="og:type" content="website" />
-    <meta property="og:image" content="/faqify-og-image.png" />
+    <!-- %APP_URL% is substituted at build time (Vite html tokens); other env values never leak here. -->
+    <meta property="og:image" content="%APP_URL%/faqify-og-image.png" />
 
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@faqify" />
-    <meta name="twitter:image" content="/faqify-og-image.png" />
+    <meta name="twitter:image" content="%APP_URL%/faqify-og-image.png" />
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "FAQify",
+      "applicationCategory": "BusinessApplication",
+      "operatingSystem": "Web",
+      "description": "AI-powered FAQ generator that turns your website content into embeddable FAQ widgets that reduce bounce and deflect support tickets.",
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+    }
+    </script>
   </head>
 
   <body>

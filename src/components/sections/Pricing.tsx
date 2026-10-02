@@ -9,6 +9,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useRazorpaySubscription } from "@/hooks/useRazorpaySubscription";
+import { trackEvent } from "@/utils/analytics";
+import { PLANS } from "@/config/plans";
 
 // Declare Razorpay for TypeScript
 declare global {
@@ -51,6 +53,8 @@ export const Pricing = () => {
   const [paymentType, setPaymentType] = useState<'one_time' | 'subscription'>('subscription');
   const { user } = useAuth();
   const { toast } = useToast();
+  // Required: handleUpgrade() calls createAndOpenSubscription for the auto-renew path.
+  const { createAndOpenSubscription, loading: subscriptionLoading } = useRazorpaySubscription();
 
   // Primary billing configuration: USD-only
   const [userCountry] = useState<string>('IN');
@@ -81,60 +85,14 @@ export const Pricing = () => {
     }
   }, []);
 
-  // Static pricing plans with standardized features
-  const plans = [
-    {
-      id: 'free',
-      name: 'Free',
-      price_monthly: 0,
-      faq_limit: 10, // Free plan: 10 FAQs per month
-      features: [
-        'Website URL analysis',
-        'Text content analysis',
-        'Document upload (PDF, DOCX)',
-        'AI-powered FAQ generation',
-        'Embed widget',
-        'WordPress integration',
-        'Analytics dashboard',
-        'Export functionality',
-        'Email support'
-      ]
-    },
-    {
-      id: 'pro',
-      name: 'Pro',
-      price_monthly: 9, // $9 per month
-      faq_limit: 100,
-      features: [
-        'Website URL analysis',
-        'Text content analysis',
-        'Document upload (PDF, DOCX)',
-        'AI-powered FAQ generation',
-        'Embed widget',
-        'WordPress integration',
-        'Analytics dashboard',
-        'Export functionality',
-        'Priority email support'
-      ]
-    },
-    {
-      id: 'business',
-      name: 'Business',
-      price_monthly: 29, // $29 per month
-      faq_limit: 500,
-      features: [
-        'Website URL analysis',
-        'Text content analysis',
-        'Document upload (PDF, DOCX)',
-        'AI-powered FAQ generation',
-        'Embed widget',
-        'WordPress integration',
-        'Analytics dashboard',
-        'Export functionality',
-        'Priority support & phone support'
-      ]
-    }
-  ];
+  // Plans come from the single source of truth (src/config/plans.ts)
+  const plans = PLANS.map((p) => ({
+    id: p.tier.toLowerCase(),
+    name: p.tier,
+    price_monthly: p.priceMonthlyUsd,
+    faq_limit: p.faqLimit,
+    features: p.features,
+  }));
 
   // Razorpay payment handler
   const handleRazorpayPayment = async (planId: string) => {
@@ -213,6 +171,9 @@ export const Pricing = () => {
               toast({
                 title: "Payment Successful!",
                 description: `Welcome to ${data.plan.name} plan! Your subscription is now active.`,
+              });
+              trackEvent('payment_success', {
+                metadata: { plan: data.plan.name, amount: data.order?.amount, type: 'subscription' },
               });
 
               // Redirect to dashboard
@@ -314,13 +275,16 @@ export const Pricing = () => {
   };
 
   // Main upgrade handler - switches between subscription (auto-renew) and one-time payment
-  const handleUpgrade = (planId: string) => {
+  const handleUpgrade = async (planId: string) => {
+    // Funnel: user initiated an upgrade (P1-10)
+    trackEvent('upgrade_clicked', { metadata: { planId, paymentType } });
+
     if (paymentType === 'subscription') {
       // Use Razorpay Subscriptions for auto-renew
-      if (planId === 'pro') {
-        createAndOpenSubscription('Pro');
-      } else if (planId === 'business') {
-        createAndOpenSubscription('Business');
+      if (planId === 'pro' || planId === 'business') {
+        setProcessingPlan(planId);
+        await createAndOpenSubscription(planId === 'pro' ? 'Pro' : 'Business', userCountry);
+        setProcessingPlan(null);
       } else {
         toast({
           title: 'Subscription Not Available',

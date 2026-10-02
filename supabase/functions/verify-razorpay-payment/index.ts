@@ -101,6 +101,17 @@ serve(async (req) => {
       });
     }
 
+    // Idempotency: if this payment was already processed, do nothing.
+    if (transaction.status === 'completed' && transaction.razorpay_payment_id === razorpay_payment_id) {
+      return new Response(JSON.stringify({
+        success: true,
+        idempotent: true,
+        message: 'Payment already verified and processed',
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     // Get plan details
     const { data: plan, error: planError } = await supabase
       .from('subscription_plans')
@@ -139,6 +150,14 @@ serve(async (req) => {
     // Calculate subscription dates
     const now = new Date();
     const planExpiresAt = new Date(now.getTime() + (30 * 24 * 60 * 60 * 1000)); // 30 days from now
+
+    // Capture current tier for accurate history (before mutating it)
+    const { data: priorSub } = await supabase
+      .from('user_subscriptions')
+      .select('plan_tier')
+      .eq('user_id', user.id)
+      .single();
+    const fromTier = priorSub?.plan_tier ?? 'Free';
 
     // Update user subscription
     const { error: subscriptionError } = await supabase
@@ -181,7 +200,7 @@ serve(async (req) => {
       .from('subscription_history')
       .insert({
         user_id: user.id,
-        from_plan_tier: 'Free', // Assuming upgrade from Free
+        from_plan_tier: fromTier,
         to_plan_tier: transaction.plan_tier,
         change_type: 'upgrade',
         change_reason: 'Payment completed via Razorpay',

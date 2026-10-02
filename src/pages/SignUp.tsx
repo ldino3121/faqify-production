@@ -7,6 +7,7 @@ import { Eye, EyeOff, Mail, Lock, User, Check, Loader2 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+import { trackEvent, getAttribution } from "@/utils/analytics";
 import { FAQifyIconSimple } from "@/components/ui/faqify-icon";
 
 const SignUp = () => {
@@ -21,6 +22,7 @@ const SignUp = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [socialLoading, setSocialLoading] = useState<string | null>(null);
   const [acceptTerms, setAcceptTerms] = useState(false);
+  const [confirmationSent, setConfirmationSent] = useState(false);
   const { toast } = useToast();
   const { signUp, signInWithGoogle } = useAuth();
   const navigate = useNavigate();
@@ -57,7 +59,19 @@ const SignUp = () => {
     
     try {
       await signUp(formData.email, formData.password, formData.name);
-      // Navigation is now handled in the auth hook
+      // Email confirmation is required before first sign-in (P0-4).
+      setConfirmationSent(true);
+      trackEvent('signup', {
+        metadata: {
+          method: 'email',
+          utm_source: getAttribution().utm_source,
+          referrer: getAttribution().referrer,
+        },
+      });
+      toast({
+        title: "Confirm your email",
+        description: `We sent a confirmation link to ${formData.email}. Please verify to continue.`,
+      });
     } catch (error) {
       toast({
         title: "Sign Up Failed",

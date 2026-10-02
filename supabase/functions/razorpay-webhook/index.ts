@@ -138,6 +138,17 @@ serve(async (req) => {
         const payment = event.payload.payment.entity;
         console.log('Subscription charged:', subscription.id);
 
+        // Idempotency: ignore duplicate charge webhooks for the same payment
+        const { data: existingChargeTx } = await supabase
+          .from('payment_transactions')
+          .select('id')
+          .eq('razorpay_payment_id', payment.id)
+          .maybeSingle();
+        if (existingChargeTx) {
+          console.log('Duplicate charge event ignored:', payment.id);
+          break;
+        }
+
         // Find user by Razorpay subscription ID
         const { data: userSubscription, error: userError } = await supabase
           .from('user_subscriptions')
@@ -255,6 +266,17 @@ serve(async (req) => {
         const userId = subscription.notes?.user_id;
         if (!userId) {
           console.error('No user_id in subscription notes');
+          break;
+        }
+
+        // Idempotency: skip if this subscription is already active for the user
+        const { data: existingSub } = await supabase
+          .from('user_subscriptions')
+          .select('status, razorpay_subscription_id')
+          .eq('user_id', userId)
+          .maybeSingle();
+        if (existingSub?.status === 'active' && existingSub?.razorpay_subscription_id === subscription.id) {
+          console.log('Subscription already activated, ignoring duplicate:', subscription.id);
           break;
         }
 

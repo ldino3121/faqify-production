@@ -11,19 +11,20 @@ export const Hero = () => {
         <div className="flex justify-center mb-6">
           <div className="flex items-center space-x-2 bg-blue-600/10 border border-blue-600/20 rounded-full px-4 py-2">
             <Sparkles className="h-4 w-4 text-blue-400" />
-            <span className="text-sm text-blue-400">AI-Powered FAQ Generation</span>
+            <span className="text-sm text-blue-400">AI-Powered FAQ &amp; Support Widget</span>
           </div>
         </div>
         
         <h1 className="text-5xl md:text-7xl font-bold mb-6 bg-gradient-to-r from-white via-gray-200 to-gray-400 bg-clip-text text-transparent">
-          Generate FAQs
+          Answer every
           <br />
-          <span className="text-blue-500">Instantly</span>
+          <span className="text-blue-500">visitor question</span>
         </h1>
         
         <p className="text-xl text-gray-400 mb-8 max-w-3xl mx-auto leading-relaxed">
-          Transform your website content, documents, or text into comprehensive FAQ sections using advanced AI. 
-          Perfect for WordPress sites and beyond.
+          FAQify turns your site, docs, or text into a searchable AI FAQ widget that answers real
+          questions at the moment of doubt — lifting conversions and deflecting support tickets.
+          Live on your site in under a minute.
         </p>
         
         <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12">
@@ -45,7 +46,7 @@ export const Hero = () => {
         <div className="flex justify-center items-center space-x-8 text-sm text-gray-500">
           <div className="flex items-center space-x-2">
             <Zap className="h-4 w-4 text-green-500" />
-            <span>10 Free FAQs</span>
+            <span>5 Free FAQs / month</span>
           </div>
           <div className="flex items-center space-x-2">
             <Zap className="h-4 w-4 text-green-500" />
@@ -53,7 +54,7 @@ export const Hero = () => {
           </div>
           <div className="flex items-center space-x-2">
             <Zap className="h-4 w-4 text-green-500" />
-            <span>WordPress Ready</span>
+            <span>Embed Anywhere</span>
           </div>
         </div>
       </div>

@@ -9,6 +9,9 @@
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.app.json",
+    "test": "vitest run",
+    "ci": "npm run typecheck && npm run lint && npm run build",
     "setup-razorpay-plans": "node scripts/setup-razorpay-plans.js"
   },
   "dependencies": {
@@ -80,6 +83,8 @@
     "eslint-plugin-react-hooks": "^5.1.0-rc.0",
     "eslint-plugin-react-refresh": "^0.4.9",
     "globals": "^15.9.0",
-    "typescript-eslint": "^8.0.1"
+    "jsdom": "^25.0.1",
+    "typescript-eslint": "^8.0.1",
+    "vitest": "^2.1.9"
   }
 }

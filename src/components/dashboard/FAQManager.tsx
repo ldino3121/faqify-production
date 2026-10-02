@@ -391,11 +391,12 @@ export const FAQManager = ({ onNavigateToCreate }: FAQManagerProps) => {
   };
 
   const generateEmbedCode = (collection: FAQCollection) => {
-    // Generate production-ready self-contained embed code
+    // Generate production-ready self-contained embed code (with search enabled)
     const code = WIDGET_CONFIG.generateEmbedCode(collection.id, 'light', {
       showPoweredBy: true,
       animation: true,
-      collapsible: true
+      collapsible: true,
+      search: true
     });
 
     setEmbedCode(code);

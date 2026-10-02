@@ -21,13 +21,13 @@ export const Features = () => {
     },
     {
       icon: Code,
-      title: "Easy Embedding",
-      description: "Copy-paste widget code to embed FAQs on WordPress or any website with zero technical knowledge.",
+      title: "Searchable Embed Widget",
+      description: "Drop a searchable, on-brand FAQ widget on WordPress or any site with one line of code — answering questions where visitors convert.",
     },
     {
       icon: Brain,
-      title: "AI-Powered",
-      description: "Advanced AI technology ensures accurate, relevant, and naturally written FAQ responses.",
+      title: "Support Deflection",
+      description: "AI-written answers to real customer questions, so fewer tickets land in your inbox and more visitors self-serve.",
     },
     {
       icon: Shield,
@@ -41,11 +41,11 @@ export const Features = () => {
       <div className="container mx-auto">
         <div className="text-center mb-16">
           <h2 className="text-4xl md:text-5xl font-bold mb-4 text-white">
-            Powerful Features for
-            <span className="text-blue-500"> Every Need</span>
+            Answer Questions,
+            <span className="text-blue-500"> Not Tickets</span>
           </h2>
           <p className="text-xl text-gray-400 max-w-2xl mx-auto">
-            Everything you need to create, manage, and deploy professional FAQ sections
+            Everything you need to convert more of the traffic you already have — and keep support load from growing with it
           </p>
         </div>
         

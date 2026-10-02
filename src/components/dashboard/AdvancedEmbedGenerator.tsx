@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { WIDGET_CONFIG } from "@/config/widget";
+import { PUBLIC_SUPABASE_URL } from "@/config/env";
 import { 
   Copy, 
   Code, 
@@ -24,6 +25,10 @@ interface EmbedConfig {
   showPoweredBy: boolean;
   animation: boolean;
   collapsible: boolean;
+  /** Show a client-side search box (P1-12) */
+  search: boolean;
+  /** Widget layout: accordion | list | columns (P1-12) */
+  layout: 'accordion' | 'list' | 'columns';
   customStyles: {
     primaryColor: string;
     backgroundColor: string;
@@ -45,6 +50,8 @@ export const AdvancedEmbedGenerator = ({ collectionId, collectionTitle }: Advanc
     showPoweredBy: true,
     animation: true,
     collapsible: true,
+    search: true,
+    layout: 'accordion',
     customStyles: {
       primaryColor: '#3B82F6',
       backgroundColor: '#FFFFFF',
@@ -76,7 +83,9 @@ export const AdvancedEmbedGenerator = ({ collectionId, collectionTitle }: Advanc
         return WIDGET_CONFIG.generateEmbedCode(collectionId, config.theme, {
           showPoweredBy: config.showPoweredBy,
           animation: config.animation,
-          collapsible: config.collapsible
+          collapsible: config.collapsible,
+          search: config.search,
+          layout: config.layout
         });
 
       case 'advanced':
@@ -85,6 +94,8 @@ export const AdvancedEmbedGenerator = ({ collectionId, collectionTitle }: Advanc
           showPoweredBy: config.showPoweredBy,
           animation: config.animation,
           collapsible: config.collapsible,
+          search: config.search,
+          layout: config.layout,
           customStyles: config.theme === 'custom' ? config.customStyles : {}
         });
 
@@ -104,7 +115,7 @@ const FAQWidget = () => {
       showPoweredBy: ${config.showPoweredBy},
       animation: ${config.animation},
       collapsible: ${config.collapsible},
-      apiUrl: 'https://dlzshcshqjdghmtzlbma.supabase.co'
+      apiUrl: '${PUBLIC_SUPABASE_URL}'
     };
 
     const container = containerRef.current;
@@ -170,7 +181,9 @@ export default FAQWidget;`;
 ${WIDGET_CONFIG.generateEmbedCode(collectionId, config.theme, {
   showPoweredBy: config.showPoweredBy,
   animation: config.animation,
-  collapsible: config.collapsible
+  collapsible: config.collapsible,
+  search: config.search,
+  layout: config.layout
 })}
 
 <!-- Method 2: Shortcode (Advanced) -->
@@ -335,6 +348,27 @@ add_shortcode('faqify', 'faqify_shortcode');
 
                 {/* Options */}
                 <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-gray-300">Search box</Label>
+                    <input
+                      type="checkbox"
+                      checked={config.search}
+                      onChange={(e) => setConfig({ ...config, search: e.target.checked })}
+                      className="rounded"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-gray-300">Layout</Label>
+                    <select
+                      value={config.layout}
+                      onChange={(e) => setConfig({ ...config, layout: e.target.value as EmbedConfig['layout'] })}
+                      className="bg-gray-700 text-gray-200 text-sm rounded px-2 py-1 border border-gray-600"
+                    >
+                      <option value="accordion">Accordion</option>
+                      <option value="list">List (expanded)</option>
+                      <option value="columns">Two columns</option>
+                    </select>
+                  </div>
                   <div className="flex items-center justify-between">
                     <Label className="text-gray-300">Show "Powered by FAQify"</Label>
                     <input

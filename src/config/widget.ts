@@ -1,48 +1,26 @@
-// 🛡️ BULLETPROOF Widget configuration for embed code generation
-export const WIDGET_CONFIG = {
-  // 🛡️ BULLETPROOF Production domain where widget.js will be hosted
-  PRODUCTION_DOMAIN: 'https://faqify.app', // Your actual production domain
+// Widget configuration for embed code generation.
+// The public app URL and Supabase API base are environment-driven (src/config/env.ts)
+// so embed codes are never tied to a hard-coded domain.
+import { PUBLIC_APP_URL, PUBLIC_SUPABASE_URL } from '@/config/env';
 
-  // 🛡️ BULLETPROOF Alternative domains for different environments
+export const WIDGET_CONFIG = {
+  PRODUCTION_DOMAIN: PUBLIC_APP_URL,
+
   DOMAINS: {
-    development: 'http://localhost:8084',
-    staging: 'https://staging-faqify.app', // If you have staging
-    production: 'https://faqify.app' // Your actual production domain
+    development: PUBLIC_APP_URL,
+    staging: PUBLIC_APP_URL,
+    production: PUBLIC_APP_URL,
   },
 
-  // 🛡️ BULLETPROOF Fallback domains in case primary fails
+  // Single fallback (the configured public app URL)
   FALLBACK_DOMAINS: [
-    'https://faqify.app',
-    'https://www.faqify.app', // Alternative if needed
-    'https://faqify-production.vercel.app' // Vercel fallback
+    PUBLIC_APP_URL
   ],
   
-  // 🛡️ BULLETPROOF Get the appropriate domain based on current environment
+  // Always emit the stable public app URL so embeds work on external sites
+  // regardless of where they were generated.
   getWidgetDomain(): string {
-    const currentOrigin = typeof window !== 'undefined' ? window.location.origin : '';
-
-    // 🛡️ BULLETPROOF: Always use production domain for embed codes
-    // This ensures embed codes work on external websites regardless of where they're generated
-    if (currentOrigin.includes('localhost') || currentOrigin.includes('127.0.0.1')) {
-      console.log('🛡️ Development environment detected - using production domain for embed');
-      return this.PRODUCTION_DOMAIN;
-    }
-
-    // 🛡️ BULLETPROOF: If running on staging, still use production for embed codes
-    if (currentOrigin.includes('staging')) {
-      console.log('🛡️ Staging environment detected - using production domain for embed');
-      return this.PRODUCTION_DOMAIN; // Changed from staging to production for reliability
-    }
-
-    // 🛡️ BULLETPROOF: Validate current origin before using it
-    if (currentOrigin && currentOrigin.startsWith('https://') && !currentOrigin.includes('localhost')) {
-      console.log('🛡️ Production environment detected - using current origin');
-      return currentOrigin;
-    }
-
-    // 🛡️ BULLETPROOF: Final fallback to production domain
-    console.log('🛡️ Fallback to production domain');
-    return this.PRODUCTION_DOMAIN;
+    return PUBLIC_APP_URL;
   },
   
   // 🚀 PRODUCTION-READY Generate self-contained embed code (no external dependencies)
@@ -50,6 +28,8 @@ export const WIDGET_CONFIG = {
     const poweredBy = options.showPoweredBy !== false;
     const animation = options.animation !== false;
     const collapsible = options.collapsible !== false;
+    const layout = ['accordion', 'list', 'columns'].includes(options.layout) ? options.layout : 'accordion';
+    const search = options.search === true;
 
     // 🛡️ BULLETPROOF: Validate collection ID
     if (!collectionId || collectionId.trim() === '') {
@@ -79,7 +59,9 @@ export const WIDGET_CONFIG = {
     showPoweredBy: ${poweredBy},
     animation: ${animation},
     collapsible: ${collapsible},
-    apiUrl: 'https://dlzshcshqjdghmtzlbma.supabase.co'
+    layout: '${layout}',
+    search: ${search},
+    apiUrl: '${PUBLIC_SUPABASE_URL}'
   };
 
   const container = document.getElementById('${widgetId}');
@@ -125,57 +107,84 @@ export const WIDGET_CONFIG = {
   // Render widget function
   function renderWidget(container, data, config) {
     const faqs = data.faqs || [];
+    // Server is authoritative: Free tier always shows branding; paid tiers may hide it.
+    const showPoweredBy = data.brandingRequired ? true : config.showPoweredBy;
+    const uid = config.collectionId.replace(/-/g, '_');
 
     if (faqs.length === 0) {
       container.innerHTML = '<div class="faqify-empty">No FAQs available.</div>';
       return;
     }
 
-    const faqsHtml = faqs.map((faq, index) =>
-      '<div class="faqify-item">' +
-        '<div class="faqify-question" onclick="toggleFAQ_' + config.collectionId.replace(/-/g, '_') + '(' + index + ')" data-index="' + index + '">' +
+    const searchHtml = config.search ?
+      '<div class="faqify-search"><input type="search" class="faqify-search-input" placeholder="Search FAQs..." aria-label="Search FAQs" /></div>' : '';
+
+    const itemsHtml = faqs.map(function(faq, index) {
+      const open = config.layout !== 'accordion';
+      const haystack = (faq.question + ' ' + faq.answer).toLowerCase().replace(/"/g, '');
+      return '<div class="faqify-item" data-search="' + haystack + '">' +
+        '<button type="button" class="faqify-question" aria-expanded="' + (open ? 'true' : 'false') + '" aria-controls="answer_' + uid + '_' + index + '" data-index="' + index + '">' +
           '<span class="faqify-question-text">' + escapeHtml(faq.question) + '</span>' +
-          '<span class="faqify-icon" id="icon_' + config.collectionId.replace(/-/g, '_') + '_' + index + '">▼</span>' +
-        '</div>' +
-        '<div class="faqify-answer" id="answer_' + config.collectionId.replace(/-/g, '_') + '_' + index + '">' +
+          '<span class="faqify-icon" aria-hidden="true" id="icon_' + uid + '_' + index + '">' + (config.layout === 'accordion' ? '▼' : '') + '</span>' +
+        '</button>' +
+        '<div class="faqify-answer' + (open ? ' expanded' : '') + '" id="answer_' + uid + '_' + index + '" role="region">' +
           '<div class="faqify-answer-content">' + escapeHtml(faq.answer) + '</div>' +
         '</div>' +
-      '</div>'
-    ).join('');
+      '</div>';
+    }).join('');
 
-    const poweredByHtml = config.showPoweredBy ?
+    const poweredByHtml = showPoweredBy ?
       '<div class="faqify-powered-by">Powered by <a href="#" class="faqify-link">FAQify</a></div>' : '';
 
     container.innerHTML =
-      '<div class="faqify-widget theme-' + config.theme + '">' +
-        '<div class="faqify-container">' +
-          faqsHtml +
-          poweredByHtml +
+      '<div class="faqify-widget theme-' + config.theme + '" data-layout="' + config.layout + '">' +
+        searchHtml +
+        '<div class="faqify-container faqify-layout-' + config.layout + '">' +
+          itemsHtml +
         '</div>' +
+        poweredByHtml +
       '</div>';
 
-    // Add toggle functionality
-    window['toggleFAQ_' + config.collectionId.replace(/-/g, '_')] = function(index) {
-      const answer = document.getElementById('answer_' + config.collectionId.replace(/-/g, '_') + '_' + index);
-      const icon = document.getElementById('icon_' + config.collectionId.replace(/-/g, '_') + '_' + index);
+    const items = Array.prototype.slice.call(container.querySelectorAll('.faqify-item'));
 
-      if (!answer || !icon) return;
+    // Accordion toggling (accessible buttons)
+    items.forEach(function(item) {
+      const btn = item.querySelector('.faqify-question');
+      const answer = item.querySelector('.faqify-answer');
+      const icon = item.querySelector('.faqify-icon');
+      if (!btn || !answer) return;
+      btn.addEventListener('click', function() {
+        if (config.layout !== 'accordion') return;
+        const isExpanded = answer.classList.contains('expanded');
+        if (config.animation && icon) {
+          answer.style.transition = 'all 0.3s ease';
+          icon.style.transition = 'transform 0.3s ease';
+        }
+        if (isExpanded) {
+          answer.classList.remove('expanded');
+          btn.setAttribute('aria-expanded', 'false');
+          if (icon) icon.style.transform = 'rotate(0deg)';
+        } else {
+          answer.classList.add('expanded');
+          btn.setAttribute('aria-expanded', 'true');
+          if (icon) icon.style.transform = 'rotate(180deg)';
+        }
+      });
+    });
 
-      const isExpanded = answer.classList.contains('expanded');
-
-      if (config.animation) {
-        answer.style.transition = 'all 0.3s ease';
-        icon.style.transition = 'transform 0.3s ease';
+    // Client-side search (no external service)
+    if (config.search) {
+      const input = container.querySelector('.faqify-search-input');
+      if (input) {
+        input.addEventListener('input', function() {
+          const q = input.value.toLowerCase().trim();
+          items.forEach(function(item) {
+            const hay = item.getAttribute('data-search') || '';
+            item.style.display = (!q || hay.indexOf(q) !== -1) ? '' : 'none';
+          });
+        });
       }
-
-      if (isExpanded) {
-        answer.classList.remove('expanded');
-        icon.style.transform = 'rotate(0deg)';
-      } else {
-        answer.classList.add('expanded');
-        icon.style.transform = 'rotate(180deg)';
-      }
-    };
+    }
   }
 
   // Escape HTML to prevent XSS
@@ -208,6 +217,12 @@ export const WIDGET_CONFIG = {
         background: #fff;
       }
       .faqify-question {
+        width: 100%;
+        text-align: left;
+        background: transparent;
+        border: 0;
+        font: inherit;
+        color: inherit;
         padding: 15px;
         cursor: pointer;
         font-weight: 600;
@@ -217,6 +232,18 @@ export const WIDGET_CONFIG = {
         user-select: none;
         transition: background-color 0.2s ease;
       }
+      .faqify-search { margin-bottom: 12px; }
+      .faqify-search-input {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        font-size: 14px;
+        box-sizing: border-box;
+      }
+      .faqify-layout-list .faqify-answer.expanded { max-height: none; }
+      .faqify-layout-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+      @media (max-width: 640px) { .faqify-layout-columns { grid-template-columns: 1fr; } }
       .faqify-question:hover {
         background-color: #f8f9fa;
       }

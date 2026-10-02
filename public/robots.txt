@@ -12,3 +12,6 @@ Allow: /
 
 User-agent: *
 Allow: /
+
+# Interim production URL (custom domain pending; faqify.app is expired).
+Sitemap: https://faqify-production.vercel.app/sitemap.xml
