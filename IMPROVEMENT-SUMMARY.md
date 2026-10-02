@@ -351,7 +351,24 @@ npm run build     # expect dist/ produced
 
 ### Still open (needs user action)
 - 🔴 **Custom SMTP** not configured → signup confirmation + password reset emails won't reach real users.
-- 🟠 **CAPTCHA**: do **not** flip the Attack-Protection toggle alone — the app sends no captcha token, so enabling it would break signup/login. Needs frontend hCaptcha integration + keys.
+- 🟠 **CAPTCHA**: frontend is now implemented (see §12). Enabling the Attack-Protection toggle still requires the keys + a Vercel env var.
+
+---
+
+## 12. 🔁 Go-live follow-up (CI green + captcha implemented)
+
+### CI was red — root cause & fix
+- **Symptom:** every push emailed *“ci: All jobs have failed”*; the job was `build`, the failing step **Test** (`npm test`).
+- **Root cause:** Vitest runs Vite in **`test` mode**, which only loads `.env` / `.env.local` / `.env.test` — all developer-local and gitignored, so they are absent on the runner. `src/config/env.ts` therefore threw `Missing required environment variable "VITE_SUPABASE_URL"`. (`.env.production` is loaded only in *production* mode, so the `Build` step passed while `Test` failed.) Typecheck/lint are `continue-on-error` and were never the cause.
+- **Fix:** added a committed **`.env.test`** with dummy public values. Reproduced the exact failure locally by hiding `.env` / `.env.local`, then confirmed 18/18 pass with the fix.
+- Bumped `actions/checkout@v4 → v5` and `actions/setup-node@v4 → v5` (clears the Node-20 deprecation warning).
+- **Verified live:** CI run `37070250737` on commit `7051ba0` → **success** (Build ✓, Test ✓).
+
+### CAPTCHA — implemented, awaiting keys
+- New `src/components/auth/TurnstileCaptcha.tsx` (Cloudflare Turnstile). It **renders nothing** unless `VITE_TURNSTILE_SITE_KEY` is set, so it is safe to ship before keys exist.
+- `captchaToken` is threaded through `useAuth` (`signUp` / `signIn` / `requestPasswordReset`) into Supabase `options.captchaToken`.
+- Wired into `SignUp`, `Login`, `ResetPassword` — the token is required and the widget auto-resets after a failed attempt.
+- **To enable:** create a Turnstile widget (Cloudflare dashboard) → set Vercel env **`VITE_TURNSTILE_SITE_KEY`** (public) → set the secret key in **Supabase → Authentication → Attack Protection** and enable Turnstile.
 
 ---
 
