@@ -127,8 +127,9 @@ export const useSubscription = () => {
           plan_expires_at: effectiveExpiresAt as any,
           current_period_end: (data as any).current_period_end ?? (effectiveExpiresAt as any),
           days_remaining: daysRemaining,
-          is_expired: expiryDate ? now > expiryDate : false,
-          expires_soon: daysRemaining <= 7 && daysRemaining > 0,
+          // Free plan never expires; only paid plans can expire.
+          is_expired: normalizedPlanTier === 'Free' ? false : (expiryDate ? now > expiryDate : false),
+          expires_soon: normalizedPlanTier !== 'Free' && daysRemaining <= 7 && daysRemaining > 0,
           // Defaults / compatibility
           auto_renewal: (data as any).auto_renewal ?? (normalizedPlanTier !== 'Free'),
           cancelled_at: (data as any).cancelled_at ?? null,
@@ -155,8 +156,8 @@ export const useSubscription = () => {
       const now = new Date();
       const expiryDate = subscription.plan_expires_at ? new Date(subscription.plan_expires_at) : null;
 
-      // Block if expired for *any* plan, including Free. Expiry at or before "now" is considered expired.
-      const isExpired = subscription.is_expired || (expiryDate && now >= expiryDate);
+      // Free plan never expires. Only paid plans are subject to expiry.
+      const isExpired = subscription.plan_tier !== 'Free' && (subscription.is_expired || (!!expiryDate && now >= expiryDate));
       if (isExpired) {
         return {
           canGenerate: false,
@@ -233,7 +234,7 @@ export const useSubscription = () => {
 
   const getRemainingFAQs = () => {
     if (!subscription) return 0;
-    return subscription.faq_usage_limit - subscription.faq_usage_current;
+    return Math.max(0, subscription.faq_usage_limit - subscription.faq_usage_current);
   };
 
   const incrementUsage = async (faqCount: number = 1) => {
@@ -281,7 +282,7 @@ export const useSubscription = () => {
       status: subscription.status,
       currentUsage: subscription.faq_usage_current,
       usageLimit: subscription.faq_usage_limit,
-      remainingFaqs: subscription.faq_usage_limit - subscription.faq_usage_current,
+      remainingFaqs: Math.max(0, subscription.faq_usage_limit - subscription.faq_usage_current),
       planActivatedAt: subscription.plan_activated_at,
       planExpiresAt: subscription.plan_expires_at,
       daysRemaining: subscription.plan_tier === 'Free' ? Infinity : Math.max(0, daysRemaining),

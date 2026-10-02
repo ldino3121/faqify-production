@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { FREE_FAQ_LIMIT } from '@/config/plans';
 
 export const usePricingMigration = () => {
   const [migrationStatus, setMigrationStatus] = useState<'checking' | 'needed' | 'applied' | 'error'>('checking');
@@ -30,7 +31,7 @@ export const usePricingMigration = () => {
       const businessPlan = plans?.find(p => p.name === 'Business');
 
       const needsMigration =
-        !freePlan || freePlan.faq_limit !== 10 ||
+        !freePlan || freePlan.faq_limit !== FREE_FAQ_LIMIT ||
         !proPlan || proPlan.faq_limit !== 100 ||
         !businessPlan || businessPlan.faq_limit !== 500;
 

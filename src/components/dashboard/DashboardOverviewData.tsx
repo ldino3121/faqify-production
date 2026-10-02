@@ -97,8 +97,8 @@ export const DashboardOverviewData = ({ onNavigateToUpgrade }: DashboardOverview
     }
   };
 
-  const usagePercentage = subscription 
-    ? Math.round((subscription.faq_usage_current / subscription.faq_usage_limit) * 100)
+  const usagePercentage = subscription && subscription.faq_usage_limit > 0
+    ? Math.min(100, Math.round((subscription.faq_usage_current / subscription.faq_usage_limit) * 100))
     : 0;
 
   const formatDate = (dateString: string) => {
@@ -326,7 +326,7 @@ export const DashboardOverviewData = ({ onNavigateToUpgrade }: DashboardOverview
             <Progress value={usagePercentage} className="w-full" />
             <div className="flex items-center justify-between text-xs text-gray-500">
               <span>{usagePercentage}% used</span>
-              <span>{subscription?.faq_usage_limit - (subscription?.faq_usage_current || 0) || 0} remaining</span>
+              <span>{Math.max(0, (subscription?.faq_usage_limit || 0) - (subscription?.faq_usage_current || 0))} remaining</span>
             </div>
           </CardContent>
         </Card>

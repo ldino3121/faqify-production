@@ -81,14 +81,17 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
   // Enhanced FAQ generation checking with expiry validation
   const [canCreateFAQ, setCanCreateFAQ] = useState(false);
   const [faqEligibility, setFaqEligibility] = useState<any>(null);
-  const remainingUsage = subscription ? subscription.faq_usage_limit - subscription.faq_usage_current : 0;
+  const remainingUsage = subscription ? Math.max(0, subscription.faq_usage_limit - subscription.faq_usage_current) : 0;
 
   // Global gating flags used across the Create FAQ UI
   const hasNoQuota = remainingUsage <= 0;
+  // Free plan never expires; only paid plans can be expired.
   const isExpired = !!(
-    faqEligibility?.isExpired ||
-    subscription?.is_expired ||
-    (subscription?.plan_expires_at && new Date() >= new Date(subscription.plan_expires_at))
+    subscription?.plan_tier !== 'Free' && (
+      faqEligibility?.isExpired ||
+      subscription?.is_expired ||
+      (subscription?.plan_expires_at && new Date() >= new Date(subscription.plan_expires_at))
+    )
   );
   const isBlocked = isExpired || hasNoQuota;
 
@@ -136,7 +139,7 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
   }, [faqCount, subscription, user]);
 
   // Get maximum FAQ count user can generate based on remaining usage
-  const maxGeneratableFAQs = Math.min(10, remainingUsage);
+  const maxGeneratableFAQs = Math.max(0, Math.min(10, remainingUsage));
 
   // Fetch FAQs from database for a collection
   const fetchCollectionFAQs = async (collectionId: string) => {
@@ -1002,7 +1005,7 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
       </div>
 
       {/* Usage Warning - Only show when actually at limit */}
-      {remainingUsage === 0 && (
+      {remainingUsage <= 0 && (
         <Card className="bg-red-600/10 border border-red-600/20">
           <CardContent className="p-4">
             <div className="flex items-center space-x-3">

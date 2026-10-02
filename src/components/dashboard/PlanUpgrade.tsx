@@ -17,6 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useRazorpaySubscription } from "@/hooks/useRazorpaySubscription";
 import { useSubscription } from "@/hooks/useSubscription";
 import { supabase } from "@/integrations/supabase/client";
+import { planByTier } from "@/config/plans";
 
 type PlanType = "Free" | "Pro" | "Business";
 
@@ -193,7 +194,7 @@ export const PlanUpgrade = () => {
       period: "forever",
       description: "Perfect for trying out FAQify",
       features: [
-        "10 FAQ generations per month",
+        `${planByTier('Free').faqLimit} FAQ generations per month`,
         "Website URL analysis",
         "Text content analysis",
         "Document upload (PDF, DOCX)",
@@ -220,7 +221,7 @@ export const PlanUpgrade = () => {
       period: "per month",
       description: "Ideal for small businesses and bloggers",
       features: [
-        "100 FAQ generations per month",
+        `${planByTier('Pro').faqLimit} FAQ generations per month`,
         "Website URL analysis",
         "Text content analysis",
         "Document upload (PDF, DOCX)",
@@ -247,7 +248,7 @@ export const PlanUpgrade = () => {
       period: "per month",
       description: "For agencies and large websites",
       features: [
-        "500 FAQ generations per month",
+        `${planByTier('Business').faqLimit} FAQ generations per month`,
         "Website URL analysis",
         "Text content analysis",
         "Document upload (PDF, DOCX)",
@@ -272,7 +273,7 @@ export const PlanUpgrade = () => {
     if (planName === currentPlan && subscription && subscription.faq_usage_current < subscription.faq_usage_limit) {
       toast({
         title: "Plan Already Active",
-        description: `You're already on the ${planName} plan with ${subscription.faq_usage_limit - subscription.faq_usage_current} FAQs remaining.`,
+        description: `You're already on the ${planName} plan with ${Math.max(0, subscription.faq_usage_limit - subscription.faq_usage_current)} FAQs remaining.`,
         variant: "destructive",
       });
       return;

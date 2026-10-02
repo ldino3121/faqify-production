@@ -275,5 +275,45 @@ npm run build     # expect dist/ produced
 
 ---
 
+## 10. 🔎 Full-site consistency audit + P0 fixes (FAQ quota / Free expiry)
+
+**Reported by user:** dashboard showed "10/5" FAQs with **-5 remaining**, and the home page mixed "10 FAQ/month" vs "5 FAQ/month" for the Free tier (Google sign-in confirmed working).
+
+### Root causes
+1. **Negative quota** — two compounding bugs:
+   - *Data:* the legacy Free limit was raised to 10 (and the `faq_usage_limit` column defaulted to 10); the canonical pricing migration later set Free to 5 but **never clamped existing usage**, leaving rows like `ldino3121` at `10/5` and `darkyellow548` at `6/5`.
+   - *UI:* several components computed `remaining = limit - current` and `percentage = current/limit*100` **without clamping**, so they rendered negative remainders and >100% bars.
+2. **Free plan shown as EXPIRED** — `handle_new_user()` set `plan_expires_at = NOW() + 1 month` for Free, and the client treated Free like a paid plan (`is_expired` for all tiers), so Free accounts were labelled EXPIRED and blocked from generating FAQs after ~30 days.
+3. **Text inconsistency (10 vs 5)** — the canonical value (`src/config/plans.ts`) is Free = **5**, but `FAQ.tsx`, `PlanUpgrade.tsx`, `IndustryExamples.tsx` and `usePricingMigration.tsx` hard-coded **10**.
+
+### Fixes applied (code)
+- `src/components/sections/FAQ.tsx` — Free answer now uses `FREE_FAQ_LIMIT`.
+- `src/components/sections/IndustryExamples.tsx` — "10 Free FAQs" → `FREE_FAQ_LIMIT`.
+- `src/components/dashboard/PlanUpgrade.tsx` — plan features pull quotas from `planByTier(...)`; remaining count clamped.
+- `src/hooks/usePricingMigration.tsx` — expects `FREE_FAQ_LIMIT` (was 10).
+- `src/hooks/useSubscription.tsx` — Free never expires (`is_expired`/`expires_soon`/`canCreateFAQ` gate only paid tiers); `getRemainingFAQs`/status clamp to ≥ 0.
+- `src/components/dashboard/FAQCreator.tsx` — `remainingUsage` clamped; `isExpired` only for paid tiers; `maxGeneratableFAQs` clamped; "limit reached" banner shows at `<= 0`.
+- `src/components/dashboard/DashboardOverviewData.tsx` — usage % clamped to ≤100 with zero-guard; remaining uses `Math.max(0, …)`.
+- `src/pages/CancellationPolicy.tsx` — "Free Plan (Trial) … limited in duration" → Free is free indefinitely (matches the free-forever model).
+
+### Fixes applied (database)
+- `supabase/migrations/20251001000000_fix_free_plan_expiry_and_usage_clamp.sql` (applied via `supabase db query --linked -f`):
+  - clamped all over-limit usage (`10/5`, `6/5` → `5/5`),
+  - normalized Free `plan_expires_at` → `2099-12-31` (never expires),
+  - re-synced the denormalized `plan_tier` text column with the `plan_id` enum,
+  - rewrote `handle_new_user()` so new Free users never expire,
+  - changed the stale `faq_usage_limit` column default from `10` → `5`.
+- Verified live: **0** accounts over-limit; `ldino3121` now 5/5; all Free rows expire 2099-12-31.
+
+### Other gaps found (flagged, not changed)
+- **No monthly reset function exists** in the live DB (`reset_monthly_usage` / `check_and_reset_user_usage` are referenced by older code but absent), so monthly quotas never reset. Add a scheduled reset (pg_cron) if monthly resets are intended.
+- **Contact emails inconsistent:** `faqify18@gmail.com` (Contact/Terms/Cancellation) vs `privacy@faqify.com` (Privacy). `faqify.com` is not owned — pick a real mailbox.
+- **Demo embed fallback** still points at the dead `https://faqify-ai-spark.netlify.app` (`src/pages/Demo.tsx`).
+- **Dead/at-risk code:** `usePricingMigration` (calls non-existent `apply-pricing-migration` edge fn), `useRealtimeSubscription` (calls non-existent `increment_faq_usage_with_logging` RPC; `subscription_notifications` table not in generated types), `DashboardOverview.tsx`/`UserProfile.tsx` (hard-coded demo data, not on the live route).
+- **Pre-existing typecheck/lint failures** remain (the project's CI `ci` script runs `typecheck && lint && build`; only `test` + `build` are currently green).
+- Social links (`x.com/FAQify18`, `instagram.com/faqify`, `linkedin.com/company/faqify`) — verify they resolve.
+
+---
+
 *Summary generated as part of the FAQify audit. See `REMEDIATION-SPEC.md` for full technical detail.*
 

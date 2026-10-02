@@ -32,9 +32,9 @@ const CancellationPolicy = () => {
                 <div className="flex items-start space-x-4">
                   <Shield className="h-8 w-8 text-green-500 mt-1 flex-shrink-0" />
                   <div>
-                    <h2 className="text-2xl font-bold text-white mb-4">Free Plan (Trial)</h2>
+                    <h2 className="text-2xl font-bold text-white mb-4">Free Plan</h2>
                     <p className="text-gray-300 text-lg leading-relaxed">
-                      We offer a free plan as a trial for new users. This allows you to explore and evaluate our platform without any financial commitment. The free plan is limited in features and duration, as specified during sign-up.
+                      We offer a free plan that lets you explore and evaluate our platform without any financial commitment. The free plan is free indefinitely and never expires; it is limited only by a monthly FAQ generation quota, which resets every month.
                     </p>
                   </div>
                 </div>

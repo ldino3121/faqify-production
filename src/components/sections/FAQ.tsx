@@ -3,6 +3,7 @@ import { useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Link } from "react-router-dom";
+import { FREE_FAQ_LIMIT } from "@/config/plans";
 
 export const FAQ = () => {
   const [openItems, setOpenItems] = useState<number[]>([0]);
@@ -26,7 +27,7 @@ export const FAQ = () => {
     },
     {
       question: "What's the difference between the pricing plans?",
-      answer: "Free plan gives you 10 FAQ generations per month. Pro plan ($9/month) includes 100 FAQ generations monthly. Business plan ($29/month) offers 500 FAQ generations monthly plus advanced features."
+      answer: `Free plan gives you ${FREE_FAQ_LIMIT} FAQ generations per month. Pro plan ($9/month) includes 100 FAQ generations monthly. Business plan ($29/month) offers 500 FAQ generations monthly plus advanced features.`
     },
     {
       question: "Is there a limit to how long my content can be?",
