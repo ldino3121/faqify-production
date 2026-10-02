@@ -40,13 +40,19 @@ file_size_limit = "50MiB"
 [auth]
 enabled = true
 site_url = "http://localhost:8082"
-# NOTE: once the production domain is purchased, add its URLs here AND in the
-# Supabase dashboard (Auth → URL Configuration), e.g. "https://your-domain.com/dashboard".
+# Keep the production domain (https://faqify.app) here AND in the Supabase
+# dashboard (Auth → URL Configuration) so OAuth/email links resolve correctly.
 additional_redirect_urls = [
   "http://localhost:8082/dashboard",
   "http://localhost:8082/",
   "http://localhost:8082/reset-password",
-  "http://localhost:8082/validate-oauth.html"
+  "http://localhost:8082/validate-oauth.html",
+  "https://faqify.app/",
+  "https://faqify.app/dashboard",
+  "https://faqify.app/reset-password",
+  "https://www.faqify.app/",
+  "https://www.faqify.app/dashboard",
+  "https://www.faqify.app/reset-password"
 ]
 jwt_expiry = 3600
 enable_signup = true

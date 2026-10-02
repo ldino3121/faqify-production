@@ -213,7 +213,7 @@ const Privacy = () => {
                       If you have any questions about this Privacy Policy or our data practices, please contact us:
                     </p>
                     <div className="space-y-2">
-                      <p className="text-white">Email: <span className="text-blue-400">privacy@faqify.com</span></p>
+                      <p className="text-white">Email: <span className="text-blue-400">faqify18@gmail.com</span></p>
                       <p className="text-white">Address: <span className="text-gray-400">FAQify Privacy Team, [Your Address]</span></p>
                     </div>
                   </CardContent>

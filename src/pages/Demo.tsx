@@ -21,9 +21,9 @@ const Demo = () => {
   const [showResults, setShowResults] = useState(false);
   const { toast } = useToast();
 
-  // Use production URL for widget script, not localhost
+  // Use the canonical production domain for the widget script, not localhost.
   const baseUrl = window.location.origin.includes('localhost')
-    ? 'https://faqify-ai-spark.netlify.app' // Replace with your actual production domain
+    ? 'https://faqify.app'
     : window.location.origin;
 
   const embedCode = `<!-- FAQify Widget -->

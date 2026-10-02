@@ -315,5 +315,45 @@ npm run build     # expect dist/ produced
 
 ---
 
+## 11. 🗓️ Monthly quota reset, domain cut-over, branding & email unification
+
+**Reported by user:** domain `faqify.app` was renewed; use `faqify18@gmail.com`; change the site icon from black to blue; implement the monthly FAQ reset job.
+
+### Monthly FAQ usage reset (was the P0 from §10 — now done)
+- **New migration** `supabase/migrations/20251002000000_monthly_faq_usage_reset.sql` (applied live via `supabase db query --linked -f`):
+  - added the `last_reset_date TIMESTAMPTZ` column the client already referenced (`src/hooks/useSubscription.tsx`, `src/components/dashboard/FAQCreator.tsx`) but which was **missing from the live table** — this silently broke FAQCreator's "recover a missing subscription" insert;
+  - backfilled `last_reset_date` from `plan_activated_at`/`created_at`;
+  - added **`public.reset_monthly_usage()`** (SECURITY DEFINER, `search_path` pinned) which zeroes `faq_usage_current` for every subscription whose own monthly window has elapsed and returns the row count;
+  - **`REVOKE ALL … FROM PUBLIC`** on the new function — by default Postgres grants EXECUTE to PUBLIC, which would have let any authenticated user RPC-reset everyone's quota;
+  - enabled **`pg_cron`** and scheduled job **`faqify-monthly-quota-reset`** (`5 0 * * *`, daily 00:05 UTC) → `select public.reset_monthly_usage();`.
+- **Design note:** reset is driven by each subscription's own `last_reset_date` (+1 month), i.e. the **billing anniversary**, not a calendar month. The cron runs daily but only resets rows that are actually due, so paying users are never reset mid-cycle.
+- **Verified live:** function + job present (`cron.job` jobid 1, active); calling it reset all 6 subscriptions (all were past their window) to `0/5…`.
+
+### Domain cut-over (`faqify.app` renewed)
+- `.env.production`: `VITE_PUBLIC_APP_URL` / `APP_URL` → `https://faqify.app`.
+- `public/sitemap.xml`, `public/robots.txt` → all `faqify.app` (removed the interim-URL comment blocks).
+- `supabase/config.toml`: added `https://faqify.app/*` + `https://www.faqify.app/*` (home, dashboard, reset-password) to `additional_redirect_urls`.
+- **Still to do in dashboards:** Vercel → add `faqify.app` + `www`; Supabase → Auth → URL Configuration `site_url` + `uri_allow_list`; edge secret `PUBLIC_APP_URL`. (These need account access.)
+
+### Support email unified
+- `src/pages/Privacy.tsx`: `privacy@faqify.com` (unowned domain) → **`faqify18@gmail.com`**.
+- Contact / Terms / Cancellation already used `faqify18@gmail.com` — now consistent site-wide.
+
+### Branding
+- `public/favicon.svg`: stroke/fill `#000000` → **`#3b82f6`** (brand blue), matching `faqify-logo.svg` and the header/footer mark.
+
+### Dead link cleanup
+- `src/pages/Demo.tsx`: removed the dead `https://faqify-ai-spark.netlify.app` widget fallback → `https://faqify.app`.
+
+### Validation
+- `npm test` → **18/18 pass**; `npm run build` → **✓ 315.43 kB** (unchanged size class).
+- `npm run typecheck` / `npm run lint` still fail on **pre-existing** issues (stale generated Supabase types; eslint 9 ↔ typescript-eslint config crash on root `*.ts` scratch files) — unchanged by this round, tracked for a dedicated cleanup.
+
+### Still open (needs user action)
+- 🔴 **Custom SMTP** not configured → signup confirmation + password reset emails won't reach real users.
+- 🟠 **CAPTCHA**: do **not** flip the Attack-Protection toggle alone — the app sends no captcha token, so enabling it would break signup/login. Needs frontend hCaptcha integration + keys.
+
+---
+
 *Summary generated as part of the FAQify audit. See `REMEDIATION-SPEC.md` for full technical detail.*
 
