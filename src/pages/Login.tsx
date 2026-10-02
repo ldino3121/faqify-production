@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,6 +7,8 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { FAQifyIconSimple } from "@/components/ui/faqify-icon";
+import { CAPTCHA_ENABLED } from "@/config/env";
+import { TurnstileCaptcha, type TurnstileCaptchaHandle } from "@/components/auth/TurnstileCaptcha";
 
 const Login = () => {
   const [email, setEmail] = useState("");
@@ -14,6 +16,10 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [socialLoading, setSocialLoading] = useState<string | null>(null);
+  const [captchaToken, setCaptchaToken] = useState("");
+  const captchaRef = useRef<TurnstileCaptchaHandle>(null);
+  const handleCaptchaVerify = useCallback((token: string) => setCaptchaToken(token), []);
+  const handleCaptchaExpire = useCallback(() => setCaptchaToken(""), []);
   const { signIn, signInWithGoogle, user, loading } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -32,10 +38,20 @@ const Login = () => {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (CAPTCHA_ENABLED && !captchaToken) {
+      toast({
+        title: "Verification Required",
+        description: "Please complete the bot protection challenge before signing in.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsLoading(true);
 
     try {
-      await signIn(email, password);
+      await signIn(email, password, captchaToken || undefined);
 
       toast({
         title: "Success!",
@@ -49,6 +65,8 @@ const Login = () => {
 
     } catch (error) {
       console.error('Login error:', error);
+      setCaptchaToken("");
+      captchaRef.current?.reset();
       toast({
         title: "Login Failed",
         description: error instanceof Error ? error.message : "Failed to sign in",
@@ -203,10 +221,18 @@ const Login = () => {
                 </Link>
               </div>
 
+              {CAPTCHA_ENABLED && (
+                <TurnstileCaptcha
+                  ref={captchaRef}
+                  onVerify={handleCaptchaVerify}
+                  onExpire={handleCaptchaExpire}
+                />
+              )}
+
               <Button
                 type="submit"
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white border-0"
-                disabled={isLoading}
+                disabled={isLoading || (CAPTCHA_ENABLED && !captchaToken)}
               >
                 {isLoading ? (
                   <>

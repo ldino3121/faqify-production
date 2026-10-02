@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,6 +9,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { trackEvent, getAttribution } from "@/utils/analytics";
 import { FAQifyIconSimple } from "@/components/ui/faqify-icon";
+import { CAPTCHA_ENABLED } from "@/config/env";
+import { TurnstileCaptcha, type TurnstileCaptchaHandle } from "@/components/auth/TurnstileCaptcha";
 
 const SignUp = () => {
   const [formData, setFormData] = useState({
@@ -23,6 +25,10 @@ const SignUp = () => {
   const [socialLoading, setSocialLoading] = useState<string | null>(null);
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [confirmationSent, setConfirmationSent] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState("");
+  const captchaRef = useRef<TurnstileCaptchaHandle>(null);
+  const handleCaptchaVerify = useCallback((token: string) => setCaptchaToken(token), []);
+  const handleCaptchaExpire = useCallback(() => setCaptchaToken(""), []);
   const { toast } = useToast();
   const { signUp, signInWithGoogle } = useAuth();
   const navigate = useNavigate();
@@ -55,10 +61,19 @@ const SignUp = () => {
       return;
     }
 
+    if (CAPTCHA_ENABLED && !captchaToken) {
+      toast({
+        title: "Verification Required",
+        description: "Please complete the bot protection challenge before continuing.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsLoading(true);
     
     try {
-      await signUp(formData.email, formData.password, formData.name);
+      await signUp(formData.email, formData.password, formData.name, captchaToken || undefined);
       // Email confirmation is required before first sign-in (P0-4).
       setConfirmationSent(true);
       trackEvent('signup', {
@@ -73,6 +88,8 @@ const SignUp = () => {
         description: `We sent a confirmation link to ${formData.email}. Please verify to continue.`,
       });
     } catch (error) {
+      setCaptchaToken("");
+      captchaRef.current?.reset();
       toast({
         title: "Sign Up Failed",
         description: error instanceof Error ? error.message : "Failed to create account",
@@ -325,10 +342,18 @@ const SignUp = () => {
                 </label>
               </div>
 
+              {CAPTCHA_ENABLED && (
+                <TurnstileCaptcha
+                  ref={captchaRef}
+                  onVerify={handleCaptchaVerify}
+                  onExpire={handleCaptchaExpire}
+                />
+              )}
+
               <Button
                 type="submit"
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white"
-                disabled={isLoading}
+                disabled={isLoading || (CAPTCHA_ENABLED && !captchaToken)}
               >
                 {isLoading ? (
                   <>

@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { CAPTCHA_ENABLED } from "@/config/env";
+import { TurnstileCaptcha, type TurnstileCaptchaHandle } from "@/components/auth/TurnstileCaptcha";
 
 const ResetPassword = () => {
   const { toast } = useToast();
@@ -16,6 +18,10 @@ const ResetPassword = () => {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [isRecovery, setIsRecovery] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState("");
+  const captchaRef = useRef<TurnstileCaptchaHandle>(null);
+  const handleCaptchaVerify = useCallback((token: string) => setCaptchaToken(token), []);
+  const handleCaptchaExpire = useCallback(() => setCaptchaToken(""), []);
 
   // Detect if user arrived via recovery link (type=recovery or a temporary session exists)
   useEffect(() => {
@@ -43,14 +49,26 @@ const ResetPassword = () => {
 
   const handleRequestReset = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (CAPTCHA_ENABLED && !captchaToken) {
+      toast({
+        title: "Verification Required",
+        description: "Please complete the bot protection challenge before continuing.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setLoading(true);
     try {
-      await requestPasswordReset(email.trim());
+      await requestPasswordReset(email.trim(), captchaToken || undefined);
       toast({
         title: "Reset Email Sent",
         description: "Check your inbox for a link to set a new password.",
       });
     } catch (err) {
+      setCaptchaToken("");
+      captchaRef.current?.reset();
       toast({
         title: "Request Failed",
         description: err instanceof Error ? err.message : "Unable to send reset email.",
@@ -112,7 +130,14 @@ const ResetPassword = () => {
                     required
                   />
                 </div>
-                <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white" disabled={loading}>
+                {CAPTCHA_ENABLED && (
+                  <TurnstileCaptcha
+                    ref={captchaRef}
+                    onVerify={handleCaptchaVerify}
+                    onExpire={handleCaptchaExpire}
+                  />
+                )}
+                <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white" disabled={loading || (CAPTCHA_ENABLED && !captchaToken)}>
                   {loading ? "Sending..." : "Send Reset Link"}
                 </Button>
               </form>

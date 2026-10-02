@@ -38,3 +38,11 @@ export const PUBLIC_SUPABASE_URL: string =
   env.VITE_PUBLIC_SUPABASE_URL?.trim() || env.VITE_SUPABASE_URL?.trim() || '';
 
 export const RAZORPAY_KEY_ID: string = env.VITE_RAZORPAY_KEY_ID?.trim() ?? '';
+
+// Optional bot protection (Cloudflare Turnstile). Set VITE_TURNSTILE_SITE_KEY
+// (a PUBLIC site key) to enable the captcha widget on signup / login / password
+// reset. When it is empty, nothing is rendered and no captcha token is sent, so
+// the app keeps working exactly as before. The matching SECRET key is never put
+// in the frontend — it lives only in Supabase Auth → Attack Protection.
+export const CAPTCHA_SITE_KEY: string = env.VITE_TURNSTILE_SITE_KEY?.trim() ?? '';
+export const CAPTCHA_ENABLED: boolean = CAPTCHA_SITE_KEY.length > 0;
