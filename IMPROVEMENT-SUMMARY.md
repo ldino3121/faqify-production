@@ -250,6 +250,29 @@ npm run build     # expect dist/ produced
 
 ⚠️ **Do NOT run `supabase db push` blindly** — 9 historical migrations are still unrecorded locally and would replay old pricing (10/1000/3000). Apply new migrations with `supabase db query --linked -f <file>`.
 
+## 9. 🚀 Live deploy + auth config (interim domain)
+
+**Live app:** `https://faqify-production.vercel.app` (Vercel project `faqify-production`). The custom domain `www.faqify.app` is **expired**, so the interim Vercel URL is used everywhere a domain is required.
+
+**Supabase Auth (Management API) — applied:**
+- `site_url`: `www.faqify.app` (dead, malformed — no scheme) → **`https://faqify-production.vercel.app`** ✅
+- `uri_allow_list`: removed dead `faqify.app` / `www.faqify.app` / Lovable preview URLs; kept prod + `https://*-gaurav-walias-projects.vercel.app/**` (previews) + `localhost:8081` / `localhost:5173` (dev) ✅
+- `mailer_autoconfirm = false` → **email confirmation is already ON** ✅
+- Edge secret **`PUBLIC_APP_URL`** → live URL (drives bot UA / `From` header) ✅
+
+**Repo / deploy:**
+- Commit **`75603dc`** pushed to `main` → Vercel production deploy **live**.
+- Verified live: absolute `og:image`, `/admin` → 200, `sitemap.xml`/`robots.txt` updated, **0** dead-domain refs in HTML, unauthenticated `analyze-content` → **401**.
+- `.env.production` now sets `VITE_PUBLIC_APP_URL` / `APP_URL`; `vite.config.ts` uses Vite `loadEnv` so the `%APP_URL%` token resolves from env files (it was silently empty → relative `og:image`).
+- **`.env` and `supabase/.temp` are now untracked + gitignored** (both were committed).
+- CI path re-verified locally: `npm ci` → `npm test` (18 pass) → `npm run build` (315 kB) — all green.
+
+**STILL OPEN (needs account access, cannot be automated):**
+- 🔴 **Custom SMTP** — `smtp_host = null`, so the default email service only delivers to org team members (2/hr). Signup confirmation emails **will not reach real users** until Resend/similar is configured (Auth → Emails → SMTP).
+- 🟠 **CAPTCHA (Attack Protection)** disabled → enable hCaptcha/Turnstile.
+- ⚠️ **Rotate secrets** — the Supabase Management API token and Google OAuth client secret have been handled in this session; rotate the Google client secret in Google Cloud Console if it was ever shared.
+- When the real domain is purchased: update the Vercel domain, `VITE_PUBLIC_APP_URL` + `PUBLIC_APP_URL`, Supabase `site_url`/`uri_allow_list`, and `sitemap.xml`/`robots.txt`.
+
 ---
 
 *Summary generated as part of the FAQify audit. See `REMEDIATION-SPEC.md` for full technical detail.*
