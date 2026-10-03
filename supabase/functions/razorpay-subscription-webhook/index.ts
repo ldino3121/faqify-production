@@ -1,6 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { crypto } from "https://deno.land/std@0.168.0/crypto/mod.ts"
+import { resolveUserEmail, sendEmail } from "../_shared/email.ts"
+import { paymentFailedEmail, subscriptionCancelledEmail } from "../_shared/email-templates.ts"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -251,6 +253,9 @@ async function handleSubscriptionPending(supabase: any, subscription: any) {
       updated_at: new Date().toISOString()
     })
     .eq('user_id', userId)
+
+  // Dunning: tell the customer their renewal failed before access is revoked.
+  await deliverPastDueNotice(supabase, subscription)
 }
 
 async function handleSubscriptionHalted(supabase: any, subscription: any) {
@@ -267,4 +272,76 @@ async function handleSubscriptionHalted(supabase: any, subscription: any) {
       updated_at: new Date().toISOString()
     })
     .eq('user_id', userId)
+
+  // Final retry failed: advise the customer their plan has stopped.
+  await deliverHaltedNotice(supabase, subscription)
+}
+
+/* --------------------------------------------------------- transactional email
+ * Only `subscription.pending` and `subscription.halted` are emailed from this
+ * function. Activated / charged / cancelled are handled by razorpay-webhook so
+ * the same customer never receives two copies of one notice.
+ * sendEmail never throws and is a no-op until RESEND_API_KEY is set.
+ */
+
+async function deliverPastDueNotice(supabase: any, subscription: any) {
+  try {
+    const userId = subscription?.notes?.user_id
+    if (!userId) return
+
+    const { data: sub } = await supabase
+      .from('user_subscriptions')
+      .select('plan_tier')
+      .eq('user_id', userId)
+      .maybeSingle()
+
+    const { email, name } = await resolveUserEmail(supabase, userId)
+    if (!email) return
+
+    await sendEmail({
+      to: email,
+      ...paymentFailedEmail({
+        name,
+        planTier: String(sub?.plan_tier ?? 'Pro'),
+        reason: 'Your automatic renewal could not be collected.',
+      }),
+    })
+  } catch (err) {
+    console.error('[email] dunning notice failed', err)
+  }
+}
+
+async function deliverHaltedNotice(supabase: any, subscription: any) {
+  try {
+    const userId = subscription?.notes?.user_id
+    if (!userId) return
+
+    const { data: sub } = await supabase
+      .from('user_subscriptions')
+      .select('plan_tier, plan_expires_at')
+      .eq('user_id', userId)
+      .maybeSingle()
+
+    const { email, name } = await resolveUserEmail(supabase, userId)
+    if (!email) return
+
+    const until = sub?.plan_expires_at
+      ? new Date(sub.plan_expires_at).toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+        })
+      : null
+
+    await sendEmail({
+      to: email,
+      ...subscriptionCancelledEmail({
+        name,
+        planTier: String(sub?.plan_tier ?? 'Pro'),
+        untilLabel: until,
+      }),
+    })
+  } catch (err) {
+    console.error('[email] halted notice failed', err)
+  }
 }

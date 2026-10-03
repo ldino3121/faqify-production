@@ -1,6 +1,13 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.50.2';
 import { createHmac } from "https://deno.land/std@0.168.0/node/crypto.ts";
+import { formatMoney, resolveUserEmail, sendEmail } from "../_shared/email.ts";
+import {
+  paymentFailedEmail,
+  planActivatedEmail,
+  receiptEmail,
+  subscriptionCancelledEmail,
+} from "../_shared/email-templates.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -89,6 +96,7 @@ serve(async (req) => {
           console.error('Error updating transaction:', updateError);
         } else {
           console.log('Transaction updated successfully:', transaction.id);
+          await deliverReceipt(supabase, transaction, payment.id);
         }
         break;
       }
@@ -129,6 +137,7 @@ serve(async (req) => {
           console.error('Error updating failed transaction:', updateError);
         } else {
           console.log('Failed transaction updated:', transaction.id);
+          await deliverPaymentFailed(supabase, transaction, payment.error_description);
         }
         break;
       }
@@ -201,6 +210,12 @@ serve(async (req) => {
           console.error('Error updating subscription period:', subscriptionError);
         } else {
           console.log('Subscription renewed successfully:', userSubscription.id);
+          await deliverReceipt(supabase, {
+            user_id: userSubscription.user_id,
+            amount: payment.amount,
+            currency: payment.currency,
+            plan_tier: userSubscription.plan_tier,
+          }, payment.id, { nextBillingLabel: currentPeriodEnd.toISOString() });
         }
         break;
       }
@@ -234,6 +249,12 @@ serve(async (req) => {
           console.error('Error updating cancelled subscription:', updateError);
         } else {
           console.log('Subscription cancelled successfully:', userSubscription.id);
+          await deliverCancelled(
+            supabase,
+            userSubscription.user_id,
+            String(userSubscription.plan_tier ?? "Pro"),
+            userSubscription.plan_expires_at,
+          );
         }
 
         // Log cancellation in history
@@ -302,6 +323,13 @@ serve(async (req) => {
           console.error('Error updating subscription:', error);
         } else {
           console.log('Subscription activated for user:', userId);
+          await deliverPlanActivated(
+            supabase,
+            userId,
+            String(planTier),
+            String(faqLimit),
+            new Date(subscription.current_end * 1000).toISOString(),
+          );
         }
         break;
       }
@@ -387,3 +415,116 @@ serve(async (req) => {
     return new Response(`Webhook error: ${error.message}`, { status: 400 });
   }
 });
+
+/* --------------------------------------------------------- transactional email
+ * Best effort by design: sendEmail never throws and degrades to a logged no-op
+ * until RESEND_API_KEY is configured, so an email outage can never make a
+ * payment webhook return non-2xx (which would cause Razorpay to retry).
+ */
+
+function formatWhen(iso?: string | null): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+}
+
+async function deliverReceipt(
+  supabase: any,
+  tx: any,
+  paymentId?: string,
+  opts: { nextBillingLabel?: string } = {},
+) {
+  try {
+    const { email, name } = await resolveUserEmail(supabase, tx?.user_id);
+    if (!email) return;
+
+    await sendEmail({
+      to: email,
+      ...receiptEmail({
+        name,
+        planTier: String(tx?.plan_tier ?? "Pro"),
+        amountLabel: formatMoney(tx?.amount, tx?.currency),
+        reference:
+          paymentId ??
+          tx?.razorpay_payment_id ??
+          tx?.razorpay_order_id ??
+          null,
+        nextBillingLabel: opts.nextBillingLabel ?? null,
+      }),
+    });
+  } catch (err) {
+    console.error("[email] receipt delivery failed", err);
+  }
+}
+
+async function deliverPaymentFailed(supabase: any, tx: any, reason?: string) {
+  try {
+    const { email, name } = await resolveUserEmail(supabase, tx?.user_id);
+    if (!email) return;
+
+    await sendEmail({
+      to: email,
+      ...paymentFailedEmail({
+        name,
+        planTier: String(tx?.plan_tier ?? "Pro"),
+        amountLabel: formatMoney(tx?.amount, tx?.currency),
+        reason: reason ?? null,
+      }),
+    });
+  } catch (err) {
+    console.error("[email] failure notice delivery failed", err);
+  }
+}
+
+async function deliverPlanActivated(
+  supabase: any,
+  userId: string,
+  planTier: string,
+  faqLimit: string,
+  expiresIso: string,
+) {
+  try {
+    const { email, name } = await resolveUserEmail(supabase, userId);
+    if (!email) return;
+
+    await sendEmail({
+      to: email,
+      ...planActivatedEmail({
+        name,
+        planTier,
+        faqLimit,
+        expiresLabel: formatWhen(expiresIso),
+      }),
+    });
+  } catch (err) {
+    console.error("[email] activation notice delivery failed", err);
+  }
+}
+
+async function deliverCancelled(
+  supabase: any,
+  userId: string,
+  planTier: string,
+  untilIso?: string | null,
+) {
+  try {
+    const { email, name } = await resolveUserEmail(supabase, userId);
+    if (!email) return;
+
+    await sendEmail({
+      to: email,
+      ...subscriptionCancelledEmail({
+        name,
+        planTier,
+        untilLabel: formatWhen(untilIso),
+      }),
+    });
+  } catch (err) {
+    console.error("[email] cancellation notice delivery failed", err);
+  }
+}

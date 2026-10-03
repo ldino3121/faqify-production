@@ -68,6 +68,15 @@ verify_jwt = true
 [functions.get-faq-widget]
 verify_jwt = false
 
+# Public endpoints: the contact form and the client error sink must work for
+# logged-out visitors too. Both are hardened in code (fixed template/recipient,
+# honeypot, per-IP rate caps) so they cannot be abused as an open relay.
+[functions.send-contact]
+verify_jwt = false
+
+[functions.log-error]
+verify_jwt = false
+
 [edge_runtime]
 enabled = true
 
