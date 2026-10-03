@@ -99,8 +99,10 @@ export const FAQManager = ({ onNavigateToCreate }: FAQManagerProps) => {
       }, (payload) => {
         console.log('📡 FAQ changed:', payload);
         // Only refetch if this FAQ belongs to one of our collections
+        const oldId = (payload.old as { id?: string } | null)?.id;
+        const newId = (payload.new as { id?: string } | null)?.id;
         const affectedCollection = collections.find(c =>
-          c.faqs.some(f => f.id === payload.old?.id || f.id === payload.new?.id)
+          c.faqs.some(f => f.id === oldId || f.id === newId)
         );
         if (affectedCollection) {
           fetchCollections();
@@ -142,7 +144,8 @@ export const FAQManager = ({ onNavigateToCreate }: FAQManagerProps) => {
         faqs: (collection.faqs || []).sort((a, b) => (a.order_index || 0) - (b.order_index || 0))
       }));
 
-      setCollections(sortedCollections);
+      // The DB `status` column is a free-form string; narrow it to the UI union.
+      setCollections(sortedCollections as FAQCollection[]);
     } catch (error) {
       console.error('Error fetching collections:', error);
       toast({
@@ -327,7 +330,7 @@ export const FAQManager = ({ onNavigateToCreate }: FAQManagerProps) => {
           filename = `${collection.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_faqs.json`;
           mimeType = 'application/json';
           break;
-        case 'csv':
+        case 'csv': {
           const csvHeader = 'Question,Answer\n';
           const csvRows = collection.faqs.map(faq =>
             `"${faq.question.replace(/"/g, '""')}","${faq.answer.replace(/"/g, '""')}"`
@@ -336,6 +339,7 @@ export const FAQManager = ({ onNavigateToCreate }: FAQManagerProps) => {
           filename = `${collection.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_faqs.csv`;
           mimeType = 'text/csv';
           break;
+        }
         case 'html':
           content = `<!DOCTYPE html>
 <html>

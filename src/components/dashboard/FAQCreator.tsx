@@ -38,6 +38,10 @@ import { validateUrl, validateText, validateFile, validateCollectionTitle, sanit
 interface FAQ {
   question: string;
   answer: string;
+  // Only populated once the FAQ has been persisted to the database.
+  id?: string;
+  order_index?: number;
+  is_published?: boolean;
 }
 
 interface SavedCollection {
@@ -454,7 +458,13 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
     }
 
     // Validate input based on active tab
-    let inputData = {};
+    let inputData: {
+      type?: string;
+      faqCount?: number;
+      url?: string;
+      text?: string;
+      file?: File;
+    } = {};
     if (activeTab === "url") {
       const trimmedUrl = urlInput?.trim() || '';
 
@@ -555,7 +565,6 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
         fullInputData: inputData
       });
       console.log('Calling analyze-content function with:', inputData);
-      console.log('Supabase URL:', supabase.supabaseUrl);
 
       let response;
 
@@ -807,7 +816,7 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
           filename = `${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_faqs.json`;
           mimeType = 'application/json';
           break;
-        case 'csv':
+        case 'csv': {
           const csvHeader = 'Question,Answer,Order,Published\n';
           const csvRows = faqsToExport.map(faq =>
             `"${faq.question.replace(/"/g, '""')}","${faq.answer.replace(/"/g, '""')}","${'order_index' in faq ? faq.order_index : 0}","${'is_published' in faq ? faq.is_published : true}"`
@@ -816,7 +825,8 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
           filename = `${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_faqs.csv`;
           mimeType = 'text/csv';
           break;
-        case 'html':
+        }
+        case 'html': {
           const publishedFAQs = faqsToExport.filter(faq => 'is_published' in faq ? faq.is_published : true);
           content = `<!DOCTYPE html>
 <html>
@@ -852,6 +862,7 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
           filename = `${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_faqs.html`;
           mimeType = 'text/html';
           break;
+        }
       }
 
       const blob = new Blob([content], { type: mimeType });
@@ -869,6 +880,7 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
         await supabase.from('usage_analytics').insert({
           user_id: user?.id,
           action: 'faq_exported',
+          action_type: 'faq_exported',
           metadata: {
             collection_id: savedCollection.id,
             format: format,
@@ -948,6 +960,7 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
       await supabase.from('usage_analytics').insert({
         user_id: user?.id,
         action: 'embed_generated',
+        action_type: 'embed_generated',
         metadata: {
           collection_id: collectionId,
           collection_title: savedCollection.title,
@@ -1281,7 +1294,7 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
                 const displayFAQs = savedFAQs.length > 0 ? savedFAQs : generatedFAQs;
                 const totalFAQs = displayFAQs.length;
                 const publishedFAQs = savedFAQs.length > 0
-                  ? savedFAQs.filter(faq => faq.is_published).length
+                  ? savedFAQs.filter(faq => faq.is_published === true).length
                   : totalFAQs;
 
                 if (totalFAQs === 0) {
@@ -1326,7 +1339,7 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
                           <h3 className="text-white font-medium flex-1">{faq.question}</h3>
                           {savedFAQs.length > 0 && (
                             <div className="flex items-center gap-2 ml-2">
-                              {'order_index' in faq && (
+                              {typeof faq.order_index === 'number' && (
                                 <Badge variant="outline" className="text-xs">
                                   #{faq.order_index + 1}
                                 </Badge>

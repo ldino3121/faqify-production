@@ -29,6 +29,9 @@ interface Subscription {
   subscription_source: 'manual' | 'stripe' | 'razorpay';
   is_cancelled: boolean;
   continues_until: string | null;
+  // Present on every row; used as a display fallback when plan dates are absent.
+  created_at?: string | null;
+  updated_at?: string | null;
 }
 
 export const useSubscription = () => {
@@ -121,6 +124,8 @@ export const useSubscription = () => {
 
         setSubscription({
           ...data,
+          // `status` is a free-form string column in the DB; narrow it for the UI.
+          status: (data as any).status ?? 'active',
           // Ensure consistent properties expected by the UI
           plan_tier: normalizedPlanTier,
           plan_activated_at: normalizedActivatedAt,
@@ -139,7 +144,10 @@ export const useSubscription = () => {
           billing_cycle: (data as any).billing_cycle ?? 'monthly',
           subscription_source: (data as any).subscription_source ?? 'manual',
           is_cancelled: !!((data as any).cancelled_at),
-          continues_until: ((data as any).cancelled_at && normalizedExpiresAt) ? normalizedExpiresAt : null
+          continues_until: ((data as any).cancelled_at && normalizedExpiresAt) ? normalizedExpiresAt : null,
+          // Legacy rows may predate these columns; derive safe defaults.
+          is_annual: (data as any).is_annual ?? ((data as any).billing_cycle === 'yearly'),
+          previous_plan_tier: (data as any).previous_plan_tier ?? null
         });
       }
     } catch (error) {
@@ -196,18 +204,20 @@ export const useSubscription = () => {
           user_uuid: user.id,
           faq_count: faqCount
         });
-        if (!error && data && data.can_generate !== undefined) {
+        // The generated types describe RPC payloads as `Json`; narrow once here.
+        const rpc = data as Record<string, any> | null;
+        if (!error && rpc && rpc.can_generate !== undefined) {
           return {
-            canGenerate: !!data.can_generate,
-            reason: data.reason ?? 'OK',
-            currentUsage: data.current_usage ?? subscription.faq_usage_current,
-            usageLimit: data.usage_limit ?? subscription.faq_usage_limit,
-            remainingFaqs: data.remaining_faqs ?? remainingFaqs,
-            planTier: data.plan_tier ?? subscription.plan_tier,
-            planExpiresAt: data.plan_expires_at ?? subscription.plan_expires_at,
-            daysRemaining: data.days_remaining ?? subscription.days_remaining,
-            isWithinPeriod: data.is_within_period ?? true,
-            isExpired: !!data.is_expired
+            canGenerate: !!rpc.can_generate,
+            reason: rpc.reason ?? 'OK',
+            currentUsage: rpc.current_usage ?? subscription.faq_usage_current,
+            usageLimit: rpc.usage_limit ?? subscription.faq_usage_limit,
+            remainingFaqs: rpc.remaining_faqs ?? remainingFaqs,
+            planTier: rpc.plan_tier ?? subscription.plan_tier,
+            planExpiresAt: rpc.plan_expires_at ?? subscription.plan_expires_at,
+            daysRemaining: rpc.days_remaining ?? subscription.days_remaining,
+            isWithinPeriod: rpc.is_within_period ?? true,
+            isExpired: !!rpc.is_expired
           };
         }
       } catch (_) {
@@ -287,7 +297,7 @@ export const useSubscription = () => {
       planExpiresAt: subscription.plan_expires_at,
       daysRemaining: subscription.plan_tier === 'Free' ? Infinity : Math.max(0, daysRemaining),
       isActive: subscription.status === 'active' && (subscription.plan_tier === 'Free' || (expiresAt ? expiresAt > now : true)),
-      isExpired: subscription.plan_tier !== 'Free' && (!!expiresAt ? expiresAt <= now : false),
+      isExpired: subscription.plan_tier !== 'Free' && (expiresAt ? expiresAt <= now : false),
       lastResetDate: subscription.last_reset_date
     };
   };

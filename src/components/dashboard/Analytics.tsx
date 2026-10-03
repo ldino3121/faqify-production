@@ -85,14 +85,12 @@ export const Analytics = () => {
     try {
       setLoading(true);
       
-      const { data, error } = await supabase.functions.invoke('get-analytics', {
-        body: null,
-      }, {
-        method: 'GET',
-        query: {
-          timeframe: timeframe
-        }
-      });
+      // `functions.invoke` accepts (name, options) only — no third arg. The edge
+      // function reads `timeframe` from the query string, so append it to the name.
+      const { data, error } = await supabase.functions.invoke(
+        `get-analytics?timeframe=${encodeURIComponent(timeframe)}`,
+        { method: 'GET' },
+      );
 
       if (error) throw error;
 

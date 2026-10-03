@@ -38,7 +38,9 @@ const ResetPassword = () => {
           // Supabase sets a temporary recovery session
           setIsRecovery(true);
         }
-      } catch {}
+      } catch {
+        // Recovery detection is best-effort; fall back to the normal login flow.
+      }
     };
     checkRecovery();
   }, []);

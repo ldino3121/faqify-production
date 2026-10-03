@@ -13,8 +13,9 @@ interface Profile {
   id: string;
   email: string;
   full_name: string | null;
-  company: string | null;
-  website: string | null;
+  // Optional: not every deployment's `profiles` table carries these columns yet.
+  company?: string | null;
+  website?: string | null;
 }
 
 export const UserProfileData = () => {

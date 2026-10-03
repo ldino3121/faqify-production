@@ -8,6 +8,7 @@ interface SubscriptionResult {
   success: boolean;
   subscription_id?: string;
   short_url?: string;
+  status?: string;
   error?: string;
 }
 

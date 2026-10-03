@@ -24,11 +24,9 @@ jobs:
       - name: Test
         run: npm test
 
-      # Informational only: the repo has a backlog of pre-existing type/lint
-      # errors, so these do not fail the pipeline yet. See REMEDIATION-SPEC.md (P0-5).
-      - name: Typecheck (informational)
+      # Hard gates: typecheck and lint must pass (these previously had
+      # continue-on-error: true and silently masked failures).
+      - name: Typecheck
         run: npm run typecheck
-        continue-on-error: true
-      - name: Lint (informational)
+      - name: Lint
         run: npm run lint
-        continue-on-error: true

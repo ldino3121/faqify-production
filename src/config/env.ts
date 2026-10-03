@@ -23,7 +23,6 @@ export const PUBLIC_APP_URL: string = (() => {
   const fromEnv = env.VITE_PUBLIC_APP_URL?.trim();
   if (fromEnv) return fromEnv.replace(/\/+$/, '');
   if (typeof window !== 'undefined' && window.location?.origin) {
-    // eslint-disable-next-line no-console
     console.warn(
       '[env] VITE_PUBLIC_APP_URL is not set — falling back to current origin:',
       window.location.origin,

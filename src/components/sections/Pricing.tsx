@@ -34,13 +34,21 @@ interface RazorpayOptions {
   name: string;
   description: string;
   order_id: string;
+  // Razorpay checkout payment-method toggles (shaped by user country).
+  method?: Record<string, boolean>;
   handler: (response: any) => void;
   prefill: {
     name: string;
     email: string;
+    contact?: string;
   };
   theme: {
     color: string;
+  };
+  config?: {
+    display?: {
+      language?: string;
+    };
   };
   modal: {
     ondismiss: () => void;

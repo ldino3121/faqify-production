@@ -225,7 +225,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           window.localStorage.removeItem(key);
         }
       });
-    } catch {}
+    } catch {
+      // Best-effort only: localStorage can throw (Safari private mode, quota).
+    }
     if (error) {
       throw new Error(error.message);
     }
