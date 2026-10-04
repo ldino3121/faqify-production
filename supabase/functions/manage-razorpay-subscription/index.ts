@@ -198,7 +198,9 @@ serve(async (req) => {
         }
 
         if (immediate) {
-          updateData.status = 'canceled'
+          // NB: the dashboard badge matches on 'cancelled' (SubscriptionManagement),
+          // so this must be spelled identically or the badge falls to the default.
+          updateData.status = 'cancelled'
           updateData.plan_expires_at = new Date().toISOString()
         }
 

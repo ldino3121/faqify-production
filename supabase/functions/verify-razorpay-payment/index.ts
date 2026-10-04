@@ -166,7 +166,11 @@ serve(async (req) => {
         plan_tier: transaction.plan_tier,
         payment_gateway: 'razorpay',
         razorpay_order_id: razorpay_order_id,
-        razorpay_payment_id: razorpay_payment_id,
+        // NOTE: razorpay_payment_id is NOT a column on user_subscriptions. Writing
+        // it here made the whole UPDATE fail with a PostgREST 400 ("column ...
+        // does not exist"), so the customer paid and was never upgraded. The
+        // payment id is already persisted on payment_transactions (which has the
+        // column) immediately above.
         currency: transaction.currency,
         status: 'active',
         faq_usage_limit: plan.faq_limit,

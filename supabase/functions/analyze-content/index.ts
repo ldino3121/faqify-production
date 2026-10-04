@@ -128,6 +128,15 @@ serve(async (req) => {
     }
 
     const { url, text, type, fileName, faqCount = 5 } = requestData;
+    // Defensive contract repair (Oct 2026 sim found raw `{ text }` calls with no
+    // `type` were rejected): a bare text/URL body is common, so infer the
+    // missing discriminator. An explicit `type` always wins.
+    const inferredType = type || (url && !text ? 'url' : (text ? 'text' : undefined));
+    if (inferredType && inferredType !== type) {
+      console.log('🔧 Input contract repair: inferred missing type discriminator', {
+        inferredType, hasUrl: !!url, textLength: text?.length ?? 0,
+      });
+    }
 
     // 🔍 DETAILED DEBUGGING - Check what we're actually receiving
     console.log('🔍 RAW REQUEST DATA:', JSON.stringify(requestData, null, 2));
@@ -204,7 +213,7 @@ serve(async (req) => {
 
     let contentToAnalyze = '';
 
-    if (type === 'url' && url) {
+    if (inferredType === 'url' && url) {
       try {
         console.log('Starting robust web scraping for URL:', url);
 
@@ -720,9 +729,9 @@ serve(async (req) => {
           throw error; // Throw original error
         }
       }
-    } else if ((type === 'text' || type === 'file') && text) {
+    } else if ((inferredType === 'text' || inferredType === 'file') && text) {
       contentToAnalyze = text.substring(0, 8000);
-      if (type === 'file') {
+      if (inferredType === 'file') {
         console.log('Processing file:', fileName);
       }
     } else {
