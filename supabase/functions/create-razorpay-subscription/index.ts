@@ -237,6 +237,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
+        key: razorpayKeyId,
         subscription_id: razorpaySubscription.id,
         plan_id: razorpayPlanId,
         amount: currencyPlan.amount,

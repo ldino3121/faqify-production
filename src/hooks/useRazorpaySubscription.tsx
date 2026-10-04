@@ -276,7 +276,7 @@ export const useRazorpaySubscription = () => {
     setLoading(false);
   };
 
-	  const openRazorpaySubscriptionCheckout = (subscriptionId: string, planId: 'Pro' | 'Business', userCountry?: string) => {
+	  const openRazorpaySubscriptionCheckout = (subscriptionId: string, planId: 'Pro' | 'Business', userCountry?: string, key?: string) => {
 	    if (!window.Razorpay) {
 	      toast({
 	        title: "Error",
@@ -290,7 +290,7 @@ export const useRazorpaySubscription = () => {
 	    const isIndianUser = normalizedCountry === 'IN' || normalizedCountry === 'INDIA';
 
 	    const options: RazorpaySubscriptionOptions = {
-	      key: import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_your_key_id',
+	      key: key || import.meta.env.VITE_RAZORPAY_KEY_ID || '',
 	      subscription_id: subscriptionId,
 	      name: 'FAQify',
 	      description: `${planId} Plan Subscription`,
@@ -411,7 +411,7 @@ export const useRazorpaySubscription = () => {
           });
 
           try {
-            openRazorpaySubscriptionCheckout(data.subscription_id, planId, effectiveUserCountry);
+            openRazorpaySubscriptionCheckout(data.subscription_id, planId, effectiveUserCountry, data.key);
           } catch (err) {
             console.error('Error opening Razorpay subscription checkout:', err);
             toast({
@@ -481,7 +481,7 @@ export const useRazorpaySubscription = () => {
           });
 
           try {
-            openRazorpaySubscriptionCheckout(data.subscription_id, planId, effectiveUserCountry);
+            openRazorpaySubscriptionCheckout(data.subscription_id, planId, effectiveUserCountry, data.key);
           } catch (err) {
             console.error('Error opening Razorpay subscription checkout:', err);
             toast({
