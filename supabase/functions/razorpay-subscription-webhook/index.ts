@@ -139,6 +139,9 @@ async function handleSubscriptionActivated(supabase: any, subscription: any) {
       plan_activated_at: now.toISOString(),
       plan_expires_at: nextBilling.toISOString(),
       faq_usage_limit: faqLimit,
+      // Activation credits the full monthly quota from zero.
+      faq_usage_current: 0,
+      last_reset_date: now.toISOString(),
       auto_renewal: true,
       payment_type: 'recurring',
       billing_cycle: 'monthly',
@@ -183,6 +186,9 @@ async function handleSubscriptionCharged(supabase: any, subscription: any, payme
       plan_expires_at: nextBilling.toISOString(),
       next_billing_date: nextBilling.toISOString(),
       status: 'active',
+      // Renewal paid -> fresh monthly quota for the new billing cycle.
+      faq_usage_current: 0,
+      last_reset_date: new Date().toISOString(),
       updated_at: new Date().toISOString()
     })
     .eq('user_id', userId)

@@ -174,6 +174,12 @@ serve(async (req) => {
         currency: transaction.currency,
         status: 'active',
         faq_usage_limit: plan.faq_limit,
+        // Credit the new cycle: zero the counter and anchor the monthly reset
+        // to this purchase. Without this, a repurchase after exhausting quota
+        // (e.g. 100/100) keeps the old usage level and the buyer stays locked
+        // out until the scheduled anniversary reset fires.
+        faq_usage_current: 0,
+        last_reset_date: now.toISOString(),
         plan_activated_at: now.toISOString(),
         plan_expires_at: planExpiresAt.toISOString(),
         plan_changed_at: now.toISOString(),

@@ -202,6 +202,9 @@ serve(async (req) => {
           .update({
             plan_expires_at: currentPeriodEnd.toISOString(),
             status: 'active',
+            // Renewal paid -> fresh monthly quota for the new billing cycle.
+            faq_usage_current: 0,
+            last_reset_date: new Date().toISOString(),
             updated_at: new Date().toISOString()
           })
           .eq('id', userSubscription.id);
@@ -313,6 +316,9 @@ serve(async (req) => {
             status: 'active',
             plan_tier: planTier,
             faq_usage_limit: parseInt(faqLimit),
+            // First activation credits the full plan quota from zero.
+            faq_usage_current: 0,
+            last_reset_date: new Date().toISOString(),
             plan_activated_at: new Date().toISOString(),
             plan_expires_at: new Date(subscription.current_end * 1000).toISOString(),
             updated_at: new Date().toISOString()
@@ -388,8 +394,13 @@ serve(async (req) => {
           .from('user_subscriptions')
           .update({
             plan_tier: 'Free',
-            status: 'expired',
+            // Free rows are `active` everywhere else (Free never expires);
+            // restoring the sentinel keeps the "Plan Expires: Never" invariant.
+            status: 'active',
             faq_usage_limit: 5,
+            faq_usage_current: 0,
+            last_reset_date: new Date().toISOString(),
+            plan_expires_at: new Date('2099-12-31T23:59:59Z').toISOString(),
             updated_at: new Date().toISOString()
           })
           .eq('id', userSubscription.id);
