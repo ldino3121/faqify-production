@@ -149,14 +149,27 @@ export const SubscriptionManagement: React.FC<SubscriptionManagementProps> = ({ 
               <h3 className="text-white font-medium">Current Plan</h3>
               <p className="text-gray-400 text-sm">{subscription?.plan_tier || 'Free'} Plan</p>
             </div>
-            <Badge className="bg-green-600 text-white">
-              Active
+            {/* Reflect the real state instead of a hard-coded "Active" badge. */}
+            <Badge
+              className={
+                subscription.is_expired
+                  ? 'bg-red-600 text-white'
+                  : subscription.status === 'active'
+                    ? 'bg-green-600 text-white'
+                    : 'bg-yellow-600 text-white'
+              }
+            >
+              {subscription.is_expired
+                ? 'Expired'
+                : subscription.status === 'active'
+                  ? 'Active'
+                  : subscription.status}
             </Badge>
           </div>
 
           <div className="text-sm text-gray-400">
             <p>• Plan management features will be available soon</p>
-            <p>• Your current subscription remains active</p>
+            <p>• Your current plan and usage are shown above</p>
             <p>• Contact support for immediate assistance</p>
           </div>
         </CardContent>
@@ -166,11 +179,20 @@ export const SubscriptionManagement: React.FC<SubscriptionManagementProps> = ({ 
 
   const formatDate = (dateString: string | null) => {
     if (!dateString) return 'N/A';
-    return new Date(dateString).toLocaleDateString('en-US', {
+    const d = new Date(dateString);
+    if (Number.isNaN(d.getTime())) return 'N/A';
+    return d.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
       day: 'numeric'
     });
+  };
+
+  // Razorpay periods are epoch seconds. Guard missing/invalid values so
+  // `new Date(NaN).toISOString()` can't throw and blank this card.
+  const formatEpoch = (seconds?: number | null) => {
+    if (!seconds || !Number.isFinite(seconds)) return 'N/A';
+    return formatDate(new Date(seconds * 1000).toISOString());
   };
 
   const getSubscriptionStatusBadge = () => {
@@ -227,14 +249,14 @@ export const SubscriptionManagement: React.FC<SubscriptionManagementProps> = ({ 
               <div>
                 <Label className="text-gray-400 text-sm">Current Period</Label>
                 <p className="text-white">
-                  {formatDate(new Date(subscriptionDetails.current_start * 1000).toISOString())} - {formatDate(new Date(subscriptionDetails.current_end * 1000).toISOString())}
+                  {formatEpoch(subscriptionDetails.current_start)} - {formatEpoch(subscriptionDetails.current_end)}
                 </p>
               </div>
               <div>
                 <Label className="text-gray-400 text-sm">Next Billing</Label>
                 <p className="text-white">
                   {subscriptionDetails.status === 'active'
-                    ? formatDate(new Date(subscriptionDetails.current_end * 1000).toISOString())
+                    ? formatEpoch(subscriptionDetails.current_end)
                     : 'N/A'
                   }
                 </p>
