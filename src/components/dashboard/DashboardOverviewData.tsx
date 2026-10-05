@@ -124,6 +124,18 @@ export const DashboardOverviewData = ({ onNavigateToUpgrade }: DashboardOverview
     }
   };
 
+  // Free plans store a far-future sentinel (2099-12-31 UTC, which renders as
+  // January 1, 2100 in IST) to mean "never expires". Show that as "Never".
+  const isNeverExpires = (dateString?: string | null) => {
+    if (!dateString) return false;
+    const d = new Date(dateString);
+    return !Number.isNaN(d.getTime()) && d.getUTCFullYear() >= 2099;
+  };
+  const neverExpires =
+    subscription?.plan_tier === 'Free' ||
+    isNeverExpires(subscription?.plan_expires_at) ||
+    isNeverExpires(subscription?.current_period_end);
+
   // Debug subscription data
   useEffect(() => {
     if (subscription) {
@@ -286,11 +298,13 @@ export const DashboardOverviewData = ({ onNavigateToUpgrade }: DashboardOverview
                   subscription?.is_expired ? 'text-red-400' :
                   subscription?.expires_soon ? 'text-yellow-400' : 'text-white'
                 }`}>
-                  {subscription?.plan_expires_at
-                    ? formatFullDate(subscription.plan_expires_at)
-                    : subscription?.current_period_end
-                      ? formatFullDate(subscription.current_period_end)
-                      : 'Not available'
+                  {neverExpires
+                    ? 'Never'
+                    : subscription?.plan_expires_at
+                      ? formatFullDate(subscription.plan_expires_at)
+                      : subscription?.current_period_end
+                        ? formatFullDate(subscription.current_period_end)
+                        : 'Not available'
                   }
                   {subscription?.is_expired && ' (Expired)'}
                   {subscription?.expires_soon && !subscription?.is_expired && ' (Expires Soon)'}
