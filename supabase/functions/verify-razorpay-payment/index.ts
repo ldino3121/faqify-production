@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.50.2';
 import { createHmac } from "https://deno.land/std@0.168.0/node/crypto.ts";
+import { cancelSupersededSubscription } from "../_shared/razorpay.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -154,7 +155,7 @@ serve(async (req) => {
     // Capture current tier for accurate history (before mutating it)
     const { data: priorSub } = await supabase
       .from('user_subscriptions')
-      .select('plan_tier')
+      .select('plan_tier, razorpay_subscription_id')
       .eq('user_id', user.id)
       .single();
     const fromTier = priorSub?.plan_tier ?? 'Free';
@@ -189,6 +190,10 @@ serve(async (req) => {
         payment_type: 'onetime',
         billing_cycle: 'monthly',
         subscription_source: 'razorpay_onetime',
+        // A one-time purchase has no Razorpay subscription of its own; clear
+        // any stale id from a previous recurring plan BEFORE cancelling it, so
+        // a late `subscription.cancelled` event can't match this row.
+        razorpay_subscription_id: null,
         next_billing_date: null,
         cancelled_at: null,
         cancellation_reason: null
@@ -204,6 +209,10 @@ serve(async (req) => {
     }
 
     console.log('Subscription updated successfully for user:', user.id);
+
+    // Plan switch (recurring -> one-time): stop the superseded subscription
+    // from renewing. Already ran the UPDATE above, so the old id is cleared.
+    await cancelSupersededSubscription(priorSub?.razorpay_subscription_id, '');
 
     // Log subscription change
     const { error: historyError } = await supabase

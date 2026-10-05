@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.50.2';
 import { createHmac } from "https://deno.land/std@0.168.0/node/crypto.ts";
 import { formatMoney, resolveUserEmail, sendEmail } from "../_shared/email.ts";
+import { cancelSupersededSubscription } from "../_shared/razorpay.ts";
 import {
   paymentFailedEmail,
   planActivatedEmail,
@@ -329,6 +330,11 @@ serve(async (req) => {
           console.error('Error updating subscription:', error);
         } else {
           console.log('Subscription activated for user:', userId);
+          // Plan switch: cancel the previous Razorpay subscription (at cycle
+          // end) so the superseded plan stops renewing — otherwise the customer
+          // is double-billed. Runs AFTER the update above, so a late
+          // `subscription.cancelled` event for the old id no longer matches.
+          await cancelSupersededSubscription(existingSub?.razorpay_subscription_id, subscription.id);
           await deliverPlanActivated(
             supabase,
             userId,

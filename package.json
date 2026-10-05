@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
     "test": "vitest run",
     "sim": "node scripts/sim-saas-flow/index.mjs",
+    "sim:plans": "node scripts/sim-plan-lifecycle/index.mjs",
     "ci": "npm run typecheck && npm run lint && npm run build",
     "setup-razorpay-plans": "node scripts/setup-razorpay-plans.js"
   },
