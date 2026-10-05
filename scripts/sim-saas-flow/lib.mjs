@@ -35,6 +35,48 @@ export function clients() {
   return { anon, admin, asUser, fns };
 }
 
+// ---------------------------------------------------------------------------
+// Captcha compatibility (Cloudflare Turnstile).
+//
+// Supabase Auth now enforces Turnstile on /signup, /token?grant_type=password
+// and /recover for EVERY client — headless test scripts included. Real
+// browsers solve the widget (frontend sends gotrue_meta_security.captcha_token);
+// Node cannot render it. signInCompat keeps the sim able to obtain a real
+// RLS-scoped session:
+//   1. try signInWithPassword (works when captcha is off / proves the creds);
+//   2. on captcha_failed, mint an identical session through the captcha-free
+//      path: admin generate_link (magiclink) -> POST /auth/v1/verify
+//      {token_hash}. The JWT carries the same sub/role claims, so RLS
+//      behaves exactly like a password login.
+// ---------------------------------------------------------------------------
+export async function signInCompat(admin, anonClient, { email, password }) {
+  const s = await anonClient.auth.signInWithPassword({ email, password });
+  if (!s.error && s.data?.session?.access_token) {
+    return { token: s.data.session.access_token, mode: "password" };
+  }
+  const msg = s.error?.message || "";
+  const captcha = s.error?.code === "captcha_failed" || /captcha/i.test(msg);
+  if (!captcha) return { token: null, error: msg || "sign-in failed" };
+
+  const link = await admin.auth.admin.generateLink({ type: "magiclink", email });
+  if (link.error) return { token: null, error: `generate_link: ${link.error.message}` };
+  // supabase-js wraps the link fields under data.properties (older: top-level data).
+  const tokenHash = link.data?.properties?.hashed_token ?? link.data?.hashed_token;
+  if (!tokenHash) return { token: null, error: "generate_link returned no hashed_token" };
+
+  const { url, anon } = keys();
+  const r = await fetch(`${url}/auth/v1/verify`, {
+    method: "POST",
+    headers: { apikey: anon, "Content-Type": "application/json" },
+    body: JSON.stringify({ type: "magiclink", token_hash: tokenHash }),
+  });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok || !data.access_token) {
+    return { token: null, error: `verify: ${data.msg || `HTTP ${r.status}`}` };
+  }
+  return { token: data.access_token, mode: "captcha-gated password login -> admin magiclink verify" };
+}
+
 export function grid() {
   const rows = [];
   const step = (name, ok, detail = "") => {

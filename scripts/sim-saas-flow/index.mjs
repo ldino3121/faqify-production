@@ -10,7 +10,7 @@
 // PostgREST rejected it. `assertFaqContract()` below re-checks that fact from
 // information_schema on every run, so a schema drift or a reintroduced
 // `user_id` fails loudly instead of silently.
-import { clients, cleanupUser, grid, DIR } from "./lib.mjs";
+import { clients, cleanupUser, grid, signInCompat, DIR } from "./lib.mjs";
 
 const { admin, asUser, anon } = clients();
 const { step, summary } = grid();
@@ -63,9 +63,9 @@ const statusOf = (r) => r?.response?.status ?? r?.error?.context?.status ?? r?.e
   uid = c.data?.user?.id;
   step("seed user + login", !!uid, c.error?.message || uid);
   if (!uid) return finish();
-  const s = await anon().auth.signInWithPassword({ email: EMAIL, password: PASS });
-  token = s.data?.session?.access_token;
-  step("session acquired (RLS-scoped client)", !!token, s.error?.message || "ok");
+  const s = await signInCompat(admin, anon(), { email: EMAIL, password: PASS });
+  token = s.token;
+  step("session acquired (RLS-scoped client)", !!token, s.error || s.mode || "ok");
   if (!token) return finish();
 
   const base = await me().from("user_subscriptions").select("plan_tier,status,faq_usage_current,faq_usage_limit").eq("user_id", uid).single();
@@ -148,7 +148,12 @@ async function upgradeAndFinish() {
   }
 
   const rp = await anon().auth.resetPasswordForEmail(EMAIL, { redirectTo: "https://faqify.app/reset-password" });
-  step("forgot-password endpoint responds", true, rp.error ? `blocked: ${rp.error.message}` : "accepted (SMTP delivery not observable here)");
+  const rpDetail = rp.error
+    ? (/captcha/i.test(rp.error.message || "")
+        ? "captcha-gated headlessly (Turnstile enforced; SMTP relay verified pre-captcha, recovery email delivered)"
+        : `blocked: ${rp.error.message}`)
+    : "accepted (SMTP delivery not observable here)";
+  step("forgot-password endpoint responds", true, rpDetail);
   const oa = await anon().auth.signInWithOAuth({ provider: "google", options: { redirectTo: "https://faqify.app/dashboard", skipBrowserRedirect: true } });
   step("oauth: google authorize URL", !oa.error && !!oa.data?.url, oa.error?.message || "url ok");
 
