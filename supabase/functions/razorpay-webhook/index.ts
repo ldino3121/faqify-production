@@ -1,3 +1,4 @@
+import { withRolloutGuard } from '../_shared/rollout.ts';
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.50.2';
 import { createHmac } from "https://deno.land/std@0.168.0/node/crypto.ts";
@@ -16,7 +17,7 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-serve(async (req) => {
+serve(withRolloutGuard(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -28,7 +29,7 @@ serve(async (req) => {
 
   try {
     const webhookSecret = Deno.env.get('RAZORPAY_WEBHOOK_SECRET');
-    
+
     if (!webhookSecret) {
       throw new Error('Razorpay webhook secret not configured');
     }
@@ -202,6 +203,7 @@ serve(async (req) => {
           .from('user_subscriptions')
           .update({
             plan_expires_at: currentPeriodEnd.toISOString(),
+            next_billing_date: currentPeriodEnd.toISOString(),
             status: 'active',
             // Renewal paid -> fresh monthly quota for the new billing cycle.
             faq_usage_current: 0,
@@ -297,9 +299,10 @@ serve(async (req) => {
         // Idempotency: skip if this subscription is already active for the user
         const { data: existingSub } = await supabase
           .from('user_subscriptions')
-          .select('status, razorpay_subscription_id')
+          .select('status, razorpay_subscription_id, payment_gateway')
           .eq('user_id', userId)
           .maybeSingle();
+        if (existingSub?.payment_gateway === 'paddle') break; // Ignore superseded Razorpay activation.
         if (existingSub?.status === 'active' && existingSub?.razorpay_subscription_id === subscription.id) {
           console.log('Subscription already activated, ignoring duplicate:', subscription.id);
           break;
@@ -314,6 +317,13 @@ serve(async (req) => {
           .from('user_subscriptions')
           .update({
             razorpay_subscription_id: subscription.id,
+            payment_gateway: 'razorpay',
+            subscription_source: 'razorpay',
+            payment_type: 'recurring',
+            auto_renewal: true,
+            next_billing_date: new Date(subscription.current_end * 1000).toISOString(),
+            cancelled_at: null,
+            cancellation_reason: null,
             status: 'active',
             plan_tier: planTier,
             faq_usage_limit: parseInt(faqLimit),
@@ -366,7 +376,7 @@ serve(async (req) => {
         const { error: updateError } = await supabase
           .from('user_subscriptions')
           .update({
-            status: 'pending',
+            status: 'past_due',
             updated_at: new Date().toISOString()
           })
           .eq('id', userSubscription.id);
@@ -376,6 +386,17 @@ serve(async (req) => {
         } else {
           console.log('Subscription marked as pending:', userSubscription.id);
         }
+        break;
+      }
+
+      case 'subscription.paused':
+      case 'subscription.resumed':
+      case 'subscription.halted': {
+        const subscription = event.payload.subscription.entity;
+        const status = event.event === 'subscription.resumed' ? 'active' : event.event === 'subscription.paused' ? 'paused' : 'past_due';
+        const { error } = await supabase.from('user_subscriptions').update({ status, updated_at: new Date().toISOString() })
+          .eq('razorpay_subscription_id', subscription.id);
+        if (error) throw error;
         break;
       }
 
@@ -429,9 +450,9 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('Webhook error:', error);
-    return new Response(`Webhook error: ${error.message}`, { status: 400 });
+    return new Response(`Webhook error: ${(error instanceof Error ? error.message : String(error))}`, { status: 400 });
   }
-});
+}, 'razorpay-webhook', false));
 
 /* --------------------------------------------------------- transactional email
  * Best effort by design: sendEmail never throws and degrades to a logged no-op

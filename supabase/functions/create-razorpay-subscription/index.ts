@@ -1,3 +1,4 @@
+import { withRolloutGuard } from '../_shared/rollout.ts';
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -14,7 +15,7 @@ interface SubscriptionRequest {
   userCountry?: string;
 }
 
-serve(async (req) => {
+serve(withRolloutGuard(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -204,7 +205,7 @@ serve(async (req) => {
     })
 
     // Store SUBSCRIPTION in database
-    const { error: dbError } = await supabaseClient
+    const { error: dbError } = await supabaseAdminClient
       .from('payment_transactions')
       .insert({
         user_id: user.id,
@@ -264,11 +265,11 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('Error creating subscription:', error)
-    
+
     return new Response(
       JSON.stringify({
         success: false,
-        error: error.message || 'Failed to create subscription'
+        error: (error instanceof Error ? error.message : String(error)) || 'Failed to create subscription'
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -276,4 +277,4 @@ serve(async (req) => {
       },
     )
   }
-})
+}, 'create-razorpay-subscription', true))

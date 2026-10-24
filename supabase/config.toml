@@ -39,10 +39,13 @@ file_size_limit = "50MiB"
 
 [auth]
 enabled = true
-site_url = "http://localhost:8082"
+site_url = "http://localhost:8081"
 # Keep the production domain (https://faqify.app) here AND in the Supabase
 # dashboard (Auth → URL Configuration) so OAuth/email links resolve correctly.
 additional_redirect_urls = [
+  "http://localhost:8081/",
+  "http://localhost:8081/dashboard",
+  "http://localhost:8081/reset-password",
   "http://localhost:8082/dashboard",
   "http://localhost:8082/",
   "http://localhost:8082/reset-password",
@@ -85,3 +88,71 @@ enabled = false
 port = 54327
 vector_port = 54328
 backend = "postgres"
+
+[functions.create-paddle-checkout]
+verify_jwt = true
+
+[functions.paddle-customer-portal]
+verify_jwt = true
+
+# Paddle authenticates with Paddle-Signature, not a Supabase user JWT.
+[functions.paddle-webhook]
+verify_jwt = false
+
+[functions.razorpay-webhook]
+verify_jwt = false
+
+[functions.razorpay-subscription-webhook]
+verify_jwt = false
+
+# Public widgets may submit only events tied to an existing published collection.
+[functions.track-analytics]
+verify_jwt = false
+
+[functions.process-document]
+verify_jwt = true
+
+[functions.create-checkout-session]
+verify_jwt = true
+
+[functions.manage-subscription]
+verify_jwt = true
+
+[functions.stripe-webhook]
+verify_jwt = true
+
+[functions.assign-pro-plan]
+verify_jwt = true
+
+[functions.create-razorpay-order]
+verify_jwt = false
+
+[functions.verify-razorpay-payment]
+verify_jwt = true
+
+[functions.create-razorpay-subscription]
+verify_jwt = false
+
+[functions.debug-user-status]
+verify_jwt = true
+
+[functions.check-env]
+verify_jwt = true
+
+[functions.check-subscription-plans]
+verify_jwt = true
+
+[functions.fix-database-plans]
+verify_jwt = true
+
+[functions.test-env-vars]
+verify_jwt = true
+
+[functions.manage-razorpay-subscription]
+verify_jwt = true
+
+[functions.admin-set-plan]
+verify_jwt = true
+
+[functions.probe-razorpay]
+verify_jwt = true

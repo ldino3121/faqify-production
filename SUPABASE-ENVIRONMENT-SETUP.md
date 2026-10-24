@@ -1,3 +1,5 @@
+> Historical document: embedded private credentials have been removed. Hardcoded fallback examples and old deployment instructions are obsolete; use backend environment variables and the maintained functions.
+
 # 🔧 SUPABASE ENVIRONMENT SETUP REQUIRED
 
 ## **🚨 CRITICAL ISSUE IDENTIFIED:**
@@ -23,7 +25,7 @@ SUPABASE_URL=https://dlzshcshqjdghmtzlbma.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=[Your Service Role Key]
 
 # Google Gemini API
-GEMINI_API_KEY=AIzaSyCnpPwL11BpSd2jIQwK3N-BlH2g5fMgQOY
+GEMINI_API_KEY=REDACTED_SET_GEMINI_API_KEY
 
 # Razorpay Configuration
 RAZORPAY_KEY_ID=[Your Razorpay Key ID]
@@ -41,7 +43,7 @@ RAZORPAY_WEBHOOK_SECRET=[Your Razorpay Webhook Secret]
    - Razorpay Dashboard → Account & Settings → API Keys
    
 3. **Gemini API Key**: 
-   - Already provided: `AIzaSyCnpPwL11BpSd2jIQwK3N-BlH2g5fMgQOY`
+   - Already provided: `REDACTED_SET_GEMINI_API_KEY`
 
 ### **Step 2: Set Environment Variables**
 1. Go to Supabase Dashboard
@@ -65,7 +67,7 @@ If you prefer, I can guide you through setting these via CLI:
 
 ```bash
 # Set environment variables via CLI
-supabase secrets set GEMINI_API_KEY=AIzaSyCnpPwL11BpSd2jIQwK3N-BlH2g5fMgQOY
+supabase secrets set GEMINI_API_KEY=REDACTED_SET_GEMINI_API_KEY
 supabase secrets set RAZORPAY_KEY_ID=your_key_here
 supabase secrets set RAZORPAY_SECRET_KEY=your_secret_here
 ```

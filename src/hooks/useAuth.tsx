@@ -7,7 +7,7 @@ interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
-  signUp: (email: string, password: string, fullName?: string, captchaToken?: string) => Promise<void>;
+  signUp: (email: string, password: string, fullName?: string, captchaToken?: string) => Promise<{ confirmationRequired: boolean }>;
   signIn: (email: string, password: string, captchaToken?: string) => Promise<void>;
   signOut: () => Promise<void>;
   signInWithGoogle: () => Promise<void>;
@@ -29,73 +29,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const [initialLoad, setInitialLoad] = useState(true);
-  const [hasShownWelcome, setHasShownWelcome] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
     let mounted = true;
-
-    const initAuth = async () => {
-      try {
-        // Get initial session first
-        const { data: { session }, error } = await supabase.auth.getSession();
-
-        if (mounted) {
-          console.log('Initial session:', session?.user?.email);
-          setSession(session);
-          setUser(session?.user ?? null);
-          setInitialLoad(false);
-          setLoading(false);
-
-          if (session) {
-            setHasShownWelcome(true);
-          }
-        }
-      } catch (error) {
-        console.error('Error getting initial session:', error);
-        if (mounted) {
-          setLoading(false);
-          setInitialLoad(false);
-        }
-      }
-    };
-
-    // Initialize auth state
-    initAuth();
-
-    // Set up auth state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('Auth state changed:', event, session?.user?.email);
-
-      if (mounted && !initialLoad) {
-        setSession(session);
-        setUser(session?.user ?? null);
-
-        if (event === 'SIGNED_IN' && !hasShownWelcome) {
-          toast({
-            title: "Welcome!",
-            description: "You have been signed in successfully.",
-          });
-          setHasShownWelcome(true);
-        } else if (event === 'SIGNED_OUT') {
-          toast({
-            title: "Signed out",
-            description: "You have been signed out successfully.",
-          });
-          setHasShownWelcome(false);
-        }
-      }
+    let authEventReceived = false;
+    // Subscribe first: a later getSession result must never overwrite a newer auth event.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, next) => {
+      authEventReceived = true;
+      if (mounted) { setSession(next); setUser(next?.user ?? null); setLoading(false); }
     });
-
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
-  }, [toast]);
+    supabase.auth.getSession().then(({ data, error }) => {
+      if (mounted && !authEventReceived) {
+        setSession(error ? null : data.session); setUser(error ? null : data.session?.user ?? null); setLoading(false);
+      }
+    }).catch(() => { if (mounted) setLoading(false); });
+    return () => { mounted = false; subscription.unsubscribe(); };
+  }, []);
 
   const signUp = async (email: string, password: string, fullName?: string, captchaToken?: string) => {
-    console.log('Attempting sign up for:', email);
 
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -110,77 +62,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       },
     });
 
-    console.log('Sign up response:', { data, error });
-    console.log('User created:', data.user?.id, data.user?.email);
-    console.log('Session created:', !!data.session);
-
-    // Log additional details for debugging
-    if (data.user) {
-      console.log('User created_at:', data.user.created_at);
-      console.log('User email_confirmed_at:', data.user.email_confirmed_at);
-      console.log('User confirmation_sent_at:', data.user.confirmation_sent_at);
-    }
-
-    if (error) {
-      console.error('Sign up error:', error);
-      console.error('Error code:', error.status);
-      console.error('Error message:', error.message);
-
-      // Handle various existing user scenarios - email is the unique identifier
-      if (error.message.includes('already registered') ||
-          error.message.includes('already exists') ||
-          error.message.includes('User already registered') ||
-          error.message.includes('email address is already in use') ||
-          error.message.includes('duplicate key value') ||
-          error.status === 422) {
-
-        if (email.toLowerCase().includes('@gmail.com')) {
-          throw new Error('Email already exists! This Gmail account may be registered with Google OAuth. Please try "Continue with Google" to sign in.');
-        }
-        throw new Error('Email already exists! This email is already registered. Please try signing in instead, or use Google login if you registered with Google.');
-      }
-
-      throw new Error(error.message);
-    }
-
-    // Handle signup response - with confirmations disabled, behavior is different
-    if (data.user) {
-      console.log('=== ANALYZING SIGNUP RESPONSE ===');
-      console.log('User ID:', data.user.id);
-      console.log('User email:', data.user.email);
-      console.log('User created_at:', data.user.created_at);
-      console.log('Has session:', !!data.session);
-      console.log('Email confirmed:', !!data.user.email_confirmed_at);
-
-      // With confirmations disabled, Supabase behavior:
-      // - New user: Returns user + session
-      // - Existing user: Returns existing user + NO session + NO error
-
-      if (!data.session) {
-        // No session = existing user trying to signup again
-        console.log('No session provided - this indicates existing user');
-        if (email.toLowerCase().includes('@gmail.com')) {
-          throw new Error('Email already exists! This Gmail account may be registered with Google OAuth. Please try "Continue with Google" to sign in.');
-        }
-        throw new Error('Email already exists! This email is already registered. Please try signing in instead, or use Google login if you registered with Google.');
-      }
-
-      // Has session = genuinely new user
-      console.log('Session provided - new user created successfully');
-      toast({
-        title: "Account created!",
-        description: "Welcome to FAQify! Redirecting to your dashboard...",
-      });
-
-      // Redirect to dashboard after successful signup
-      setTimeout(() => {
-        window.location.href = '/dashboard';
-      }, 1500);
-    }
+    if (error) throw new Error(error.message);
+    // With email confirmation enabled, a new user legitimately has no session.
+    // Use the same response for existing addresses, avoiding account enumeration.
+    return { confirmationRequired: !data.session };
   };
 
   const signIn = async (email: string, password: string, captchaToken?: string) => {
-    console.log('Attempting sign in for:', email);
 
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
@@ -188,9 +76,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       ...(captchaToken ? { options: { captchaToken } } : {}),
     });
 
-    console.log('Sign in response:', { data, error });
-    console.log('Sign in user:', data.user?.email);
-    console.log('Sign in session:', !!data.session);
 
     if (error) {
       console.error('Sign in error:', error);
@@ -259,13 +144,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const signInWithGoogle = async () => {
-    console.log('Attempting Google OAuth sign in...');
-    console.log('Current origin:', window.location.origin);
 
     // Always use current origin for development
     const redirectUrl = `${window.location.origin}/dashboard`;
 
-    console.log('Redirect URL:', redirectUrl);
 
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
@@ -278,7 +160,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       },
     });
 
-    console.log('Google OAuth response:', { data, error });
 
     if (error) {
       console.error('Google OAuth error:', error);

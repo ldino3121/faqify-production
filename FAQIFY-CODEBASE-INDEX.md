@@ -1,3 +1,5 @@
+> Historical document: embedded private credentials have been removed. Hardcoded fallback examples and old deployment instructions are obsolete; use backend environment variables and the maintained functions.
+
 # 📚 FAQify Codebase Index & Business Logic
 
 ## 🏗️ **ARCHITECTURE OVERVIEW**
@@ -231,7 +233,7 @@ subscription_plans
 SUPABASE_URL=https://dlzshcshqjdghmtzlbma.supabase.co
 SUPABASE_ANON_KEY=[public key]
 SUPABASE_SERVICE_ROLE_KEY=[private key]
-GEMINI_API_KEY=AIzaSyCnpPwL11BpSd2jIQwK3N-BlH2g5fMgQOY
+GEMINI_API_KEY=REDACTED_SET_GEMINI_API_KEY
 STRIPE_SECRET_KEY=[stripe key]
 RAZORPAY_KEY_ID=[razorpay key]
 RAZORPAY_KEY_SECRET=[razorpay secret]

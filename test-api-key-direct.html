@@ -72,7 +72,8 @@
             updateResults('<div class="status info">🔍 Testing API key directly with OpenRouter...</div>');
             
             // Test the API key that's hardcoded in the function
-            const apiKey = 'sk-or-v1-8f7e6d5c4b3a2918f7e6d5c4b3a2918f7e6d5c4b3a2918f7e6d5c4b3a2918f7e6d5c';
+            throw new Error('Retired diagnostic: private API credentials must stay on the server.');
+            const apiKey = '';
             
             try {
                 const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {

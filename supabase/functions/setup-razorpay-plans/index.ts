@@ -1,3 +1,4 @@
+import { requireAdmin } from '../_shared/require-admin.ts';
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
 const corsHeaders = {
@@ -26,6 +27,9 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
+
+  const denied = await requireAdmin(req);
+  if (denied) return denied;
 
   try {
     // Razorpay configuration
@@ -170,7 +174,7 @@ serve(async (req) => {
         results.push({
           plan_id: planData.id,
           status: 'error',
-          message: `Error creating plan: ${error.message}`,
+          message: `Error creating plan: ${(error instanceof Error ? error.message : String(error))}`,
           error: error
         })
       }
@@ -195,7 +199,7 @@ serve(async (req) => {
     console.error('Error setting up Razorpay plans:', error)
     return new Response(JSON.stringify({
       success: false,
-      error: error.message
+      error: (error instanceof Error ? error.message : String(error))
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 500,

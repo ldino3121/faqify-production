@@ -1,0 +1,4 @@
+
+# Preserve document fixtures as binary; PDF offsets must not be normalized.
+tests/fixtures/*.pdf binary
+tests/fixtures/*.docx binary

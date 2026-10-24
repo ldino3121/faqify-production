@@ -1,3 +1,4 @@
+import { withRolloutGuard } from '../_shared/rollout.ts';
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -14,7 +15,7 @@ interface ManageSubscriptionRequest {
   new_plan?: 'Pro' | 'Business';
 }
 
-serve(async (req) => {
+serve(withRolloutGuard(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -46,13 +47,14 @@ serve(async (req) => {
 
     // Razorpay configuration
     const razorpayKeyId = Deno.env.get('RAZORPAY_KEY_ID')
-    const razorpayKeySecret = Deno.env.get('RAZORPAY_KEY_SECRET')
+    const razorpayKeySecret = Deno.env.get('RAZORPAY_KEY_SECRET') ?? Deno.env.get('RAZORPAY_SECRET_KEY')
 
     if (!razorpayKeyId || !razorpayKeySecret) {
       throw new Error('Razorpay credentials not configured')
     }
 
     const authHeader = 'Basic ' + btoa(`${razorpayKeyId}:${razorpayKeySecret}`)
+    const supabaseAdmin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
 
     // Get user's current subscription from database
     const { data: userSubscription, error: subError } = await supabaseClient
@@ -66,6 +68,8 @@ serve(async (req) => {
     }
 
     const razorpaySubscriptionId = subscription_id || userSubscription.razorpay_subscription_id
+
+    if (subscription_id && subscription_id !== userSubscription.razorpay_subscription_id) throw new Error('Subscription does not belong to this account')
 
     if (!razorpaySubscriptionId) {
       throw new Error('No Razorpay subscription ID found')
@@ -118,7 +122,7 @@ serve(async (req) => {
         }
 
         // Update local database
-        await supabaseClient
+        await supabaseAdmin
           .from('user_subscriptions')
           .update({
             status: 'paused',
@@ -154,7 +158,7 @@ serve(async (req) => {
         }
 
         // Update local database
-        await supabaseClient
+        await supabaseAdmin
           .from('user_subscriptions')
           .update({
             status: 'active',
@@ -204,13 +208,13 @@ serve(async (req) => {
           updateData.plan_expires_at = new Date().toISOString()
         }
 
-        await supabaseClient
+        await supabaseAdmin
           .from('user_subscriptions')
           .update(updateData)
           .eq('user_id', user.id)
 
         // Log cancellation
-        await supabaseClient
+        await supabaseAdmin
           .from('subscription_cancellations')
           .insert({
             user_id: user.id,
@@ -258,10 +262,10 @@ serve(async (req) => {
     console.error('Error managing Razorpay subscription:', error)
     return new Response(JSON.stringify({
       success: false,
-      error: error.message
+      error: (error instanceof Error ? error.message : String(error))
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 500,
     })
   }
-})
+}, 'manage-razorpay-subscription', true))

@@ -1,8 +1,11 @@
-const { createClient } = require('@supabase/supabase-js');
-const fs = require('fs');
+import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = 'https://dlzshcshqjdghmtzlbma.supabase.co';
-const supabaseServiceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRsenNoY3NocWpkZ2htdHpsYm1hIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MTE4NTM4OCwiZXhwIjoyMDY2NzYxMzg4fQ.Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8'; // Service role key needed for admin operations
+
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY; // Service role key needed for admin operations
+
+if (!supabaseUrl || !supabaseServiceKey) throw new Error('Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in the environment.');
+if (!process.argv.includes('--allow-legacy-schema-write')) throw new Error('Legacy schema writer: review against the Paddle migration before explicitly allowing execution.');
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 

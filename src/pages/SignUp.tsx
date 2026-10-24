@@ -42,7 +42,7 @@ const SignUp = () => {
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (formData.password !== formData.confirmPassword) {
       toast({
         title: "Password Mismatch",
@@ -71,9 +71,10 @@ const SignUp = () => {
     }
 
     setIsLoading(true);
-    
+
     try {
-      await signUp(formData.email, formData.password, formData.name, captchaToken || undefined);
+      const result = await signUp(formData.email, formData.password, formData.name, captchaToken || undefined);
+      if (!result.confirmationRequired) { navigate("/dashboard"); return; }
       // Email confirmation is required before first sign-in (P0-4).
       setConfirmationSent(true);
       trackEvent('signup', {

@@ -16,15 +16,17 @@ export const WIDGET_CONFIG = {
   FALLBACK_DOMAINS: [
     PUBLIC_APP_URL
   ],
-  
+
   // Always emit the stable public app URL so embeds work on external sites
   // regardless of where they were generated.
   getWidgetDomain(): string {
     return PUBLIC_APP_URL;
   },
-  
+
   // 🚀 PRODUCTION-READY Generate self-contained embed code (no external dependencies)
   generateEmbedCode(collectionId: string, theme: string = 'light', options: any = {}): string {
+    theme = ['light', 'dark', 'minimal'].includes(theme) ? theme : 'light';
+    if (!/^[a-zA-Z0-9_-]{8,64}$/.test(collectionId ?? '')) throw new Error('Invalid collection ID');
     const poweredBy = options.showPoweredBy !== false;
     const animation = options.animation !== false;
     const collapsible = options.collapsible !== false;
@@ -121,7 +123,7 @@ export const WIDGET_CONFIG = {
 
     const itemsHtml = faqs.map(function(faq, index) {
       const open = config.layout !== 'accordion';
-      const haystack = (faq.question + ' ' + faq.answer).toLowerCase().replace(/"/g, '');
+      const haystack = escapeHtml((faq.question + ' ' + faq.answer).toLowerCase()).replace(/"/g, '&quot;');
       return '<div class="faqify-item" data-search="' + haystack + '">' +
         '<button type="button" class="faqify-question" aria-expanded="' + (open ? 'true' : 'false') + '" aria-controls="answer_' + uid + '_' + index + '" data-index="' + index + '">' +
           '<span class="faqify-question-text">' + escapeHtml(faq.question) + '</span>' +

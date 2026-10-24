@@ -1,315 +1,62 @@
-
-import { useState, useEffect } from 'react';
+import { createContext, useCallback, useContext, useEffect, type ReactNode } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
+import { normalizeSubscription } from '@/lib/subscription';
 
-interface Subscription {
-  id: string;
-  plan_tier: 'Free' | 'Pro' | 'Business';
-  status: 'active' | 'expired' | 'cancelled' | 'past_due' | 'incomplete' | 'trialing';
-  faq_usage_current: number;
-  faq_usage_limit: number;
-  is_annual: boolean;
-  current_period_end: string | null;
-  plan_activated_at: string;
-  plan_expires_at: string;
-  last_reset_date: string;
-  previous_plan_tier: 'Free' | 'Pro' | 'Business' | null;
-  plan_changed_at: string;
-  days_remaining: number;
-  is_expired: boolean;
-  expires_soon: boolean;
-  // New subscription management fields
-  auto_renewal: boolean;
-  cancelled_at: string | null;
-  cancellation_reason: string | null;
-  payment_type: 'one_time' | 'recurring';
-  next_billing_date: string | null;
-  billing_cycle: 'monthly' | 'yearly';
-  subscription_source: 'manual' | 'stripe' | 'razorpay';
-  is_cancelled: boolean;
-  continues_until: string | null;
-  // Present on every row; used as a display fallback when plan dates are absent.
-  created_at?: string | null;
-  updated_at?: string | null;
-}
-
-export const useSubscription = () => {
-  const [subscription, setSubscription] = useState<Subscription | null>(null);
-  const [loading, setLoading] = useState(true);
+function useSubscriptionState() {
   const { user } = useAuth();
-
-  useEffect(() => {
-    if (!user) {
-      setSubscription(null);
-      setLoading(false);
-      return;
-    }
-
-    fetchSubscription();
-
-    // Listen for real-time updates on user subscriptions
-    const userSubChannel = supabase
-      .channel('subscription-changes')
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'user_subscriptions',
-        filter: `user_id=eq.${user.id}`,
-      }, () => {
-        console.log('User subscription changed, refetching...');
-        fetchSubscription();
-      })
-      .subscribe();
-
-    // Also listen for changes to subscription plans (for pricing updates)
-    const plansChannel = supabase
-      .channel('plans-changes')
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'subscription_plans',
-      }, () => {
-        console.log('Subscription plans updated, refetching user subscription...');
-        fetchSubscription();
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(userSubChannel);
-      supabase.removeChannel(plansChannel);
-    };
-  }, [user]);
-
-  const fetchSubscription = async () => {
-    if (!user) return;
-
-    try {
-      setLoading(true);
-
-      // Get subscription data directly from table
-      const { data, error } = await supabase
-        .from('user_subscriptions')
-        .select('*')
-        .eq('user_id', user.id)
-        .single();
-
-      if (error && error.code !== 'PGRST116') {
-        console.error('Error fetching subscription:', error);
-        return;
-      }
-
-      if (data) {
-        // Normalize field names across historical schemas
-        const normalizedPlanTier = (data as any).plan_tier ?? (data as any).plan_id;
-        const normalizedActivatedAt = (data as any).plan_activated_at ?? (data as any).activated_at ?? (data as any).created_at ?? null;
-        const normalizedExpiresAt = (data as any).plan_expires_at ?? (data as any).expires_at ?? (data as any).current_period_end ?? null;
-
-        // If expiry isn't stored, derive it as activated_at + 1 month (business rule)
-        let derivedExpiresAt: string | null = null;
-        if (!normalizedExpiresAt && normalizedActivatedAt) {
-          const d = new Date(normalizedActivatedAt);
-          if (!Number.isNaN(d.getTime())) {
-            const m = new Date(d);
-            m.setMonth(m.getMonth() + 1);
-            derivedExpiresAt = m.toISOString();
-          }
-        }
-        const effectiveExpiresAt = normalizedExpiresAt ?? derivedExpiresAt;
-
-        // Calculate expiry info manually
-        const now = new Date();
-        const expiryDate = effectiveExpiresAt ? new Date(effectiveExpiresAt) : null;
-        const daysRemaining = expiryDate ? Math.max(0, Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))) : 0;
-
-        setSubscription({
-          ...data,
-          // `status` is a free-form string column in the DB; narrow it for the UI.
-          status: (data as any).status ?? 'active',
-          // Ensure consistent properties expected by the UI
-          plan_tier: normalizedPlanTier,
-          plan_activated_at: normalizedActivatedAt,
-          plan_expires_at: effectiveExpiresAt as any,
-          current_period_end: (data as any).current_period_end ?? (effectiveExpiresAt as any),
-          days_remaining: daysRemaining,
-          // Free plan never expires; only paid plans can expire.
-          is_expired: normalizedPlanTier === 'Free' ? false : (expiryDate ? now > expiryDate : false),
-          expires_soon: normalizedPlanTier !== 'Free' && daysRemaining <= 7 && daysRemaining > 0,
-          // Defaults / compatibility
-          auto_renewal: (data as any).auto_renewal ?? (normalizedPlanTier !== 'Free'),
-          cancelled_at: (data as any).cancelled_at ?? null,
-          cancellation_reason: (data as any).cancellation_reason ?? null,
-          payment_type: (data as any).payment_type ?? (normalizedPlanTier === 'Free' ? 'one_time' : 'recurring'),
-          next_billing_date: (data as any).next_billing_date ?? null,
-          billing_cycle: (data as any).billing_cycle ?? 'monthly',
-          subscription_source: (data as any).subscription_source ?? 'manual',
-          is_cancelled: !!((data as any).cancelled_at),
-          continues_until: ((data as any).cancelled_at && normalizedExpiresAt) ? normalizedExpiresAt : null,
-          // Legacy rows may predate these columns; derive safe defaults.
-          is_annual: (data as any).is_annual ?? ((data as any).billing_cycle === 'yearly'),
-          previous_plan_tier: (data as any).previous_plan_tier ?? null
-        });
-      }
-    } catch (error) {
-      console.error('Error fetching subscription:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const canCreateFAQ = async (faqCount: number = 1) => {
-    if (!subscription || !user) return { canGenerate: false, reason: 'No subscription found' };
-
-    try {
-      const now = new Date();
-      const expiryDate = subscription.plan_expires_at ? new Date(subscription.plan_expires_at) : null;
-
-      // Free plan never expires. Only paid plans are subject to expiry.
-      const isExpired = subscription.plan_tier !== 'Free' && (subscription.is_expired || (!!expiryDate && now >= expiryDate));
-      if (isExpired) {
-        return {
-          canGenerate: false,
-          reason: `Your plan expired on ${expiryDate ? expiryDate.toLocaleDateString() : 'your last billing date'}. Please renew to continue generating FAQs.`,
-          currentUsage: subscription.faq_usage_current,
-          usageLimit: subscription.faq_usage_limit,
-          remainingFaqs: 0,
-          planTier: subscription.plan_tier,
-          planExpiresAt: subscription.plan_expires_at,
-          daysRemaining: 0,
-          isWithinPeriod: false,
-          isExpired: true
-        };
-      }
-
-      // Block if quota exceeded
-      const remainingFaqs = Math.max(0, subscription.faq_usage_limit - subscription.faq_usage_current);
-      if (faqCount > remainingFaqs) {
-        return {
-          canGenerate: false,
-          reason: `You have ${remainingFaqs} FAQs remaining in your quota. You're trying to generate ${faqCount} FAQs.`,
-          currentUsage: subscription.faq_usage_current,
-          usageLimit: subscription.faq_usage_limit,
-          remainingFaqs,
-          planTier: subscription.plan_tier,
-          planExpiresAt: subscription.plan_expires_at,
-          daysRemaining: subscription.days_remaining,
-          isWithinPeriod: true,
-          isExpired: false
-        };
-      }
-
-      // Optionally defer to backend rule if available; ignore if function missing
-      try {
-        const { data, error } = await supabase.rpc('can_generate_faqs', {
-          user_uuid: user.id,
-          faq_count: faqCount
-        });
-        // The generated types describe RPC payloads as `Json`; narrow once here.
-        const rpc = data as Record<string, any> | null;
-        if (!error && rpc && rpc.can_generate !== undefined) {
-          return {
-            canGenerate: !!rpc.can_generate,
-            reason: rpc.reason ?? 'OK',
-            currentUsage: rpc.current_usage ?? subscription.faq_usage_current,
-            usageLimit: rpc.usage_limit ?? subscription.faq_usage_limit,
-            remainingFaqs: rpc.remaining_faqs ?? remainingFaqs,
-            planTier: rpc.plan_tier ?? subscription.plan_tier,
-            planExpiresAt: rpc.plan_expires_at ?? subscription.plan_expires_at,
-            daysRemaining: rpc.days_remaining ?? subscription.days_remaining,
-            isWithinPeriod: rpc.is_within_period ?? true,
-            isExpired: !!rpc.is_expired
-          };
-        }
-      } catch (_) {
-        // ignore RPC errors and fall back to local check
-      }
-
-      return {
-        canGenerate: true,
-        reason: 'OK',
-        currentUsage: subscription.faq_usage_current,
-        usageLimit: subscription.faq_usage_limit,
-        remainingFaqs,
-        planTier: subscription.plan_tier,
-        planExpiresAt: subscription.plan_expires_at,
-        daysRemaining: subscription.days_remaining,
-        isWithinPeriod: true,
-        isExpired: false
-      };
-    } catch (error) {
-      console.error('Error checking FAQ eligibility:', error);
-      return { canGenerate: false, reason: 'Error checking eligibility' };
-    }
-  };
-
-  const getRemainingFAQs = () => {
-    if (!subscription) return 0;
-    return Math.max(0, subscription.faq_usage_limit - subscription.faq_usage_current);
-  };
-
-  const incrementUsage = async (faqCount: number = 1) => {
-    if (!user) return { success: false, reason: 'User not authenticated' };
-
-    try {
-      const { data, error } = await supabase.rpc('increment_faq_usage_by_count', {
-        user_uuid: user.id,
-        faq_count: faqCount
-      });
-
-      if (error) {
-        console.error('Error incrementing usage:', error);
-        return { success: false, reason: error.message };
-      }
-
-      // Refresh subscription data
-      await fetchSubscription();
+  const userId = user?.id;
+  const client = useQueryClient();
+  const queryKey = ['subscription', userId];
+  const query = useQuery({ queryKey, enabled: !!userId,
+    queryFn: async () => {
+      const { data, error } = await supabase.from('user_subscriptions').select('*').eq('user_id', userId!).single();
+      if (error) throw error;
       return data;
-    } catch (error) {
-      console.error('Error incrementing usage:', error);
-      return { success: false, reason: 'Error incrementing usage' };
-    }
-  };
-
-  const changePlan = async (newPlanTier: 'Free' | 'Pro' | 'Business', isUpgrade: boolean = true) => {
-    // SECURITY: Plan changes must go through payment verification
-    // This function is disabled to prevent unauthorized plan assignments
-    console.warn('Direct plan changes are disabled. Use payment flow instead.');
-    return {
-      success: false,
-      reason: 'Direct plan changes are disabled. Please use the payment system to upgrade your plan.'
-    };
-  };
-
-  const getSubscriptionStatus = () => {
-    if (!subscription) return null;
-
-    const now = new Date();
-    const expiresAt = subscription.plan_expires_at ? new Date(subscription.plan_expires_at) : null;
-    const daysRemaining = expiresAt ? Math.ceil((expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : 0;
-
-    return {
-      planTier: subscription.plan_tier,
-      status: subscription.status,
-      currentUsage: subscription.faq_usage_current,
-      usageLimit: subscription.faq_usage_limit,
-      remainingFaqs: Math.max(0, subscription.faq_usage_limit - subscription.faq_usage_current),
-      planActivatedAt: subscription.plan_activated_at,
-      planExpiresAt: subscription.plan_expires_at,
-      daysRemaining: subscription.plan_tier === 'Free' ? Infinity : Math.max(0, daysRemaining),
-      isActive: subscription.status === 'active' && (subscription.plan_tier === 'Free' || (expiresAt ? expiresAt > now : true)),
-      isExpired: subscription.plan_tier !== 'Free' && (expiresAt ? expiresAt <= now : false),
-      lastResetDate: subscription.last_reset_date
-    };
-  };
-
+    }, staleTime: 15000, refetchInterval: userId ? 30000 : false,
+  });
+  useEffect(() => {
+    if (!userId) return;
+    const invalidate = () => { void client.invalidateQueries({ queryKey: ['subscription', userId] }); };
+    const channel = supabase.channel(`account-subscription-${userId}`).on('postgres_changes', {
+      event: '*', schema: 'public', table: 'user_subscriptions', filter: `user_id=eq.${userId}`,
+    }, invalidate).subscribe();
+    window.addEventListener('faqify-billing-updated', invalidate);
+    return () => { void supabase.removeChannel(channel); window.removeEventListener('faqify-billing-updated', invalidate); };
+  }, [userId, client]);
+  const subscription = userId && query.data ? normalizeSubscription(query.data) : null;
+  const canCreateFAQ = useCallback(async (faqCount = 1) => {
+    if (!userId) return { canGenerate: false, reason: 'Please sign in.' };
+    const { data, error } = await supabase.rpc('can_generate_faqs', { user_uuid: userId, faq_count: faqCount });
+    if (error || !data) return { canGenerate: false, reason: 'Unable to check your quota. Please retry.' };
+    const eligibility = data as Record<string, any>;
+    return { canGenerate: !!eligibility.can_generate, reason: eligibility.reason ?? 'Unable to generate.',
+      currentUsage: eligibility.current_usage, usageLimit: eligibility.usage_limit, remainingFaqs: eligibility.remaining_faqs,
+      planTier: eligibility.plan_tier, planExpiresAt: eligibility.plan_expires_at, isExpired: !!eligibility.is_expired };
+  }, [userId]);
   return {
-    subscription,
-    loading,
-    canCreateFAQ,
-    getRemainingFAQs,
-    incrementUsage,
-    changePlan,
-    getSubscriptionStatus,
-    refetch: fetchSubscription,
+    subscription, loading: !!user && query.isPending, error: query.error,
+    refetch: query.refetch, canCreateFAQ,
+    getRemainingFAQs: () => subscription ? Math.max(0, subscription.faq_usage_limit - subscription.faq_usage_current) : 0,
+    // Usage and plans are changed by authenticated database transactions only.
+    incrementUsage: async (_count = 1) => ({ success: false, reason: 'Usage is recorded when generated FAQs are saved.' }),
+    changePlan: async (_tier: string, _upgrade = true) => ({ success: false, reason: 'Use checkout to change your plan.' }),
+    getSubscriptionStatus: () => subscription && ({ planTier: subscription.plan_tier, status: subscription.status,
+      currentUsage: subscription.faq_usage_current, usageLimit: subscription.faq_usage_limit,
+      remainingFaqs: Math.max(0, subscription.faq_usage_limit - subscription.faq_usage_current),
+      planActivatedAt: subscription.plan_activated_at, planExpiresAt: subscription.plan_expires_at,
+      daysRemaining: subscription.days_remaining, isActive: !subscription.is_expired && ['active', 'cancelled', 'canceled'].includes(subscription.status),
+      isExpired: subscription.is_expired, lastResetDate: subscription.last_reset_date }),
   };
-};
+}
+const SubscriptionContext = createContext<ReturnType<typeof useSubscriptionState> | null>(null);
+export function SubscriptionProvider({ children }: { children: ReactNode }) {
+  const value = useSubscriptionState();
+  return <SubscriptionContext.Provider value={value}>{children}</SubscriptionContext.Provider>;
+}
+export function useSubscription() {
+  const value = useContext(SubscriptionContext);
+  if (!value) throw new Error('useSubscription requires SubscriptionProvider');
+  return value;
+}

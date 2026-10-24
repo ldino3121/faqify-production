@@ -1,3 +1,5 @@
+> Historical document: embedded private credentials have been removed. Hardcoded fallback examples and old deployment instructions are obsolete; use backend environment variables and the maintained functions.
+
 # 🚀 FAQify - Quick Start & Testing Guide
 
 ## ✅ **SERVER STATUS: RUNNING**
@@ -63,7 +65,7 @@ Your development server is now running at: **http://localhost:8081/**
 **Error**: "Demo mode" or generation fails
 **Cause**: Missing Google Gemini API key
 **Solution**: 
-- API key is hardcoded as fallback: `AIzaSyCnpPwL11BpSd2jIQwK3N-BlH2g5fMgQOY`
+- API key is hardcoded as fallback: `REDACTED_SET_GEMINI_API_KEY`
 - Should work without additional configuration
 
 ### **Issue 3: Authentication Issues**

@@ -1,3 +1,4 @@
+import { withRolloutGuard } from '../_shared/rollout.ts';
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.50.2";
 import { SUPPORT_EMAIL, sendEmail } from "../_shared/email.ts";
@@ -61,7 +62,7 @@ function clip(value: unknown, max: number): string | null {
   return s.length > max ? s.slice(0, max) + "… [truncated]" : s;
 }
 
-serve(async (req) => {
+serve(withRolloutGuard(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 200, headers: corsHeaders });
   }
@@ -120,7 +121,7 @@ serve(async (req) => {
     console.error("[log-error] handler error", err);
     return json(200, { ok: true });
   }
-});
+}, 'log-error', false));
 
 /** Benign, user-driven failures should not page anyone. */
 function shouldAlert(message: string): boolean {

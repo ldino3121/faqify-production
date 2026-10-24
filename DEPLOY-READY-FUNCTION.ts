@@ -1,20 +1,14 @@
 // 🚀 DEPLOY-READY ANALYZE-CONTENT FUNCTION WITH FAQ COUNT FIX
-// Copy this entire file and paste it in Supabase Dashboard > Edge Functions > analyze-content
+// Historical reference only. Deploy maintained supabase/functions/analyze-content instead after review.
 
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 // 🛡️ BULLETPROOF GOOGLE GEMINI API CONFIGURATION
 const getBulletproofGeminiApiKey = () => {
-  let apiKey = Deno.env.get('GEMINI_API_KEY') || 
-               Deno.env.get('GOOGLE_AI_API_KEY') || 
+  const apiKey = Deno.env.get('GEMINI_API_KEY') ||
+               Deno.env.get('GOOGLE_AI_API_KEY') ||
                Deno.env.get('GOOGLE_GEMINI_API_KEY');
-
-  // GUARANTEED WORKING API KEY (bulletproof fallback)
-  if (!apiKey || apiKey.trim() === '' || apiKey === 'undefined' || apiKey === 'null') {
-    console.log('🛡️ Using bulletproof production Gemini API key');
-    apiKey = 'AIzaSyCnpPwL11BpSd2jIQwK3N-BlH2g5fMgQOY';
-  }
 
   if (!apiKey || apiKey.length < 20) {
     console.error('🚨 CRITICAL: No valid Gemini API key found!');
@@ -37,10 +31,10 @@ const corsHeaders = {
 // 🛡️ BULLETPROOF FAQ GENERATION - Generate additional FAQs to reach exact count
 async function generateAdditionalFAQs(existingFAQs: any[], neededCount: number, content: string): Promise<any[]> {
   console.log(`🔄 Generating ${neededCount} additional FAQs to reach target count`);
-  
+
   const additionalFAQs = [];
   const usedQuestions = new Set(existingFAQs.map(faq => faq.question.toLowerCase()));
-  
+
   // Strategy 1: Create variations of existing FAQs
   if (existingFAQs.length > 0 && neededCount <= existingFAQs.length * 2) {
     const variations = [
@@ -53,16 +47,16 @@ async function generateAdditionalFAQs(existingFAQs: any[], neededCount: number, 
       { prefix: "What makes", suffix: " unique?" },
       { prefix: "Who should use", suffix: "?" }
     ];
-    
+
     for (let i = 0; i < neededCount && additionalFAQs.length < neededCount; i++) {
       const baseIndex = i % existingFAQs.length;
       const variationIndex = i % variations.length;
       const baseFAQ = existingFAQs[baseIndex];
       const variation = variations[variationIndex];
-      
+
       const topic = extractMainTopic(baseFAQ.question);
       const newQuestion = `${variation.prefix} ${topic}${variation.suffix}`;
-      
+
       if (!usedQuestions.has(newQuestion.toLowerCase())) {
         additionalFAQs.push({
           question: newQuestion,
@@ -72,7 +66,7 @@ async function generateAdditionalFAQs(existingFAQs: any[], neededCount: number, 
       }
     }
   }
-  
+
   // Strategy 2: Generate generic but relevant FAQs if still needed
   while (additionalFAQs.length < neededCount) {
     const genericFAQs = [
@@ -97,11 +91,11 @@ async function generateAdditionalFAQs(existingFAQs: any[], neededCount: number, 
         answer: "Various pricing options are available to accommodate different needs and usage levels, ensuring flexibility for all users."
       }
     ];
-    
+
     const faqIndex = additionalFAQs.length % genericFAQs.length;
     const genericFAQ = genericFAQs[faqIndex];
     const uniqueQuestion = `${genericFAQ.question} (${additionalFAQs.length + 1})`;
-    
+
     if (!usedQuestions.has(uniqueQuestion.toLowerCase())) {
       additionalFAQs.push({
         question: uniqueQuestion,
@@ -115,7 +109,7 @@ async function generateAdditionalFAQs(existingFAQs: any[], neededCount: number, 
       });
     }
   }
-  
+
   console.log(`✅ Generated ${additionalFAQs.length} additional FAQs`);
   return additionalFAQs.slice(0, neededCount);
 }
@@ -126,7 +120,7 @@ function extractMainTopic(question: string): string {
     .replace(/^(what|how|why|when|where|who|which|is|are|do|does|can|will|would|should)\s+/i, '')
     .replace(/\?$/, '')
     .trim();
-  
+
   const words = cleaned.split(' ').slice(0, 3).join(' ');
   return words || 'the topic';
 }
@@ -223,20 +217,20 @@ serve(async (req) => {
 
     // Validate FAQ count (3-10 range)
     const validFaqCount = Math.max(3, Math.min(10, parseInt(faqCount) || 5));
-    console.log('🎯 FINAL FAQ COUNT DECISION:', { 
-      requestedFaqCount: faqCount, 
+    console.log('🎯 FINAL FAQ COUNT DECISION:', {
+      requestedFaqCount: faqCount,
       validFaqCount,
-      url, 
-      type, 
-      textLength: text?.length, 
-      fileName 
+      url,
+      type,
+      textLength: text?.length,
+      fileName
     });
 
     let contentToAnalyze = '';
 
     if (type === 'url') {
       console.log('📡 Fetching content from URL:', url);
-      
+
       try {
         const response = await fetch(url, {
           headers: {
@@ -282,15 +276,15 @@ serve(async (req) => {
           try {
             const regex = new RegExp(`<${selector}[^>]*>([\\s\\S]*?)<\\/${selector}>`, 'gi');
             const matches = cleanedHtml.match(regex);
-            
+
             if (matches) {
               for (const match of matches) {
                 const textContent = match.replace(/<[^>]*>/g, ' ')
                   .replace(/\s+/g, ' ')
                   .trim();
-                
+
                 const score = scoreContent(textContent, selector);
-                
+
                 if (score > bestScore) {
                   bestScore = score;
                   bestContent = textContent;
@@ -315,7 +309,7 @@ serve(async (req) => {
 
         function scoreContent(content: string, selector: string): number {
           let score = content.length;
-          
+
           // Penalty for author bio keywords
           const authorKeywords = ['graduated', 'university', 'fellowship', 'correspondent', 'reporter', 'journalist', 'anonna dutt', 'education', 'studied'];
           for (const keyword of authorKeywords) {
@@ -323,7 +317,7 @@ serve(async (req) => {
               score -= 500;
             }
           }
-          
+
           // Bonus for main content keywords
           const contentKeywords = ['mission', 'launch', 'space', 'satellite', 'project', 'development', 'technology'];
           for (const keyword of contentKeywords) {
@@ -331,7 +325,7 @@ serve(async (req) => {
               score += 100;
             }
           }
-          
+
           // Selector priority
           const selectorPriority = {
             'article': 1000,
@@ -343,9 +337,9 @@ serve(async (req) => {
             'main': 500,
             '.main-content': 600
           };
-          
+
           score += selectorPriority[selector] || 0;
-          
+
           return score;
         }
 
@@ -444,20 +438,20 @@ ${contentToAnalyze}`
     }
 
     let generatedFAQs;
-    
+
     try {
       const responseText = data.candidates[0].content.parts[0].text;
       console.log('📝 Raw Gemini response:', responseText.substring(0, 500) + '...');
-      
+
       // Extract JSON from response
       const jsonMatch = responseText.match(/\[[\s\S]*\]/);
       if (!jsonMatch) {
         throw new Error('No JSON array found in response');
       }
-      
+
       generatedFAQs = JSON.parse(jsonMatch[0]);
       console.log(`✅ Successfully parsed ${generatedFAQs.length} FAQs from Gemini response`);
-      
+
     } catch (parseError) {
       console.error('Failed to parse Gemini JSON response:', parseError);
       console.log('Attempting fallback text extraction...');
@@ -473,36 +467,36 @@ ${contentToAnalyze}`
 
     // 🛡️ BULLETPROOF FAQ COUNT ENFORCEMENT - GUARANTEED EXACT COUNT
     console.log(`🔍 FAQ Count Analysis: Generated=${generatedFAQs.length}, Requested=${validFaqCount}`);
-    
+
     if (generatedFAQs.length !== validFaqCount) {
       console.log(`🔧 Adjusting FAQ count from ${generatedFAQs.length} to ${validFaqCount}`);
-      
+
       if (generatedFAQs.length > validFaqCount) {
         // Trim to requested count
         generatedFAQs = generatedFAQs.slice(0, validFaqCount);
         console.log(`✂️ Trimmed to exactly ${validFaqCount} FAQs`);
-        
+
       } else if (generatedFAQs.length < validFaqCount) {
         // Generate additional FAQs to reach the requested count
         console.log(`🔄 Need to generate ${validFaqCount - generatedFAQs.length} more FAQs`);
-        
+
         // Only proceed if we have at least 1 FAQ to work with
         if (generatedFAQs.length < 1) {
           throw new Error(`No FAQs generated - cannot proceed`);
         }
-        
+
         // Generate additional FAQs by creating variations
         const additionalFAQs = await generateAdditionalFAQs(
           generatedFAQs,
           validFaqCount - generatedFAQs.length,
           contentToAnalyze
         );
-        
+
         generatedFAQs = [...generatedFAQs, ...additionalFAQs];
         console.log(`✅ Successfully expanded to ${generatedFAQs.length} FAQs`);
       }
     }
-    
+
     // Final validation - this should NEVER fail now
     if (generatedFAQs.length !== validFaqCount) {
       console.error(`🚨 CRITICAL ERROR: Still have ${generatedFAQs.length} FAQs instead of ${validFaqCount}`);
