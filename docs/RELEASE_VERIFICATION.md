@@ -58,3 +58,11 @@ Use sandbox test cards only after the handler/signing secret/cohort/frontend are
 - Release manifest SHA-256: `2564f5f4af8bdc6b73143a59ad8bb3e60677a7080bc8e392bfa1cb5e1b288df9`.
 
 See [PADDLE_SANDBOX_DEPLOYMENT_RUNBOOK.md](PADDLE_SANDBOX_DEPLOYMENT_RUNBOOK.md) for exact ordered preparation, drain/freeze, migration, function/configuration staging, cohort acceptance and recovery commands. Stop before production changes.
+
+## Branch push and hosted build evidence
+
+Integration artifact `4fe96c96c09686b6238a361cbecd3d7961f041ea` was pushed only to `integration/paddle-sandbox`. Main remained `172555786c63a7b49b9efc8da66f7a67bb65e5f4`.
+
+Vercel created a **Preview**, deployment ID `7299088374` in GitHub, and reported successful completion. URL: https://faqify-production-nxo0n36wi-gaurav-walias-projects.vercel.app . Access redirects to Vercel authentication; no protection setting was changed/bypassed. The actual hosted UI is therefore uninspected. Local compiled-preview Chromium checks passed. This observed deployment confirms preview-on-push for the branch at this time; it does not reveal the private production branch/auto-promotion settings.
+
+The first GitHub run passed install/build/all tests, then failed typecheck because the new preview test supplied a boolean to `vi.stubEnv`, whose declaration requires a string. Corrected to `'true'`; a fresh standalone typecheck passes. The earlier preliminary typecheck summary was premature because a later successful command masked that exit status. The follow-up CI run must be checked before release; do not equate Vercel success with CI success.
