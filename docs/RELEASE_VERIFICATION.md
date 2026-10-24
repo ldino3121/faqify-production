@@ -21,13 +21,13 @@ Branch: `integration/paddle-sandbox`. Production cutover has **not** occurred. G
 - All seven new Paddle secret names remain missing in Supabase; `GEMINI_API_KEY` remains present. Values were not displayed or modified.
 - Existing four sandbox prices validated (Pro $9, Business $29; monthly and one-time, USD, external tax, no trials). Existing active sandbox client token reused. Destination `ntfset_01m5mgbrqtydk09vv9456hnvvs` read-back is inactive with the ten handler events. No catalog changes or duplicate entities.
 - Configuration prepared outside Git in `/Users/carbonface/Backups/faqify/release-preparation-20261024`: `supabase-sandbox.env`, `vercel-preview.env`, `vercel-production-cutover.env`. Restricted permissions; no remote installation. Preview app origin awaits its actual URL.
-- Existing Git credential has repository push/admin access. GitHub default branch is main; observed production deployment source is main. Repository Actions secret/variable inventories are empty. GitHub has a Production environment. Private Vercel settings remain unavailable without authenticated access.
+- Existing Git credential has repository push/admin access. GitHub default branch is main; observed production deployment source is main. Repository Actions secret/variable inventories are empty. GitHub has a Production environment. The owner confirmed in the Vercel dashboard screenshot that Production tracks `main`. Other private Vercel settings and Production variable presence remain unverified without authenticated access.
 
 ## Pending prerequisites / limits
 
-- Fresh production backup requires completion of the private Terminal prompt; no database password was supplied to this step. Run `open '/Users/carbonface/Backups/faqify/release-preparation-20261024/Enter release configuration.command'` in your own Terminal. Never send credentials in chat. A pre-window backup still needs a final frozen refresh or explicitly reconciled delta before migration.
-- Dedicated test-account UUIDs have not been provided. The cohort is empty by default; no account was guessed/enrolled. Confirm dedicated Free accounts without existing paid subscriptions before approved enrollment. No general sandbox purchasing on production data.
-- Vercel dashboard: verify Settings → Git connected repository; Settings → Environments → Production branch/main and Preview branch tracking; Build and Deployment overrides/ignored-build rules; automatic system variables; Environment Variables scopes/overrides; Deployment Protection; and production domain auto-assignment/promotion controls. GitHub production records are not proof of private settings.
+- Fresh pre-window backup and isolated restore verification completed at 2026-10-24 14:22 UTC; details below. A final frozen refresh or explicitly reconciled delta is still required before migration.
+- Owner-approved account verified read-only: one confirmed active account/profile and one consistent active Free subscription; no provider billing links, auto-renewal or payment records. It has an admin role and one existing FAQ collection, so ordinary-user permission and clean Free onboarding tests need a separate non-admin account. Cohort enrollment has not occurred.
+- Vercel dashboard: verify Settings → Git connected repository; Settings → Environments → Preview branch tracking (Production `main` is owner-confirmed); Build and Deployment overrides/ignored-build rules; automatic system variables; Environment Variables scopes/overrides; Deployment Protection; and production domain auto-assignment/promotion controls. GitHub production records are not proof of private settings.
 - Exposed Supabase/OpenRouter follow-up remains documented; no rotation is authorized. **Gemini rotation is deferred by the owner and is follow-up work**, not a new audit gate in this task. Existing dependency findings remain in SECURITY_REVIEW; no unrelated major upgrade was attempted.
 - Standalone root diagnostic HTML remains excluded from the Vite `dist` build; do not serve the repository root publicly. Retirement/removal is separate from this rollout and no unrelated files were deleted.
 
@@ -61,8 +61,38 @@ See [PADDLE_SANDBOX_DEPLOYMENT_RUNBOOK.md](PADDLE_SANDBOX_DEPLOYMENT_RUNBOOK.md)
 
 ## Branch push and hosted build evidence
 
-Integration artifact `4fe96c96c09686b6238a361cbecd3d7961f041ea` was pushed only to `integration/paddle-sandbox`. Main remained `172555786c63a7b49b9efc8da66f7a67bb65e5f4`.
+Reviewed integration HEAD `2f52922debeaf0b9ef5ad8f020209d5d05f843ae` was pushed only to `integration/paddle-sandbox`. Main remained `172555786c63a7b49b9efc8da66f7a67bb65e5f4`.
 
-Vercel created a **Preview**, deployment ID `7299088374` in GitHub, and reported successful completion. URL: https://faqify-production-nxo0n36wi-gaurav-walias-projects.vercel.app . Access redirects to Vercel authentication; no protection setting was changed/bypassed. The actual hosted UI is therefore uninspected. Local compiled-preview Chromium checks passed. This observed deployment confirms preview-on-push for the branch at this time; it does not reveal the private production branch/auto-promotion settings.
+Latest [GitHub CI](https://github.com/ldino3121/faqify-production/actions/runs/40097549357/job/120882859734) and Vercel build both succeeded. Vercel created GitHub deployment `7299137361`, environment **Preview**: https://faqify-production-5gctbxrtk-gaurav-walias-projects.vercel.app . Access redirects to Vercel authentication; the hosted UI remains uninspected. No protection settings were changed. Preview-on-push is observed for this branch. Production tracks `main`, as confirmed by the owner from the dashboard screenshot.
 
-The first GitHub run passed install/build/all tests, then failed typecheck because the new preview test supplied a boolean to `vi.stubEnv`, whose declaration requires a string. Corrected to `'true'`; a fresh standalone typecheck passes. The earlier preliminary typecheck summary was premature because a later successful command masked that exit status. The follow-up CI run must be checked before release; do not equate Vercel success with CI success.
+The first CI failure (`vi.stubEnv` boolean versus string) was corrected in the pushed commits. The latest successful CI supersedes the earlier pending follow-up status; no unchanged local tests were repeated.
+
+## Latest pre-cutover inspection
+
+Read-only authenticated Supabase inspection on 2026-10-24 confirmed all seven Paddle names above are missing and `GEMINI_API_KEY` is present. The cohort table and rollout-control function are not installed; migration version `20261022000000` is not recorded. No production change was made.
+
+Private database credentials were supplied through the corrected masked Terminal prompt; fresh backup/restore is now verified. The owner subsequently supplied one approved UUID; read-only eligibility checks are recorded below. No existing account was selected or enrolled. Vercel access is unavailable; its Production variables are **unknown**, not confirmed missing. The exact supplied UUIDs must be checked using aggregate-only results for account existence, Free eligibility and absence of existing paid/provider subscriptions before enrollment.
+
+See the runbook readiness gate: no production mutation or webhook activation is authorized by this inspection.
+
+
+## Fresh backup and restore — completed 2026-10-24
+
+Protected backup location: `/Users/carbonface/Backups/faqify/release-preparation-20261024`. Export completed at `2026-10-24T14:22:13Z` from the explicitly confirmed production Session pooler using CA-validated TLS and read-only connections. Exported roles without passwords, a consistent custom database archive, and derived schema/data/migration-history exports. Checksums verified; directory mode 700 and exported files mode 600. Temporary `.database.env` and readiness marker removed after successful export.
+
+Restored the new archive into a separate Supabase PostgreSQL 17 container, `faqify-fresh-backup-20261024`, with networking disabled, no published ports and scheduled cron execution disabled. Used the previously reviewed local extension/bootstrap adaptations. The container is now stopped; its isolated volumes are retained.
+
+Verification: **62 table COPY blocks / 1,750 rows**, **four sequence states**, migration-history data, roles and role grants all match. **733 schema object blocks match** after normalizing owner quoting and ordering (15 default-ACL blocks differ only by statement order). Raw schema SQL ordering differs; the object/permission comparison establishes equivalence. Compared with the prior snapshot, source schema has zero added, removed or changed object blocks. No repository migration was applied in this backup verification; unchanged application tests were not repeated.
+
+Private evidence: `backup-status.json`, `verification-report.json`, `fresh-schema-drift.json` and the archive/export files in the protected backup directory. Logical dumps do not include Storage object bytes or role passwords. This pre-window snapshot does not replace the final frozen cutover backup.
+
+The helper supplied neither approved test-account UUIDs nor Vercel access. Only the approved UUID has been requested from the owner; cohort eligibility remains pending. Gemini was unchanged. No production migrations, deployment, secret changes or webhook activation occurred.
+
+
+## Approved sandbox account — read-only verification
+
+The owner-supplied UUID is stored only in protected release inputs/evidence outside Git (`sandbox-account-verification.json`). Authenticated read-only queries against the confirmed production project returned: one account, one profile, one confirmed account, zero deleted/currently banned accounts, one active subscription with both plan fields Free, zero provider subscription/customer/order links, zero auto-renewal flags and zero payment records. No plan or account setting changed.
+
+This passes the existing-plan/billing-conflict checks for the approved sandbox billing candidate. Two limitations remain: one administrator role and one existing FAQ collection. Admin access makes this insufficient as the sole account for ordinary-user authorization/ownership acceptance. Under the pending migration, Free generation rejects another collection while an existing collection is present, regardless of the currently unused numeric quota. Preserve that collection; do not delete content or remove roles to force a test. Use a separately approved ordinary non-admin account for clean Free onboarding and permission tests.
+
+The cohort table is not installed, so this is eligibility verification, not enrollment or checkout readiness. No purchase, RPC with side effects, migration, deployment, remote configuration or Gemini change was performed.

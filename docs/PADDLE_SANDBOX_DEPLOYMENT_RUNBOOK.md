@@ -1,11 +1,12 @@
 # FAQify coordinated rollout — Paddle SANDBOX
 
-Updated 2026-10-24. This document replaces the earlier preparation status. **Stop before production changes.** Gemini rotation is explicitly deferred: preserve `GEMINI_API_KEY` and the current fallback selection; rotation is follow-up work, not an activity in this release preparation. No credential rotation is performed.
+Updated 2026-10-24. This document replaces the earlier preparation status. **Coordinated SANDBOX rollout authorized by the owner on 2026-10-25; follow the gates below.** Gemini rotation is explicitly deferred: preserve `GEMINI_API_KEY` and the current fallback selection; rotation is follow-up work, not an activity in this release preparation. No credential rotation is performed.
 
 ## Target and immutable artifacts
 
 - Supabase production project: `dlzshcshqjdghmtzlbma`, also selected for sandbox acceptance. This is not an isolated test database.
-- Git repository: `ldino3121/faqify-production`; only `integration/paddle-sandbox` is authorized for commit/push. Never push or merge `main` in this step.
+- Vercel Production tracks `main`, confirmed by the owner from the dashboard screenshot. Integration-branch pushes have created successful Preview deployments; remaining private settings/variable scopes are unverified.
+- Git repository: `ldino3121/faqify-production`; integration changes are prepared on `integration/paddle-sandbox`; the owner now authorizes merging to `main` through the normal pull-request process, without bypassing protections.
 - Exact function/gateway manifest: [`supabase/rollout/release-manifest.json`](../supabase/rollout/release-manifest.json), 25 release entrypoints. Preserve each captured gateway value except the explicitly reviewed `track-analytics` true→false change; its handler validates private events and restricts public events.
 - Original-schema preparation: `supabase/rollout/maintenance.sql`.
 - One pending billing migration: `supabase/migrations/20261022000000_paddle_and_atomic_faq_saves.sql`. Do not replay historical migrations or use blanket `db push`.
@@ -24,7 +25,7 @@ Prepared files are **not installed remotely**. Never print their contents or put
 | `VITE_PADDLE_ENABLE_ONETIME` | `true` (UI only; purchases blocked) | `true`, backend cohort enforced |
 | `VITE_FAQIFY_WRITES_ENABLED` | `false` | `true` after compatible backend/schema are ready |
 | `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` | Confirmed target/public configuration prepared | Preserve confirmed target/public configuration |
-| `VITE_PUBLIC_APP_URL` | Actual assigned Preview origin; not yet known | `https://www.faqify.app` |
+| `VITE_PUBLIC_APP_URL` | Latest observed Preview origin (see RELEASE_VERIFICATION) | `https://www.faqify.app` |
 | `VITE_PUBLIC_SUPABASE_URL` | Optional; falls back to confirmed URL | Optional same fallback |
 | `VITE_RAZORPAY_KEY_ID`, `VITE_TURNSTILE_SITE_KEY` | Existing public values prepared | Preserve existing public values |
 
@@ -64,9 +65,9 @@ The original frontend lacks the new banner. Server-side statement guards protect
 
 The isolated Chromium walkthrough of the original FAQCreator from main demonstrated retained/exportable generated FAQs after freeze and a split collection/FAQ save. It demonstrated stale generation rejection without a write. Synthetic responses were used; no provider/database request escaped the harness. The new editor remains mounted through maintenance, supports local draft export and same-ticket retry, and never automatically reloads. Browser crashes/navigation can still lose unsaved old-tab drafts. Notify users before the window and require export/finish confirmation.
 
-## Coordinated cutover — review only, not executed
+## Coordinated cutover — authorized, gated execution
 
-The commands below are exact operator patterns, not an invitation to run them before approval. Use the release commit recorded in RELEASE_VERIFICATION; record all deployed versions/gateway settings. Confirm current target and fresh preflight/history. Use private credentials, CA-validated TLS, short lock timeout and bounded statement timeout. No SQL output containing records may be shared.
+The owner has authorized the coordinated rollout. Execute these operator steps only after their prerequisites pass. Use the release commit recorded in RELEASE_VERIFICATION; record all deployed versions/gateway settings. Confirm current target and fresh preflight/history. Use private credentials, CA-validated TLS, short lock timeout and bounded statement timeout. No SQL output containing records may be shared.
 
 1. **Prerequisites:** complete fresh backup/restore, Vercel production/staging settings review, cohort identity verification and exposed Supabase/OpenRouter follow-up decisions. Gemini rotation is deferred by the owner. Capture the current Vercel production deployment/domain mappings and function metadata. Prepare a production-environment frontend build with automatic domain assignment held. Do not promote a Preview-built read-only bundle as the production artifact.
 2. **Original-schema preparation:** install `maintenance.sql` in `open / 0`. Deploy each captured original guarded bundle with the *captured* JWT setting from the manifest; add admin-only diagnostic hardening. Do not deploy migration-dependent integration generation functions yet. The private bundle must be the working directory for its specific function. For false gateway values add `--no-verify-jwt`; for true use an explicit matching config. Example:
@@ -112,7 +113,7 @@ The commands below are exact operator patterns, not an invitation to run them be
 
 ## Backup and actual-schema rehearsal
 
-The verified source snapshot remains `.../dlzshcshqjdghmtzlbma/20261021T210121Z`. A newly recreated isolated database has rehearsed the revised migration against it, preserving 62 table COPY blocks/1,747 rows. This is refreshed rehearsal evidence, not a fresh production backup.
+A fresh source snapshot completed at `2026-10-24T14:22:13Z` in `/Users/carbonface/Backups/faqify/release-preparation-20261024`. Isolated restore verification preserved 62 table COPY blocks/1,750 rows, four sequences, migration history, roles/grants and 733 schema object blocks. Its source schema is unchanged from the previously rehearsed 2026-10-21 snapshot. The new snapshot has not had the billing migration applied during backup verification; the earlier migration rehearsal remains separate evidence. A final frozen refresh/rehearsal remains required at cutover.
 
 The private Terminal prompt at `release-preparation-20261024/Enter release configuration.command` collects confirmed Session pooler details/password with hidden input and optional Vercel access/test-account UUIDs. No credential goes into command history/chat. Its backup helper uses Docker PostgreSQL clients, `verify-full` TLS and read-only transactions. After private input is ready, validate the CA file reference, export roles without passwords and one consistent custom archive, then derive schema/data/history exports from that archive. Preserve all logs/checksums privately. Do not reuse an old credential file or reset a password.
 
@@ -136,4 +137,38 @@ If already frozen, leave it frozen. A timeout rolls back the transition: query `
 
 There is no tested down migration. If database restoration becomes unavoidable, obtain separate destructive-recovery approval, archive failure-time data/provider ledgers, restore into an isolated recovery target, validate and reconcile legitimate intervening writes/payments before switching. Never overwrite production from an older snapshot or replay all payments blindly. Never delete FAQ rows/merge accounts to force recovery.
 
-Vercel references: [environment scopes](https://vercel.com/docs/deployments/environments), [system build variables](https://vercel.com/docs/environment-variables/system-environment-variables). Current dashboard production branch/Preview configuration still requires authenticated verification; main is the observed GitHub production source, not proof of a private Vercel setting.
+Vercel references: [environment scopes](https://vercel.com/docs/deployments/environments), [system build variables](https://vercel.com/docs/environment-variables/system-environment-variables). Production tracks `main` (owner-confirmed dashboard screenshot). Preview creation on integration-branch push is observed. Other private settings and variable scopes still require authenticated verification.
+
+
+## Current readiness gate — 2026-10-24
+
+**Not ready to execute production cutover.** Authenticated read-only inspection confirms the seven Paddle secrets are missing, the cohort/maintenance controls are not installed, and the billing migration is not recorded. This is the expected pre-deployment state. Gemini remains present and unchanged.
+
+The following inputs/evidence are still required:
+
+1. Fresh pre-window backup and isolated restore are complete (2026-10-24 14:22 UTC); see RELEASE_VERIFICATION. Final frozen backup/restore and cutover rehearsal remain required. Temporary database credentials were removed; obtain them privately again for that later export.
+2. One owner-approved UUID now passes read-only existence/active Free/no-provider-billing checks; it is stored outside Git. It has an admin role and an existing collection. Preserve both; obtain a separately approved non-admin account for ordinary-user permission and clean Free onboarding tests. No cohort enrollment has occurred. Enrollment occurs only after migration while frozen.
+3. Supply existing Vercel authenticated access or inspect Production variable scopes in the dashboard. Presence is unknown; do not call an uninspected variable missing. Hold automatic production domain assignment until the compatible backend is installed. The confirmed `main` production branch does not establish this hold.
+4. Resolve the previously documented exposed Supabase/OpenRouter credential disposition before the window; no new audit/rotation was performed. Gemini rotation remains deferred.
+5. Confirm the migration-history recording transaction against the fresh exported history schema. Do not execute the billing SQL without its reviewed exactly-once history procedure. Capture concrete production build/deployment IDs before any promotion/recovery action; a Preview-built artifact cannot be used.
+
+Confirmed missing Supabase names (values are already prepared outside Git):
+
+- `PADDLE_ENVIRONMENT`
+- `PADDLE_API_KEY`
+- `PADDLE_WEBHOOK_SECRET`
+- `PADDLE_PRO_MONTHLY_PRICE_ID`
+- `PADDLE_PRO_ONETIME_PRICE_ID`
+- `PADDLE_BUSINESS_MONTHLY_PRICE_ID`
+- `PADDLE_BUSINESS_ONETIME_PRICE_ID`
+
+Follow the numbered coordinated cutover above only after the gates are resolved and production changes are separately approved. Keep the existing destination inactive throughout preparation. Keep the database frozen across schema/backend/frontend changes; never reopen with the original frontend after its direct-save permissions are revoked. If deployment fails after migration, retain frozen/revision 1 and recover forward. The exact operator state-transition and recovery SQL is above; pending account selection, history procedure and production deployment identity prevent a truthful unconditional ready-to-execute claim today.
+
+
+## Execution checkpoint — 2026-10-25 (Asia/Kolkata)
+
+Vercel authenticated project identity verified against GitHub `ldino3121/faqify-production`, branch `main`, and the existing FAQify domains. Recovery deployment: `dpl_63eYGcSQsna3mx9RMFvzsuMDKeLR`, source `172555786c63a7b49b9efc8da66f7a67bb65e5f4`. Automatic production domain assignment is held (`autoAssignCustomDomains=false`); current production traffic is unchanged. Production/Preview sandbox variables are installed, preserving existing public provider settings. All seven Paddle secrets are installed; unrelated secret digests, including Gemini, are unchanged.
+
+Maintenance SQL is installed at open/revision 0. Seventeen captured original guarded functions are deployed and their increased versions/captured JWT settings verified. Billing migration, cohort enrollment, compatible frontend promotion and webhook activation have not yet occurred at this checkpoint. Final frozen backup credentials have been verified with a read-only TLS connection. Recovery files and deployment logs remain outside Git.
+
+Existing credential rotation is deferred for this authorized rollout; do not rotate keys. Previously documented exposed-key remediation remains outstanding security work. The approved admin account is a billing candidate, not a substitute for non-admin permission acceptance. Only test-owned content may be created/deleted during acceptance.
