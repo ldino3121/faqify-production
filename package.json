@@ -10,14 +10,19 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
-    "test": "vitest run",
+    "test": "vitest run && npm run test:catalog && npm run test:preflight",
     "sim": "node scripts/sim-saas-flow/index.mjs",
     "sim:plans": "node scripts/sim-plan-lifecycle/index.mjs",
     "ci": "npm run typecheck && npm run lint && npm run build",
-    "setup-razorpay-plans": "node scripts/setup-razorpay-plans.js"
+    "setup-razorpay-plans": "node scripts/setup-razorpay-plans.js",
+    "test:catalog": "node --test scripts/setup-paddle.test.mjs",
+    "test:preflight": "node --test scripts/preflight.test.mjs",
+    "test:restore": "node scripts/test-paddle-restore.mjs",
+    "test:rollout-concurrency": "node scripts/test-rollout-concurrency.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
+    "@paddle/paddle-js": "^1.4.2",
     "@radix-ui/react-accordion": "^1.2.0",
     "@radix-ui/react-alert-dialog": "^1.1.1",
     "@radix-ui/react-aspect-ratio": "^1.1.0",
@@ -72,10 +77,11 @@
     "tailwindcss-animate": "^1.0.7",
     "typescript": "^5.5.3",
     "vaul": "^0.9.3",
-    "vite": "^5.4.1",
+    "vite": "^6.4.5",
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.3.14",
     "@eslint/js": "^9.9.0",
     "@tailwindcss/typography": "^0.5.15",
     "@types/node": "^22.5.5",
@@ -86,7 +92,9 @@
     "eslint-plugin-react-refresh": "^0.4.9",
     "globals": "^15.9.0",
     "jsdom": "^25.0.1",
+    "mammoth": "^1.11.0",
     "typescript-eslint": "^8.0.1",
-    "vitest": "^2.1.9"
+    "unpdf": "^1.4.0",
+    "vitest": "^4.1.12"
   }
 }

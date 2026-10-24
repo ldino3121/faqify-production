@@ -1,3 +1,5 @@
+import { requireRolloutOpen } from '@/lib/rollout';
+import { escapeHtml, csvCell } from '@/utils/export';
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
@@ -68,6 +70,7 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
   const [activeTab, setActiveTab] = useState("url");
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedFAQs, setGeneratedFAQs] = useState<FAQ[]>([]);
+  const [pendingGenerationId, setPendingGenerationId] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
   const [collectionTitle, setCollectionTitle] = useState("");
   const [savedCollection, setSavedCollection] = useState<SavedCollection | null>(null);
@@ -80,7 +83,23 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
   const [urlInput, setUrlInput] = useState("");
   const [textInput, setTextInput] = useState("");
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
-  const [faqCount, setFaqCount] = useState(5); // Default to 5 FAQs, range 3-10
+  const [faqCount, setFaqCount] = useState(5); // Default to 5 FAQs, range 1-10
+
+  useEffect(() => {
+    if (!isGenerating && !pendingGenerationId && !textInput && !urlInput && !uploadedFile) return;
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [isGenerating, pendingGenerationId, textInput, urlInput, uploadedFile]);
+
+  const downloadDraft = () => {
+    const blob = new Blob([JSON.stringify({ title: collectionTitle, sourceUrl: urlInput,
+      sourceText: textInput, fileName: uploadedFile?.name, generationId: pendingGenerationId,
+      faqs: generatedFAQs }, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a'); link.href = url; link.download = 'faqify-unsaved-draft.json';
+    link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
 
   // Enhanced FAQ generation checking with expiry validation
   const [canCreateFAQ, setCanCreateFAQ] = useState(false);
@@ -114,7 +133,7 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
     };
 
     checkEligibility();
-  }, [subscription, user]);
+  }, [subscription?.id, subscription?.faq_usage_current, subscription?.faq_usage_limit, subscription?.status, subscription?.plan_expires_at, user?.id, canCreateFAQFromHook]);
 
   // Function to check if user can generate a specific number of FAQs
   const canGenerateFAQCount = async (count: number) => {
@@ -140,7 +159,7 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
     };
 
     checkSelectedCount();
-  }, [faqCount, subscription, user]);
+  }, [faqCount, subscription?.id, subscription?.faq_usage_current, subscription?.faq_usage_limit, subscription?.status, subscription?.plan_expires_at, user?.id, canCreateFAQFromHook]);
 
   // Get maximum FAQ count user can generate based on remaining usage
   const maxGeneratableFAQs = Math.max(0, Math.min(10, remainingUsage));
@@ -181,7 +200,7 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
         table: 'faqs',
         filter: `collection_id=eq.${savedCollection.id}`,
       }, (payload) => {
-        console.log('FAQ changed:', payload);
+
         fetchCollectionFAQs(savedCollection.id);
       })
       .subscribe();
@@ -194,219 +213,26 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
     };
   }, [savedCollection?.id]);
 
-  const saveFAQsToDatabase = async (faqs: FAQ[], sourceUrl?: string, sourceContent?: string, title?: string) => {
-    const finalTitle = title || 'Generated FAQs';
-    console.log('Starting saveFAQsToDatabase with:', {
-      faqCount: faqs.length,
-      user: user?.id,
-      title: finalTitle,
-      sourceUrl
+  const saveFAQsToDatabase = async (generationId: string, title: string) => {
+    const { data, error } = await (supabase as any).rpc('save_generated_faqs', {
+      p_generation_id: generationId, p_title: title.slice(0, 100),
     });
-
-    if (!user) {
-      console.error('Save failed: Missing user', { user: !!user });
-      toast({
-        title: "Authentication Required",
-        description: "Please log in to save FAQs.",
-        variant: "destructive",
-      });
+    if (error || !data?.collection_id) {
+      toast({ title: 'Save failed', description: error?.message || 'Please retry.', variant: 'destructive' });
       return { success: false, collectionId: null };
     }
-
-    if (!finalTitle) {
-      console.error('Save failed: Missing title', { title: finalTitle });
-      toast({
-        title: "Error Generating Title",
-        description: "Unable to generate a title for your FAQ collection.",
-        variant: "destructive",
-      });
-      return { success: false, collectionId: null };
-    }
-
-    // Check if user has a profile (required for RLS)
-    console.log('Checking user profile...');
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('id', user.id)
-      .single();
-
-    console.log('Profile check result:', { profile, profileError });
-
-    if (profileError || !profile) {
-      console.error('User profile not found, creating one...');
-      // Try to create profile if it doesn't exist
-      const { error: createProfileError } = await supabase
-        .from('profiles')
-        .insert({
-          id: user.id,
-          email: user.email || '',
-          full_name: user.user_metadata?.full_name || user.email || ''
-        });
-
-      if (createProfileError) {
-        console.error('Failed to create profile:', createProfileError);
-        toast({
-          title: "Profile Error",
-          description: "Unable to create user profile. Please contact support.",
-          variant: "destructive",
-        });
-        return { success: false, collectionId: null };
-      }
-      console.log('Profile created successfully');
-    }
-
-    // Check if user has a subscription
-    console.log('Checking user subscription...');
-    const { data: userSubscription, error: subscriptionError } = await supabase
-      .from('user_subscriptions')
-      .select('*')
-      .eq('user_id', user.id)
-      .single();
-
-    console.log('Subscription check result:', { userSubscription, subscriptionError });
-
-    if (subscriptionError || !userSubscription) {
-      console.error('User subscription not found, creating one...');
-      // Try to create subscription if it doesn't exist
-      const { error: createSubscriptionError } = await supabase
-        .from('user_subscriptions')
-        .insert({
-          user_id: user.id,
-          plan_tier: 'Free',
-          faq_usage_limit: 5,
-          faq_usage_current: 0,
-          status: 'active',
-          last_reset_date: new Date().toISOString().split('T')[0]
-        });
-
-      if (createSubscriptionError) {
-        console.error('Failed to create subscription:', createSubscriptionError);
-        toast({
-          title: "Subscription Error",
-          description: "Unable to create user subscription. Please contact support.",
-          variant: "destructive",
-        });
-        return { success: false, collectionId: null };
-      }
-      console.log('Subscription created successfully');
-    }
-
-    // Check if user can generate this many FAQs
-    if (!canGenerateFAQCount(faqs.length)) {
-      console.error('Save failed: Usage limit exceeded', {
-        faqCount: faqs.length,
-        remainingUsage,
-        canGenerate: canGenerateFAQCount(faqs.length)
-      });
-      toast({
-        title: "Usage Limit Exceeded",
-        description: `You can only generate ${remainingUsage} more FAQs this month. This collection has ${faqs.length} FAQs. Please upgrade your plan or reduce the number of FAQs.`,
-        variant: "destructive",
-      });
-      return { success: false, collectionId: null };
-    }
-
-    try {
-      // Create FAQ collection
-      console.log('Creating FAQ collection...');
-      const { data: collection, error: collectionError } = await supabase
-        .from('faq_collections')
-        .insert({
-          user_id: user.id,
-          title: finalTitle,
-          source_url: sourceUrl,
-          source_content: sourceContent,
-          status: 'published'
-        })
-        .select('id')
-        .single();
-
-      console.log('Collection creation result:', { collection, collectionError });
-      if (collectionError) throw collectionError;
-
-      // Insert individual FAQs
-      console.log('Inserting FAQs...');
-      const faqsToInsert = faqs.map((faq, index) => ({
-        collection_id: collection.id,
-        question: faq.question,
-        answer: faq.answer,
-        order_index: index
-      }));
-
-      console.log('FAQs to insert:', faqsToInsert.length);
-      const { error: faqsError } = await supabase
-        .from('faqs')
-        .insert(faqsToInsert);
-
-      console.log('FAQ insertion result:', { faqsError });
-      if (faqsError) throw faqsError;
-
-      // Check user subscription before updating usage
-      console.log('Checking user subscription before usage increment...');
-      const { data: subscriptionCheck, error: subCheckError } = await supabase
-        .from('user_subscriptions')
-        .select('*')
-        .eq('user_id', user.id)
-        .single();
-
-      console.log('Subscription check result:', { subscriptionCheck, subCheckError });
-
-      if (subCheckError || !subscriptionCheck) {
-        console.error('No subscription found for user:', user.id);
-        throw new Error('User subscription not found. Please contact support.');
-      }
-
-      // Update usage count based on number of FAQs generated
-      console.log('Calling increment_faq_usage_by_count with:', {
-        user_uuid: user.id,
-        faq_count: faqs.length,
-        current_usage: subscriptionCheck.faq_usage_current,
-        usage_limit: subscriptionCheck.faq_usage_limit,
-        status: subscriptionCheck.status
-      });
-
-      const { data: usageResult, error: usageError } = await supabase.rpc('increment_faq_usage_by_count', {
-        user_uuid: user.id,
-        faq_count: faqs.length
-      });
-
-      console.log('Usage increment result:', { usageResult, usageError });
-
-      if (usageError) {
-        console.error('Usage increment error:', usageError);
-        throw new Error(`Failed to update usage count: ${usageError.message}`);
-      }
-
-      if (!usageResult) {
-        throw new Error(`Failed to increment usage - Current: ${subscriptionCheck.faq_usage_current}, Limit: ${subscriptionCheck.faq_usage_limit}, Requested: ${faqs.length}`);
-      }
-
-      // Refresh subscription data
-      await refetchSubscription();
-
-      toast({
-        title: "FAQs Saved Successfully!",
-        description: `Your FAQ collection "${finalTitle}" has been saved.`,
-      });
-
-      // Funnel: collection persisted (P1-10)
-      trackAnalyticsEvent('collection_saved', { collectionId: collection.id, faqCount: faqs.length });
-
-      console.log('Save successful! Collection ID:', collection.id);
-      return { success: true, collectionId: collection.id };
-    } catch (error) {
-      console.error('Error saving FAQs:', error);
-      toast({
-        title: "Save Failed",
-        description: `Failed to save FAQs to database: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        variant: "destructive",
-      });
-      return { success: false, collectionId: null };
-    }
+    setPendingGenerationId(null);
+    await refetchSubscription();
+    return { success: true, collectionId: data.collection_id as string };
   };
 
   const generateFAQs = async () => {
+    try { await requireRolloutOpen(); }
+    catch (error) { toast({ title: 'Generation paused', description: (error as Error).message, variant: 'destructive' }); return; }
+    if (pendingGenerationId) {
+      toast({ title: 'Keep your existing draft', description: 'Retry saving or download your draft before starting another generation.' });
+      return;
+    }
     // Enhanced eligibility check including expiry validation
     const eligibility = await canCreateFAQFromHook(faqCount);
 
@@ -496,13 +322,7 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
           throw new Error('Invalid hostname');
         }
 
-        console.log('URL validation details:', {
-          original: trimmedUrl,
-          final: finalUrl,
-          protocol: urlObj.protocol,
-          hostname: urlObj.hostname,
-          pathname: urlObj.pathname
-        });
+
 
         inputData = { url: finalUrl, type: "url", faqCount };
       } catch (error) {
@@ -558,13 +378,8 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
       }
 
       // 🔍 DETAILED FRONTEND DEBUGGING
-      console.log('🔍 FRONTEND FAQ COUNT DEBUG:', {
-        selectedFaqCount: faqCount,
-        typeOfFaqCount: typeof faqCount,
-        inputDataFaqCount: inputData.faqCount,
-        fullInputData: inputData
-      });
-      console.log('Calling analyze-content function with:', inputData);
+
+
 
       let response;
 
@@ -590,18 +405,20 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
         response = await supabase.functions.invoke('analyze-content', {
           body: {
             text: documentResponse.data.text,
-            type: 'text'
+            type: 'text',
+            faqCount,
+            fileName: uploadedFile?.name
           }
         });
       } else {
         // Call the edge function to analyze content and generate FAQs
-        console.log('Calling Edge function with data:', inputData);
+
         response = await supabase.functions.invoke('analyze-content', {
           body: inputData
         });
       }
 
-      console.log('Raw Edge function response:', response);
+
 
       // Handle SDK-level errors (non-2xx status codes)
       // Note: Edge function now returns 200 for all responses to avoid this
@@ -618,7 +435,7 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
         throw new Error('No data received from content analysis service');
       }
 
-      console.log('Edge function response data:', responseData);
+
 
       // Check if responseData contains an application-level error
       // Edge function returns error: true with message in body
@@ -633,6 +450,7 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
 
       setProgress(100);
       setGeneratedFAQs(responseData.faqs);
+      setPendingGenerationId(responseData.generation_id);
 
       // Auto-generate a title based on the input
       let autoTitle;
@@ -673,15 +491,10 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
       // Funnel: generation succeeded (P1-10)
       trackAnalyticsEvent('generation_success', { count: responseData?.faqs?.length ?? 0, source: activeTab });
 
-      const saveResult = await saveFAQsToDatabase(
-        responseData.faqs,
-        sourceUrl,
-        activeTab === "text" ? textInput : activeTab === "upload" ? `File: ${uploadedFile?.name}` : undefined,
-        autoTitle
-      );
+      const saveResult = await saveFAQsToDatabase(responseData.generation_id, autoTitle);
 
       if (saveResult.success && saveResult.collectionId) {
-        console.log('✅ FAQs saved successfully, collection ID:', saveResult.collectionId);
+
 
         // Set the collection title in state
         setCollectionTitle(autoTitle);
@@ -694,7 +507,7 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
         // Fetch the actual saved FAQs from database for accurate data
         try {
           const actualFAQs = await fetchCollectionFAQs(saveResult.collectionId);
-          console.log('✅ Fetched actual FAQs from database:', actualFAQs.length);
+
         } catch (fetchError) {
           console.error('⚠️ Failed to fetch saved FAQs:', fetchError);
           // Fallback to temporary FAQs
@@ -719,7 +532,7 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
 
         // Navigate to Manage FAQs tab after successful save with longer delay for sync
         setTimeout(() => {
-          console.log('🔄 Navigating to Manage FAQs tab');
+
           onNavigateToManage?.();
         }, 2000); // Longer delay to ensure database sync
       } else {
@@ -819,7 +632,7 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
         case 'csv': {
           const csvHeader = 'Question,Answer,Order,Published\n';
           const csvRows = faqsToExport.map(faq =>
-            `"${faq.question.replace(/"/g, '""')}","${faq.answer.replace(/"/g, '""')}","${'order_index' in faq ? faq.order_index : 0}","${'is_published' in faq ? faq.is_published : true}"`
+            `${csvCell(faq.question)},${csvCell(faq.answer)},"${'order_index' in faq ? faq.order_index : 0}","${'is_published' in faq ? faq.is_published : true}"`
           ).join('\n');
           content = csvHeader + csvRows;
           filename = `${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_faqs.csv`;
@@ -831,7 +644,7 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
           content = `<!DOCTYPE html>
 <html>
 <head>
-    <title>${title} - FAQs</title>
+    <title>${escapeHtml(title)} - FAQs</title>
     <style>
         body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
         .header { text-align: center; margin-bottom: 40px; }
@@ -843,14 +656,14 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
 </head>
 <body>
     <div class="header">
-        <h1>${title}</h1>
+        <h1>${escapeHtml(title)}</h1>
         <p><small>Exported on ${new Date().toLocaleDateString()}</small></p>
     </div>
     <div class="faqs">
         ${publishedFAQs.map(faq => `
             <div class="faq-item">
-                <div class="question">${faq.question}</div>
-                <div class="answer">${faq.answer}</div>
+                <div class="question">${escapeHtml(faq.question)}</div>
+                <div class="answer">${escapeHtml(faq.answer)}</div>
             </div>
         `).join('')}
     </div>
@@ -1003,6 +816,26 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
 
   return (
     <div className="space-y-8">
+      {(generatedFAQs.length > 0 || textInput || urlInput || uploadedFile) && <div className="flex flex-wrap gap-3" aria-label="Unsaved draft recovery">
+        <Button variant="outline" onClick={downloadDraft}>Download draft (JSON)</Button>
+        {pendingGenerationId && <Button disabled={isGenerating} onClick={async () => {
+          setIsGenerating(true);
+          try {
+            const result = await saveFAQsToDatabase(pendingGenerationId, collectionTitle);
+            if (result.success && result.collectionId) {
+              setSavedCollection({ id: result.collectionId, title: collectionTitle });
+              await fetchCollectionFAQs(result.collectionId);
+              toast({ title: 'Draft saved' });
+            }
+          } finally { setIsGenerating(false); }
+        }}>Retry saving draft</Button>}
+        {pendingGenerationId && <Button variant="outline" disabled={isGenerating} onClick={() => {
+          if (window.confirm('Have you downloaded this draft? Starting again will replace the unsaved FAQs in this tab.')) {
+            setPendingGenerationId(null);
+          }
+        }}>Allow a new generation</Button>}
+        {pendingGenerationId && <p className="text-sm">Keep this tab open. Retry uses the same generation ticket and cannot save it twice. If it expires, download the draft and contact support; do not regenerate automatically.</p>}
+      </div>}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-white mb-2">Create FAQ</h1>
@@ -1185,7 +1018,7 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-gray-800 border-gray-700">
-                    {Array.from({ length: 8 }, (_, i) => i + 3).map((count) => (
+                    {Array.from({ length: 10 }, (_, i) => i + 1).map((count) => (
                       <SelectItem
                         key={count}
                         value={count.toString()}

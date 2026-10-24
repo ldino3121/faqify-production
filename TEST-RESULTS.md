@@ -1,3 +1,5 @@
+> Historical document: embedded private credentials have been removed. Hardcoded fallback examples and old deployment instructions are obsolete; use backend environment variables and the maintained functions.
+
 # FAQify - Comprehensive Test Results ✅
 
 ## 📋 TEST EXECUTION SUMMARY
@@ -58,7 +60,7 @@ Result: ✅ PASS
 
 ### TEST 6: API Key Configuration ✅
 ```
-API Key: AIzaSyCnpPwL11BpSd2jIQwK3N-BlH2g5fMgQOY
+API Key: REDACTED_SET_GEMINI_API_KEY
 Status: Valid and active
 Fallback: Configured
 Result: ✅ PASS

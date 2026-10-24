@@ -1,0 +1,156 @@
+{
+  "project_ref": "dlzshcshqjdghmtzlbma",
+  "migration": "20261022000000_paddle_and_atomic_faq_saves.sql",
+  "functions": [
+    {
+      "name": "analyze-content",
+      "captured_version": 45,
+      "captured_verify_jwt": true,
+      "release_verify_jwt": true
+    },
+    {
+      "name": "track-analytics",
+      "captured_version": 13,
+      "captured_verify_jwt": true,
+      "release_verify_jwt": false
+    },
+    {
+      "name": "create-checkout-session",
+      "captured_version": 13,
+      "captured_verify_jwt": true,
+      "release_verify_jwt": true
+    },
+    {
+      "name": "manage-subscription",
+      "captured_version": 13,
+      "captured_verify_jwt": true,
+      "release_verify_jwt": true
+    },
+    {
+      "name": "process-document",
+      "captured_version": 13,
+      "captured_verify_jwt": true,
+      "release_verify_jwt": true
+    },
+    {
+      "name": "stripe-webhook",
+      "captured_version": 13,
+      "captured_verify_jwt": true,
+      "release_verify_jwt": true
+    },
+    {
+      "name": "assign-pro-plan",
+      "captured_version": 8,
+      "captured_verify_jwt": true,
+      "release_verify_jwt": true
+    },
+    {
+      "name": "create-razorpay-order",
+      "captured_version": 11,
+      "captured_verify_jwt": false,
+      "release_verify_jwt": false
+    },
+    {
+      "name": "verify-razorpay-payment",
+      "captured_version": 9,
+      "captured_verify_jwt": true,
+      "release_verify_jwt": true
+    },
+    {
+      "name": "create-razorpay-subscription",
+      "captured_version": 20,
+      "captured_verify_jwt": false,
+      "release_verify_jwt": false
+    },
+    {
+      "name": "razorpay-webhook",
+      "captured_version": 9,
+      "captured_verify_jwt": false,
+      "release_verify_jwt": false
+    },
+    {
+      "name": "debug-user-status",
+      "captured_version": 7,
+      "captured_verify_jwt": true,
+      "release_verify_jwt": true
+    },
+    {
+      "name": "check-env",
+      "captured_version": 5,
+      "captured_verify_jwt": true,
+      "release_verify_jwt": true
+    },
+    {
+      "name": "check-subscription-plans",
+      "captured_version": 7,
+      "captured_verify_jwt": true,
+      "release_verify_jwt": true
+    },
+    {
+      "name": "fix-database-plans",
+      "captured_version": 5,
+      "captured_verify_jwt": true,
+      "release_verify_jwt": true
+    },
+    {
+      "name": "test-env-vars",
+      "captured_version": 5,
+      "captured_verify_jwt": true,
+      "release_verify_jwt": true
+    },
+    {
+      "name": "manage-razorpay-subscription",
+      "captured_version": 6,
+      "captured_verify_jwt": true,
+      "release_verify_jwt": true
+    },
+    {
+      "name": "razorpay-subscription-webhook",
+      "captured_version": 7,
+      "captured_verify_jwt": false,
+      "release_verify_jwt": false
+    },
+    {
+      "name": "admin-set-plan",
+      "captured_version": 4,
+      "captured_verify_jwt": true,
+      "release_verify_jwt": true
+    },
+    {
+      "name": "send-contact",
+      "captured_version": 3,
+      "captured_verify_jwt": false,
+      "release_verify_jwt": false
+    },
+    {
+      "name": "log-error",
+      "captured_version": 3,
+      "captured_verify_jwt": false,
+      "release_verify_jwt": false
+    },
+    {
+      "name": "probe-razorpay",
+      "captured_version": 2,
+      "captured_verify_jwt": true,
+      "release_verify_jwt": true
+    },
+    {
+      "name": "create-paddle-checkout",
+      "captured_version": null,
+      "captured_verify_jwt": null,
+      "release_verify_jwt": true
+    },
+    {
+      "name": "paddle-customer-portal",
+      "captured_version": null,
+      "captured_verify_jwt": null,
+      "release_verify_jwt": true
+    },
+    {
+      "name": "paddle-webhook",
+      "captured_version": null,
+      "captured_verify_jwt": null,
+      "release_verify_jwt": false
+    }
+  ]
+}

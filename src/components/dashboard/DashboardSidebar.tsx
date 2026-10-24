@@ -1,4 +1,5 @@
 
+import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import {
   LayoutDashboard,
@@ -16,6 +17,7 @@ interface DashboardSidebarProps {
 }
 
 export const DashboardSidebar = ({ activeTab, setActiveTab, isOpen }: DashboardSidebarProps) => {
+  const navigate = useNavigate();
   const menuItems = [
     { id: "overview", label: "Overview", icon: LayoutDashboard },
     { id: "create", label: "Create FAQ", icon: Plus },
@@ -40,11 +42,11 @@ export const DashboardSidebar = ({ activeTab, setActiveTab, isOpen }: DashboardS
               className={`w-full justify-start ${
                 !isOpen ? 'px-2' : ''
               } ${
-                activeTab === item.id 
-                  ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                activeTab === item.id
+                  ? 'bg-blue-600 text-white hover:bg-blue-700'
                   : 'text-gray-300 hover:text-white hover:bg-gray-800'
               }`}
-              onClick={() => setActiveTab(item.id)}
+              onClick={() => item.id === 'help' ? navigate('/contact') : setActiveTab(item.id)}
             >
               <item.icon className="h-5 w-5" />
               {isOpen && <span className="ml-3">{item.label}</span>}
@@ -60,7 +62,7 @@ export const DashboardSidebar = ({ activeTab, setActiveTab, isOpen }: DashboardS
               className={`w-full justify-start ${
                 !isOpen ? 'px-2' : ''
               } text-gray-300 hover:text-white hover:bg-gray-800`}
-              onClick={() => setActiveTab(item.id)}
+              onClick={() => item.id === 'help' ? navigate('/contact') : setActiveTab(item.id)}
             >
               <item.icon className="h-5 w-5" />
               {isOpen && <span className="ml-3">{item.label}</span>}

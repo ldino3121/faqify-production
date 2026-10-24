@@ -1,3 +1,5 @@
+> Historical document: embedded private credentials have been removed. Hardcoded fallback examples and old deployment instructions are obsolete; use backend environment variables and the maintained functions.
+
 # 🎉 GOOGLE GEMINI INTEGRATION COMPLETE!
 
 ## ✅ What We've Accomplished
@@ -8,7 +10,7 @@
 - ✅ Much more capable and reliable AI for FAQ generation
 
 ### 2. **API Key Configuration**
-- ✅ Set your Gemini API key: `AIzaSyCnpPwL11BpSd2jIQwK3N-BlH2g5fMgQOY`
+- ✅ Set your Gemini API key: `REDACTED_SET_GEMINI_API_KEY`
 - ✅ Configured as environment variable: `GEMINI_API_KEY`
 - ✅ Added fallback hardcoded key for production reliability
 

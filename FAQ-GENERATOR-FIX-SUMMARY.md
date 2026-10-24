@@ -1,3 +1,5 @@
+> Historical document: embedded private credentials have been removed. Hardcoded fallback examples and old deployment instructions are obsolete; use backend environment variables and the maintained functions.
+
 # 🎉 FAQ Generator Engine - FIXED!
 
 ## ✅ **RESOLUTION SUMMARY**
@@ -44,7 +46,7 @@ let openRouterApiKey = Deno.env.get('DEEPSEEK_API_KEY') ||
 // Production fallback - hardcoded API key for stability
 if (!openRouterApiKey || openRouterApiKey.trim() === '') {
   console.log('⚠️ Environment variable not found, using production fallback');
-  openRouterApiKey = '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';
+  openRouterApiKey = 'REDACTED_SET_OPENROUTER_API_KEY';
 }
 ```
 

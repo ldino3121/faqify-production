@@ -1,3 +1,4 @@
+import { requireAdmin } from '../_shared/require-admin.ts';
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.50.2';
 
@@ -12,6 +13,9 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const denied = await requireAdmin(req);
+  if (denied) return denied;
+
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -24,9 +28,9 @@ serve(async (req) => {
       .order('price_monthly', { ascending: true });
 
     if (plansError) {
-      return new Response(JSON.stringify({ 
-        error: 'Failed to fetch plans', 
-        details: plansError 
+      return new Response(JSON.stringify({
+        error: 'Failed to fetch plans',
+        details: plansError
       }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -43,9 +47,9 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('Error checking plans:', error);
-    return new Response(JSON.stringify({ 
-      error: 'Internal server error', 
-      details: error.message 
+    return new Response(JSON.stringify({
+      error: 'Internal server error',
+      details: (error instanceof Error ? error.message : String(error))
     }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }

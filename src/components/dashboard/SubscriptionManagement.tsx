@@ -1,3 +1,4 @@
+import { PaddleBilling } from './PaddleBilling';
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -95,6 +96,8 @@ export const SubscriptionManagement: React.FC<SubscriptionManagementProps> = ({ 
       </Card>
     );
   }
+
+  if (subscription.subscription_source === 'paddle') return <PaddleBilling />;
 
   // Show basic info for Free plan
   if (subscription.plan_tier === 'Free') {

@@ -1,3 +1,4 @@
+import { withRolloutGuard } from '../_shared/rollout.ts';
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.50.2";
 import {
@@ -70,7 +71,7 @@ function json(status: number, body: unknown): Response {
   });
 }
 
-serve(async (req) => {
+serve(withRolloutGuard(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 200, headers: corsHeaders });
   }
@@ -177,7 +178,7 @@ serve(async (req) => {
     // Never surface internals to the public endpoint.
     return json(500, { ok: false, error: "Unable to send message" });
   }
-});
+}, 'send-contact', false));
 
 /** Irreversible per-IP fingerprint so we can spot abuse without storing IPs. */
 async function hashIp(ip: string): Promise<string> {

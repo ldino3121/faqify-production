@@ -1,3 +1,4 @@
+import { requireAdmin } from '../_shared/require-admin.ts';
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
@@ -10,6 +11,9 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
+
+  const denied = await requireAdmin(req);
+  if (denied) return denied;
 
   try {
     const envVars = {
@@ -30,9 +34,9 @@ serve(async (req) => {
     });
 
   } catch (error) {
-    return new Response(JSON.stringify({ 
-      error: 'Failed to check environment', 
-      details: error.message 
+    return new Response(JSON.stringify({
+      error: 'Failed to check environment',
+      details: (error instanceof Error ? error.message : String(error))
     }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }

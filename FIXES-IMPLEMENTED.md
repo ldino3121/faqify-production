@@ -1,3 +1,5 @@
+> Historical document: embedded private credentials have been removed. Hardcoded fallback examples and old deployment instructions are obsolete; use backend environment variables and the maintained functions.
+
 # FAQify - All Fixes Implemented ✅
 
 ## 🎯 IMPLEMENTATION SUMMARY
@@ -50,7 +52,7 @@ All 3 critical issues and all recommendations have been successfully implemented
 
 **Test Command**:
 ```bash
-curl -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=AIzaSyCnpPwL11BpSd2jIQwK3N-BlH2g5fMgQOY" \
+curl -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=REDACTED_SET_GEMINI_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"contents":[{"parts":[{"text":"Generate 3 FAQs"}]}]}'
 ```

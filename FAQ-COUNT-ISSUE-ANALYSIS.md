@@ -1,3 +1,5 @@
+> Historical document: embedded private credentials have been removed. Hardcoded fallback examples and old deployment instructions are obsolete; use backend environment variables and the maintained functions.
+
 # 🔍 FAQ Count Issue Analysis & Solution
 
 ## 🚨 **CURRENT PROBLEM**
@@ -140,7 +142,7 @@ supabase functions list
 ### **Environment Variables Check**
 Ensure all required environment variables are set:
 ```bash
-GEMINI_API_KEY=AIzaSyCnpPwL11BpSd2jIQwK3N-BlH2g5fMgQOY
+GEMINI_API_KEY=REDACTED_SET_GEMINI_API_KEY
 ```
 
 ---

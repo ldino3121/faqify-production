@@ -1,3 +1,4 @@
+import { withRolloutGuard } from '../_shared/rollout.ts';
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.50.2';
 
@@ -21,7 +22,7 @@ interface RazorpayOrderResponse {
   status: string;
 }
 
-serve(async (req) => {
+serve(withRolloutGuard(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -328,10 +329,10 @@ serve(async (req) => {
     console.error('Error creating Razorpay order:', error);
     return new Response(JSON.stringify({ 
       error: 'Failed to create payment order',
-      details: error.message 
+      details: error instanceof Error ? error.message : 'Request failed'
     }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
-});
+}, 'create-razorpay-order', true));

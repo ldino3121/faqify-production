@@ -1,3 +1,4 @@
+import { escapeHtml, csvCell } from '@/utils/export';
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -79,7 +80,7 @@ export const FAQManager = ({ onNavigateToCreate }: FAQManagerProps) => {
   useEffect(() => {
     if (!user) return;
 
-    console.log('🔄 Setting up real-time subscription for FAQ collections');
+
 
     const collectionsChannel = supabase
       .channel('faq-collections-realtime')
@@ -89,7 +90,7 @@ export const FAQManager = ({ onNavigateToCreate }: FAQManagerProps) => {
         table: 'faq_collections',
         filter: `user_id=eq.${user.id}`,
       }, (payload) => {
-        console.log('📡 FAQ collection changed:', payload);
+
         fetchCollections(); // Refetch all collections when any collection changes
       })
       .on('postgres_changes', {
@@ -97,29 +98,21 @@ export const FAQManager = ({ onNavigateToCreate }: FAQManagerProps) => {
         schema: 'public',
         table: 'faqs',
       }, (payload) => {
-        console.log('📡 FAQ changed:', payload);
-        // Only refetch if this FAQ belongs to one of our collections
-        const oldId = (payload.old as { id?: string } | null)?.id;
-        const newId = (payload.new as { id?: string } | null)?.id;
-        const affectedCollection = collections.find(c =>
-          c.faqs.some(f => f.id === oldId || f.id === newId)
-        );
-        if (affectedCollection) {
-          fetchCollections();
-        }
+
+        fetchCollections(); // Realtime applies row ownership policies before delivery.
       })
       .subscribe();
 
     return () => {
-      console.log('🔄 Cleaning up real-time subscription');
+
       supabase.removeChannel(collectionsChannel);
     };
-  }, [user, collections]);
+  }, [user?.id]);
 
   const fetchCollections = async () => {
     try {
       setLoading(true);
-      console.log('🔄 Fetching FAQ collections for user:', user?.id);
+
 
       const { data: collectionsData, error: collectionsError } = await supabase
         .from('faq_collections')
@@ -135,8 +128,8 @@ export const FAQManager = ({ onNavigateToCreate }: FAQManagerProps) => {
         throw collectionsError;
       }
 
-      console.log('✅ Fetched collections:', collectionsData?.length || 0);
-      console.log('Collections data:', collectionsData);
+
+
 
       // Sort FAQs within each collection by order_index
       const sortedCollections = (collectionsData || []).map(collection => ({
@@ -333,7 +326,7 @@ export const FAQManager = ({ onNavigateToCreate }: FAQManagerProps) => {
         case 'csv': {
           const csvHeader = 'Question,Answer\n';
           const csvRows = collection.faqs.map(faq =>
-            `"${faq.question.replace(/"/g, '""')}","${faq.answer.replace(/"/g, '""')}"`
+            `${csvCell(faq.question)},${csvCell(faq.answer)}`
           ).join('\n');
           content = csvHeader + csvRows;
           filename = `${collection.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_faqs.csv`;
@@ -344,7 +337,7 @@ export const FAQManager = ({ onNavigateToCreate }: FAQManagerProps) => {
           content = `<!DOCTYPE html>
 <html>
 <head>
-    <title>${collection.title} - FAQs</title>
+    <title>${escapeHtml(collection.title)} - FAQs</title>
     <style>
         body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
         .faq-item { margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 15px; }
@@ -353,13 +346,13 @@ export const FAQManager = ({ onNavigateToCreate }: FAQManagerProps) => {
     </style>
 </head>
 <body>
-    <h1>${collection.title}</h1>
-    ${collection.description ? `<p>${collection.description}</p>` : ''}
+    <h1>${escapeHtml(collection.title)}</h1>
+    ${collection.description ? `<p>${escapeHtml(collection.description)}</p>` : ''}
     <div class="faqs">
         ${collection.faqs.map(faq => `
             <div class="faq-item">
-                <div class="question">${faq.question}</div>
-                <div class="answer">${faq.answer}</div>
+                <div class="question">${escapeHtml(faq.question)}</div>
+                <div class="answer">${escapeHtml(faq.answer)}</div>
             </div>
         `).join('')}
     </div>

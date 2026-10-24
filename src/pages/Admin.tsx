@@ -67,12 +67,17 @@ const Admin = () => {
       .select('id, user_id, payment_gateway, status, amount, currency, plan_tier, created_at')
       .order('created_at', { ascending: false })
       .limit(100);
-    setTxs((t as any) || []);
+    const { data: paddlePayments } = await (supabase as any).from('paddle_payments')
+      .select('*').order('paid_at', { ascending: false }).limit(100);
+    setTxs([...(t || []), ...(paddlePayments || []).map((p: any) => ({
+      id: p.transaction_id, user_id: p.user_id, payment_gateway: 'paddle', status: p.status,
+      amount: Number(p.amount), currency: p.currency, plan_tier: p.tier, created_at: p.paid_at,
+    }))].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at)).slice(0, 100));
 
-    const { data: ev } = await supabase.from('usage_analytics').select('action');
+    const { data: ev } = await supabase.from('usage_analytics').select('action, action_type');
     const counts: Record<string, number> = {};
     ((ev as any[]) || []).forEach((e) => {
-      const k = e.action || 'unknown';
+      const k = e.action_type || e.action || 'unknown';
       counts[k] = (counts[k] || 0) + 1;
     });
     setFunnel(counts);

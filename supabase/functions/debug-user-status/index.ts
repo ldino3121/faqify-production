@@ -1,3 +1,4 @@
+import { requireAdmin } from '../_shared/require-admin.ts';
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.50.2';
 
@@ -21,6 +22,9 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const denied = await requireAdmin(req);
+  if (denied) return denied;
+
   try {
     // Use service role for admin access
     const supabase = await getSupabaseClient(req);
@@ -33,9 +37,9 @@ serve(async (req) => {
       .single();
 
     if (profileError) {
-      return new Response(JSON.stringify({ 
-        error: 'Profile not found', 
-        details: profileError 
+      return new Response(JSON.stringify({
+        error: 'Profile not found',
+        details: profileError
       }), {
         status: 404,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -71,9 +75,9 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('Debug error:', error);
-    return new Response(JSON.stringify({ 
-      error: 'Internal server error', 
-      details: error.message 
+    return new Response(JSON.stringify({
+      error: 'Internal server error',
+      details: (error instanceof Error ? error.message : String(error))
     }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }

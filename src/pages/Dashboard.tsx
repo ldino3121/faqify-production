@@ -1,4 +1,5 @@
 
+import { BillingSyncNotice } from '@/components/dashboard/BillingSyncNotice';
 import { useState } from "react";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
@@ -11,6 +12,8 @@ const Dashboard = () => {
   const [activeTab, setActiveTab] = useState("overview");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [creatorVisited, setCreatorVisited] = useState(false);
+  const navigateTab = (tab: string) => { if (tab === 'create') setCreatorVisited(true); setActiveTab(tab); };
 
   // Force refresh function for data sync
   const forceRefresh = () => {
@@ -23,35 +26,35 @@ const Dashboard = () => {
       <div className="relative">
         {/* Overview Tab */}
         <div className={activeTab === "overview" ? "block" : "hidden"}>
-          <DashboardOverviewData
+          {activeTab === "overview" && <DashboardOverviewData
             key={`overview-${refreshKey}`}
             onNavigateToUpgrade={() => setActiveTab("upgrade")}
-          />
+          />}
         </div>
 
         {/* Create Tab - Always rendered to preserve state */}
         <div className={activeTab === "create" ? "block" : "hidden"}>
-          <FAQCreator
+          {creatorVisited && <FAQCreator
             key="create-persistent"
             onNavigateToUpgrade={() => setActiveTab("upgrade")}
             onNavigateToManage={() => {
               forceRefresh(); // Force refresh before navigating
               setActiveTab("manage");
             }}
-          />
+          />}
         </div>
 
         {/* Manage Tab */}
         <div className={activeTab === "manage" ? "block" : "hidden"}>
-          <FAQManager
+          {activeTab === "manage" && <FAQManager
             key={`manage-${refreshKey}`}
-            onNavigateToCreate={() => setActiveTab("create")}
-          />
+            onNavigateToCreate={() => navigateTab("create")}
+          />}
         </div>
 
         {/* Upgrade Tab */}
         <div className={activeTab === "upgrade" ? "block" : "hidden"}>
-          <PlanUpgrade key={`upgrade-${refreshKey}`} />
+          {activeTab === "upgrade" && <PlanUpgrade key={`upgrade-${refreshKey}`} />}
         </div>
       </div>
     );
@@ -59,20 +62,21 @@ const Dashboard = () => {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <DashboardHeader 
+      <DashboardHeader
         sidebarOpen={sidebarOpen}
         setSidebarOpen={setSidebarOpen}
       />
-      
+
       <div className="flex">
         <DashboardSidebar
           activeTab={activeTab}
-          setActiveTab={setActiveTab}
+          setActiveTab={navigateTab}
           isOpen={sidebarOpen}
         />
-        
+
         <main className={`flex-1 transition-all duration-300 ${sidebarOpen ? 'ml-64' : 'ml-16'}`}>
           <div className="p-6">
+            <BillingSyncNotice />
             {renderContent()}
           </div>
         </main>

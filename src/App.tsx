@@ -1,3 +1,4 @@
+import { RolloutNotice } from '@/components/RolloutNotice';
 
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -6,6 +7,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, lazy, Suspense } from "react";
 import { ThemeProvider } from "next-themes";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { SubscriptionProvider } from '@/hooks/useSubscription';
 import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { AdminRoute } from "@/components/AdminRoute";
@@ -16,6 +18,7 @@ import { SeoRoute } from "@/components/SeoRoute";
 // Route-level code splitting keeps the initial bundle small (SPA performance).
 // The landing page (Index) stays eager for the fastest first paint.
 import Index from "./pages/Index";
+const Checkout = lazy(() => import('./pages/Checkout'));
 const Login = lazy(() => import("./pages/Login"));
 const SignUp = lazy(() => import("./pages/SignUp"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
@@ -41,6 +44,7 @@ const AppContent = () => {
 
   return (
     <BrowserRouter>
+      <RolloutNotice />
       <SeoRoute />
       <Suspense
         fallback={
@@ -53,6 +57,7 @@ const AppContent = () => {
         <Route path="/" element={<Index />} />
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<SignUp />} />
+        <Route path="/checkout" element={<Checkout />} />
         <Route path="/demo" element={<Demo />} />
         <Route path="/about" element={<About />} />
         <Route path="/contact" element={<Contact />} />
@@ -82,11 +87,11 @@ const App = () => (
     <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} storageKey="faqify-theme">
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
-          <TooltipProvider>
+          <SubscriptionProvider><TooltipProvider>
             <Toaster />
             <Sonner />
             <AppContent />
-          </TooltipProvider>
+          </TooltipProvider></SubscriptionProvider>
         </AuthProvider>
       </QueryClientProvider>
     </ThemeProvider>

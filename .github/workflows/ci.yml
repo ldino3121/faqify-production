@@ -2,7 +2,7 @@ name: ci
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, integration/paddle-sandbox ]
   pull_request:
 
 jobs:

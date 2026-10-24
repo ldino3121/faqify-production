@@ -1,3 +1,4 @@
+import { withRolloutGuard } from '../_shared/rollout.ts';
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.50.2';
 
@@ -13,7 +14,7 @@ const json = (body: unknown, status = 200) =>
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   });
 
-serve(async (req) => {
+serve(withRolloutGuard(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
 
@@ -71,6 +72,6 @@ serve(async (req) => {
 
     return json({ success: true, planTier });
   } catch (error) {
-    return json({ error: error.message || 'Failed to set plan' }, 500);
+    return json({ error: error instanceof Error ? error.message : 'Failed to set plan' }, 500);
   }
-});
+}, 'admin-set-plan', true));

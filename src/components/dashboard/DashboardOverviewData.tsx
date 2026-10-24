@@ -82,7 +82,7 @@ export const DashboardOverviewData = ({ onNavigateToUpgrade }: DashboardOverview
         id: collection.id,
         title: collection.title,
         created_at: collection.created_at,
-        faq_count: Array.isArray(collection.faqs) ? collection.faqs.length : 0
+        faq_count: Array.isArray(collection.faqs) ? (collection.faqs[0]?.count ?? 0) : 0
       })) || [];
 
       setStats({
@@ -220,7 +220,7 @@ export const DashboardOverviewData = ({ onNavigateToUpgrade }: DashboardOverview
                     'bg-green-600/20 text-green-400 border-green-600/30'
                   }`}>
                     {subscription?.is_expired ? 'EXPIRED' :
-                     subscription?.expires_soon ? 'EXPIRES SOON' : 'ACTIVE'}
+                     subscription?.status !== 'active' ? (subscription?.status || 'UNKNOWN').toUpperCase() : subscription?.expires_soon ? 'EXPIRES SOON' : 'ACTIVE'}
                   </Badge>
                 </div>
               </div>

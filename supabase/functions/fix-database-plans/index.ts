@@ -1,3 +1,5 @@
+import { withRolloutGuard } from '../_shared/rollout.ts';
+import { requireAdmin } from '../_shared/require-admin.ts';
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -6,10 +8,13 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-serve(async (req) => {
+serve(withRolloutGuard(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
+
+  const denied = await requireAdmin(req);
+  if (denied) return denied;
 
   try {
     // Initialize Supabase admin client
@@ -34,19 +39,19 @@ serve(async (req) => {
 
     // Step 2: Add missing columns if they don't exist
     console.log('🔧 Adding missing columns...')
-    
+
     try {
       await supabaseAdmin.rpc('exec_sql', {
         sql: `
           ALTER TABLE public.subscription_plans
           ADD COLUMN IF NOT EXISTS razorpay_plan_id_inr TEXT;
-          
+
           ALTER TABLE public.user_subscriptions
           ADD COLUMN IF NOT EXISTS razorpay_subscription_id TEXT;
         `
       })
     } catch (error) {
-      console.log('Column addition error (might already exist):', error.message)
+      console.log('Column addition error (might already exist):', (error instanceof Error ? error.message : String(error)))
     }
 
     // Step 3: Update Pro Plan
@@ -155,12 +160,12 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('Database fix error:', error)
-    
+
     return new Response(
-      JSON.stringify({ 
-        success: false, 
-        error: error.message,
-        details: error.stack 
+      JSON.stringify({
+        success: false,
+        error: (error instanceof Error ? error.message : String(error)),
+        details: (error instanceof Error ? error.stack : undefined)
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -168,4 +173,4 @@ serve(async (req) => {
       },
     )
   }
-})
+}, 'fix-database-plans', true))
