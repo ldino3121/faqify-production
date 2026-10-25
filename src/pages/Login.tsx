@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { FAQifyIconSimple } from "@/components/ui/faqify-icon";
 import { CAPTCHA_ENABLED } from "@/config/env";
 import { TurnstileCaptcha, type TurnstileCaptchaHandle } from "@/components/auth/TurnstileCaptcha";
+import { intendedDashboard, purchaseIntent } from '@/lib/purchase-intent';
 
 const Login = () => {
   const [email, setEmail] = useState("");
@@ -23,6 +24,8 @@ const Login = () => {
   const { signIn, signInWithGoogle, user, loading } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const pack = purchaseIntent(window.location.search);
+  const destination = intendedDashboard(pack);
 
   // Redirect to dashboard if user is already authenticated
   useEffect(() => {
@@ -32,9 +35,9 @@ const Login = () => {
     if (user && !loading && !fromLogout) {
       console.log('User authenticated, redirecting to dashboard...');
       // Force full page redirect for reliable navigation
-      window.location.href = '/dashboard';
+      window.location.href = destination;
     }
-  }, [user, loading, navigate]);
+  }, [user, loading, navigate, destination]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,7 +63,7 @@ const Login = () => {
 
       // Force redirect after successful login
       setTimeout(() => {
-        window.location.href = '/dashboard';
+        window.location.href = destination;
       }, 1000);
 
     } catch (error) {
@@ -83,7 +86,7 @@ const Login = () => {
       console.log(`Initiating ${provider} login...`);
 
       if (provider === 'google') {
-        await signInWithGoogle();
+        await signInWithGoogle(pack);
       }
 
       console.log(`${provider} OAuth initiated successfully`);
@@ -248,7 +251,7 @@ const Login = () => {
             <div className="text-center">
               <p className="text-gray-400">
                 Don't have an account?{" "}
-                <Link to="/signup" className="text-blue-400 hover:text-blue-300 font-medium">
+                <Link to={pack ? `/signup?purchase=${pack}` : '/signup'} className="text-blue-400 hover:text-blue-300 font-medium">
                   Sign up for free
                 </Link>
               </p>

@@ -15,7 +15,8 @@ export default function Checkout() {
       if (error || data?.transactionId !== id) throw new Error('Sign in with the approved account that opened this checkout, then reopen the link.');
       const instance = await paddle();
       await requireRolloutOpen();
-      if (mounted) instance.Checkout.open({ transactionId: id });
+      if (mounted) instance.Checkout.open({ transactionId: id,
+        settings: { theme: 'dark', successUrl: `${window.location.origin}/dashboard?billing=processing&transaction_id=${encodeURIComponent(id)}` } });
     })().catch(e => { if (mounted) setError(e.message); });
     return () => { mounted = false; };
   }, []);

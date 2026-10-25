@@ -437,7 +437,7 @@ const Demo = () => {
             </p>
             <Link to="/signup">
               <Button size="lg" className="bg-blue-600 hover:bg-blue-700 text-white">
-                Start Free Trial
+                Start Free
               </Button>
             </Link>
           </div>

@@ -30,7 +30,7 @@ export const Hero = () => {
         <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12">
           <Link to="/signup">
             <Button size="lg" className="bg-blue-600 hover:bg-blue-700 text-white border-0 px-8 py-3 text-lg">
-              Start Free Trial
+              Start Free
               <ArrowRight className="ml-2 h-5 w-5" />
             </Button>
           </Link>
@@ -46,7 +46,7 @@ export const Hero = () => {
         <div className="flex justify-center items-center space-x-8 text-sm text-gray-500">
           <div className="flex items-center space-x-2">
             <Zap className="h-4 w-4 text-green-500" />
-            <span>5 Free FAQs / month</span>
+            <span>5 introductory FAQ credits once</span>
           </div>
           <div className="flex items-center space-x-2">
             <Zap className="h-4 w-4 text-green-500" />

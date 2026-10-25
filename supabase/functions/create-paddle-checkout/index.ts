@@ -25,8 +25,13 @@ Deno.serve(withRolloutGuard(async req => {
       if (!pending) return json({ success: true });
       if (!pending.transaction_id) return json({ error: 'Checkout is still being prepared. Please retry shortly.' }, 409);
       const transaction = await paddleApi(`/transactions/${pending.transaction_id}`);
-      if (!['draft','ready','canceled'].includes(transaction.status)) return json({ error: 'This transaction is processing or paid. Wait for the account update or contact support.' }, 409);
-      if (transaction.status !== 'canceled') await paddleApi(`/transactions/${pending.transaction_id}`, { status: 'canceled' }, 'PATCH');
+      if (!['draft','ready','canceled','past_due'].includes(transaction.status))
+        return json({ error: 'This transaction is processing or paid. Wait for the account update or contact support.' }, 409);
+      // Paddle only allows draft/ready cancellation. A failed past-due payment
+      // releases the local intent; a later genuine completion still follows
+      // the signed webhook path and remains attributable to this checkout.
+      if (transaction.status === 'draft' || transaction.status === 'ready')
+        await paddleApi(`/transactions/${pending.transaction_id}`, { status: 'canceled' }, 'PATCH');
       const { error } = await db.from('paddle_checkouts').update({ closed: true }).eq('id', pending.id);
       if (error) throw error;
       return json({ success: true });

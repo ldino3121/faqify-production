@@ -30,7 +30,7 @@ export const DashboardSidebar = ({ activeTab, setActiveTab, isOpen }: DashboardS
   ];
 
   return (
-    <aside className={`fixed left-0 top-16 h-full bg-gray-900/50 border-r border-gray-800 transition-all duration-300 z-40 ${
+    <aside className={`hidden md:block fixed left-0 top-16 h-full bg-gray-900/50 border-r border-gray-800 transition-all duration-300 z-40 ${
       isOpen ? 'w-64' : 'w-16'
     }`}>
       <div className="flex flex-col h-full">

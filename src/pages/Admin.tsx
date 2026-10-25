@@ -35,11 +35,17 @@ interface AdminTx {
   created_at: string;
 }
 
+interface CreditReview {
+  adjustment_id: string; transaction_id: string; user_id: string;
+  action: string; adjustment_type: string | null; status: string; occurred_at: string;
+}
+
 const Admin = () => {
   const { toast } = useToast();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [txs, setTxs] = useState<AdminTx[]>([]);
   const [funnel, setFunnel] = useState<Record<string, number>>({});
+  const [creditReviews, setCreditReviews] = useState<CreditReview[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
 
@@ -81,6 +87,11 @@ const Admin = () => {
     const { data: creditGrants } = await supabase.from('faq_credit_grants')
       .select('transaction_id,user_id,amount_cents,currency,credits,granted_at,reversed_at')
       .order('granted_at', { ascending: false }).limit(100);
+    const { data: reviews, error: reviewError } = await supabase.from('faq_credit_adjustments')
+      .select('adjustment_id,transaction_id,user_id,action,adjustment_type,status,occurred_at')
+      .eq('resolution', 'review').order('occurred_at', { ascending: false }).limit(100);
+    if (reviewError) toast({ title: 'Credit reviews unavailable', description: 'Retry the admin page.', variant: 'destructive' });
+    setCreditReviews(reviews ?? []);
     setTxs([...(t || []), ...(creditGrants || []).map(g => ({
       id: g.transaction_id, user_id: g.user_id, payment_gateway: 'paddle credit pack',
       status: g.reversed_at ? 'reversed' : 'completed', amount: g.amount_cents,
@@ -144,6 +155,7 @@ const Admin = () => {
             <TabsList>
               <TabsTrigger value="users"><Users className="mr-2 h-4 w-4" />Users</TabsTrigger>
               <TabsTrigger value="transactions"><CreditCard className="mr-2 h-4 w-4" />Transactions</TabsTrigger>
+              <TabsTrigger value="credit-reviews">Credit reviews ({creditReviews.length})</TabsTrigger>
               <TabsTrigger value="funnel"><BarChart3 className="mr-2 h-4 w-4" />Funnel</TabsTrigger>
             </TabsList>
 
@@ -187,6 +199,20 @@ const Admin = () => {
                 </CardContent>
               </Card>
             </TabsContent>
+            <TabsContent value="credit-reviews"><Card><CardHeader><CardTitle>Credit adjustments requiring reconciliation</CardTitle></CardHeader>
+              <CardContent className="overflow-x-auto text-sm">
+                {creditReviews.length === 0 ? <p>No unresolved credit adjustments.</p> : <Table><TableHeader><TableRow>
+                  <TableHead>Account</TableHead><TableHead>Payment</TableHead><TableHead>Adjustment</TableHead><TableHead>Action</TableHead><TableHead>Status</TableHead><TableHead>Occurred</TableHead>
+                </TableRow></TableHeader><TableBody>{creditReviews.map(review => <TableRow key={review.adjustment_id}>
+                  <TableCell className="font-mono text-xs">{review.user_id}</TableCell>
+                  <TableCell className="font-mono text-xs">{review.transaction_id}</TableCell>
+                  <TableCell className="font-mono text-xs">{review.adjustment_id}</TableCell>
+                  <TableCell>{review.action} · {review.adjustment_type ?? 'unspecified'}</TableCell>
+                  <TableCell>{review.status}</TableCell>
+                  <TableCell>{new Date(review.occurred_at).toLocaleString()}</TableCell>
+                </TableRow>)}</TableBody></Table>}
+              </CardContent></Card></TabsContent>
+
             <TabsContent value="transactions">
               <Card>
                 <CardHeader><CardTitle>Recent transactions ({txs.length})</CardTitle></CardHeader>
