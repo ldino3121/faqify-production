@@ -90,10 +90,24 @@ ALTER TABLE public.faq_generation_requests DROP CONSTRAINT faq_generation_reques
 ALTER TABLE public.faq_generation_requests ADD CONSTRAINT faq_generation_requests_status_check
   CHECK(status IN ('pending','completed','saved','failed'));
 
--- Existing usage_current is a monthly counter and cannot prove lifetime use.
--- Seed zero-credit review wallets without manufacturing a free grant.
-INSERT INTO public.faq_credit_wallets(user_id,intro_state)
-  SELECT user_id,'review' FROM public.user_subscriptions WHERE user_id IS NOT NULL;
+-- Owner-approved transition policy: exactly the seven existing active Free
+-- accounts receive five one-time credits. Historical monthly usage cannot
+-- establish a lifetime remainder, so this explicit transition grant does not
+-- infer or convert historical usage. Stop if the cohort has changed.
+DO $$ DECLARE free_count integer; BEGIN
+  SELECT count(*) INTO free_count FROM public.user_subscriptions
+    WHERE user_id IS NOT NULL AND coalesce(plan_tier,plan_id::text)='Free' AND status='active';
+  IF free_count<>7 THEN RAISE EXCEPTION 'Expected seven existing active Free accounts; found %',free_count; END IF;
+END $$;
+INSERT INTO public.faq_credit_wallets(user_id,free_available,intro_state)
+  SELECT user_id,
+    CASE WHEN coalesce(plan_tier,plan_id::text)='Free' AND status='active' THEN 5 ELSE 0 END,
+    CASE WHEN coalesce(plan_tier,plan_id::text)='Free' AND status='active' THEN 'granted' ELSE 'review' END
+  FROM public.user_subscriptions WHERE user_id IS NOT NULL;
+INSERT INTO public.faq_credit_ledger(user_id,bucket,entry_type,delta,idempotency_key,note)
+  SELECT user_id,'free','intro_grant',5,'intro:'||user_id,
+    'Owner-approved one-time existing Free account transition grant'
+  FROM public.faq_credit_wallets WHERE intro_state='granted';
 
 CREATE FUNCTION public.faqify_grant_new_account_intro() RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$

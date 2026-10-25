@@ -10,8 +10,14 @@ DO $$ BEGIN
   PERFORM pg_temp.assert_ok(current_database()='faqify_restore','isolated database');
   PERFORM pg_temp.assert_ok(current_setting('listen_addresses')='','no network listener');
   PERFORM pg_temp.assert_ok(current_setting('cron.launch_active_jobs')='off','cron disabled');
-  PERFORM pg_temp.assert_ok((SELECT count(*)=8 FROM public.faq_credit_wallets),'existing users seeded for review');
-  PERFORM pg_temp.assert_ok((SELECT count(*)=0 FROM public.faq_credit_ledger),'no invented existing intro grants');
+  PERFORM pg_temp.assert_ok((SELECT count(*)=8 FROM public.faq_credit_wallets),'all existing users have wallets');
+  PERFORM pg_temp.assert_ok((SELECT count(*)=7 FROM public.faq_credit_wallets WHERE free_available=5 AND intro_state='granted'),
+    'seven approved Free accounts have five transition credits');
+  PERFORM pg_temp.assert_ok((SELECT count(*)=1 FROM public.faq_credit_wallets WHERE free_available=0 AND intro_state='review'),
+    'existing Pro account is not given introductory credits');
+  PERFORM pg_temp.assert_ok((SELECT count(*)=7 FROM public.faq_credit_ledger WHERE entry_type='intro_grant' AND delta=5
+    AND note='Owner-approved one-time existing Free account transition grant'),
+    'transition grant audited exactly once per Free account');
 END $$;
 INSERT INTO auth.users(id,email,raw_user_meta_data) VALUES
  ('c0000000-0000-0000-0000-000000000001','credit-a@example.invalid','{}'),
