@@ -7,9 +7,13 @@ import { DashboardOverviewData } from "@/components/dashboard/DashboardOverviewD
 import { FAQCreator } from "@/components/dashboard/FAQCreator";
 import { FAQManager } from "@/components/dashboard/FAQManager";
 import { PlanUpgrade } from "@/components/dashboard/PlanUpgrade";
+import { Button } from '@/components/ui/button';
 
 const Dashboard = () => {
-  const [activeTab, setActiveTab] = useState("overview");
+  const [activeTab, setActiveTab] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.has('purchase') || params.get('billing') === 'processing' ? 'upgrade' : 'overview';
+  });
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
   const [creatorVisited, setCreatorVisited] = useState(false);
@@ -74,9 +78,13 @@ const Dashboard = () => {
           isOpen={sidebarOpen}
         />
 
-        <main className={`flex-1 transition-all duration-300 ${sidebarOpen ? 'ml-64' : 'ml-16'}`}>
-          <div className="p-6">
-            <BillingSyncNotice />
+        <main className={`min-w-0 flex-1 transition-all duration-300 ${sidebarOpen ? 'md:ml-64' : 'md:ml-16'}`}>
+          <nav className="flex md:hidden gap-2 overflow-x-auto p-3 border-b border-border" aria-label="Dashboard sections">
+            {([['overview','Overview'],['create','Create'],['manage','FAQs'],['upgrade','Billing']] as const).map(([tab,label]) =>
+              <Button key={tab} size="sm" variant={activeTab === tab ? 'default' : 'outline'} onClick={() => navigateTab(tab)}>{label}</Button>)}
+          </nav>
+          <div className="p-3 sm:p-6">
+            <BillingSyncNotice onOpenBilling={() => setActiveTab('upgrade')} />
             {renderContent()}
           </div>
         </main>

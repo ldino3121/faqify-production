@@ -11,6 +11,7 @@ import { trackEvent, getAttribution } from "@/utils/analytics";
 import { FAQifyIconSimple } from "@/components/ui/faqify-icon";
 import { CAPTCHA_ENABLED } from "@/config/env";
 import { TurnstileCaptcha, type TurnstileCaptchaHandle } from "@/components/auth/TurnstileCaptcha";
+import { intendedDashboard, purchaseIntent } from '@/lib/purchase-intent';
 
 const SignUp = () => {
   const [formData, setFormData] = useState({
@@ -32,6 +33,7 @@ const SignUp = () => {
   const { toast } = useToast();
   const { signUp, signInWithGoogle } = useAuth();
   const navigate = useNavigate();
+  const pack = purchaseIntent(window.location.search);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData(prev => ({
@@ -73,8 +75,8 @@ const SignUp = () => {
     setIsLoading(true);
 
     try {
-      const result = await signUp(formData.email, formData.password, formData.name, captchaToken || undefined);
-      if (!result.confirmationRequired) { navigate("/dashboard"); return; }
+      const result = await signUp(formData.email, formData.password, formData.name, captchaToken || undefined, pack);
+      if (!result.confirmationRequired) { navigate(intendedDashboard(pack)); return; }
       // Email confirmation is required before first sign-in (P0-4).
       setConfirmationSent(true);
       trackEvent('signup', {
@@ -106,7 +108,7 @@ const SignUp = () => {
       setSocialLoading(provider);
       console.log(`Initiating ${provider} signup...`);
 
-      await signInWithGoogle();
+      await signInWithGoogle(pack);
 
       // If we reach here without error, the redirect should happen
       console.log(`${provider} OAuth initiated successfully`);
@@ -370,7 +372,7 @@ const SignUp = () => {
             <div className="text-center">
               <p className="text-gray-400">
                 Already have an account?{" "}
-                <Link to="/login" className="text-blue-400 hover:text-blue-300 font-medium">
+                <Link to={pack ? `/login?purchase=${pack}` : '/login'} className="text-blue-400 hover:text-blue-300 font-medium">
                   Sign in
                 </Link>
               </p>

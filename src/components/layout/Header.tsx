@@ -54,7 +54,7 @@ export const Header = () => {
             </Link>
             <Link to="/signup">
               <Button className="bg-blue-600 hover:bg-blue-700 text-white border-0">
-                Start Free Trial
+                Start Free
               </Button>
             </Link>
           </div>
@@ -93,7 +93,7 @@ export const Header = () => {
                 </Link>
                 <Link to="/signup" className="block">
                   <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white border-0">
-                    Start Free Trial
+                    Start Free
                   </Button>
                 </Link>
               </div>

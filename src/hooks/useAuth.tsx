@@ -2,15 +2,16 @@ import { useState, useEffect, createContext, useContext, ReactNode } from 'react
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { intendedDashboard, type CreditPack } from '@/lib/purchase-intent';
 
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
-  signUp: (email: string, password: string, fullName?: string, captchaToken?: string) => Promise<{ confirmationRequired: boolean }>;
+  signUp: (email: string, password: string, fullName?: string, captchaToken?: string, pack?: CreditPack | null) => Promise<{ confirmationRequired: boolean }>;
   signIn: (email: string, password: string, captchaToken?: string) => Promise<void>;
   signOut: () => Promise<void>;
-  signInWithGoogle: () => Promise<void>;
+  signInWithGoogle: (pack?: CreditPack | null) => Promise<void>;
   requestPasswordReset: (email: string, captchaToken?: string) => Promise<void>;
   completePasswordReset: (newPassword: string) => Promise<void>;
 }
@@ -47,13 +48,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => { mounted = false; subscription.unsubscribe(); };
   }, []);
 
-  const signUp = async (email: string, password: string, fullName?: string, captchaToken?: string) => {
+  const signUp = async (email: string, password: string, fullName?: string, captchaToken?: string, pack?: CreditPack | null) => {
 
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        emailRedirectTo: `${window.location.origin}/dashboard`,
+        emailRedirectTo: `${window.location.origin}${intendedDashboard(pack ?? null)}`,
         data: {
           full_name: fullName,
         },
@@ -143,10 +144,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const signInWithGoogle = async () => {
+  const signInWithGoogle = async (pack?: CreditPack | null) => {
 
     // Always use current origin for development
-    const redirectUrl = `${window.location.origin}/dashboard`;
+    const redirectUrl = `${window.location.origin}${intendedDashboard(pack ?? null)}`;
 
 
     const { data, error } = await supabase.auth.signInWithOAuth({

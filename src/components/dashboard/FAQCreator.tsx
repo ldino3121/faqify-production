@@ -217,6 +217,7 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
     }
     setPendingGenerationId(null);
     await Promise.all([refetchSubscription(), refetchCredits()]);
+    window.dispatchEvent(new Event('faqify-billing-updated'));
     return { success: true, collectionId: data.collection_id as string, collectionTitle: data.collection_title as string };
   };
 

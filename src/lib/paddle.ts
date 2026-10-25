@@ -12,7 +12,7 @@ export async function paddle() {
   sdk ??= initializePaddle({
     token: import.meta.env.VITE_PADDLE_CLIENT_TOKEN,
     environment: 'sandbox',
-    checkout: { settings: { displayMode: 'overlay', successUrl: `${window.location.origin}/dashboard?billing=processing` } },
+    checkout: { settings: { displayMode: 'overlay', theme: 'dark', successUrl: `${window.location.origin}/dashboard?billing=processing` } },
     eventCallback: event => {
       if (event.name === 'checkout.completed') window.dispatchEvent(new Event('faqify-billing-updated'));
     },
@@ -31,10 +31,10 @@ export async function openPaddleCheckout(pack: 'Pro' | 'Business', email: string
   }
   if (!data?.transactionId) throw new Error(data?.error || 'Checkout could not be created.');
   await requireRolloutOpen();
-  instance.Checkout.open({ transactionId: data.transactionId, customer: { email }, settings: { successUrl: `${window.location.origin}/dashboard?billing=processing&transaction_id=${encodeURIComponent(data.transactionId)}` } });
+  instance.Checkout.open({ transactionId: data.transactionId, customer: { email }, settings: { theme: 'dark', successUrl: `${window.location.origin}/dashboard?billing=processing&transaction_id=${encodeURIComponent(data.transactionId)}` } });
 }
-export async function openPaddlePortal() {
-  const { data, error } = await supabase.functions.invoke('paddle-customer-portal', { body: {} });
+export async function openPaddlePortal(action: 'portal' | 'subscription' = 'portal') {
+  const { data, error } = await supabase.functions.invoke('paddle-customer-portal', { body: { action } });
   if (error || !data?.url) throw new Error(data?.error || 'Unable to open billing. Please retry.');
   // Never persist or cache this short-lived authenticated link.
   window.location.assign(data.url);
@@ -47,4 +47,5 @@ export async function closePendingPaddleCheckout() {
     throw new Error(detail?.error || 'Unable to close pending checkout. Please retry.');
   }
   if (!data?.success) throw new Error('Unable to close pending checkout.');
+  window.dispatchEvent(new Event('faqify-billing-updated'));
 }
