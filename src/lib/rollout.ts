@@ -1,5 +1,5 @@
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/config/env';
-export const CLIENT_REVISION = 1;
+export const CLIENT_REVISION = 2;
 export const PREVIEW_READ_ONLY = String(import.meta.env.VITE_FAQIFY_READ_ONLY) === 'true';
 export type RolloutStatus = { mode: 'checking' | 'open' | 'drain' | 'frozen' | 'unavailable'; minimum_client_revision: number };
 // An unanswered status request is not a maintenance failure. Keep writes fail-closed

@@ -1,6 +1,6 @@
 /** Pure billing rules, shared by Edge Functions and local regression tests. */
 export type PaidTier = 'Pro' | 'Business';
-export type PaymentKind = 'recurring' | 'one_time';
+export type PaymentKind = 'recurring' | 'one_time' | 'credit_pack';
 export interface PricePlan { priceId: string; tier: PaidTier; kind: PaymentKind; limit: number }
 export function configuredPrices(env: (name: string) => string | undefined): PricePlan[] {
   const plans: PricePlan[] = [];
@@ -14,6 +14,17 @@ export function configuredPrices(env: (name: string) => string | undefined): Pri
     }
   }
   if (new Set(plans.map(p => p.priceId)).size !== plans.length) throw new Error('Paddle prices must be distinct');
+  return plans;
+}
+export function configuredCreditPackPrices(env: (name: string) => string | undefined): PricePlan[] {
+  const legacy = configuredPrices(env);
+  const plans = ([['Pro', 100], ['Business', 500]] as const).map(([tier, limit]) => {
+    const priceId = env(`PADDLE_${tier.toUpperCase()}_CREDIT_PACK_PRICE_ID`)?.trim();
+    if (!priceId || !/^pri_[a-z0-9]{26}$/.test(priceId)) throw new Error('Credit pack price is missing or invalid');
+    return { priceId, tier, kind: 'credit_pack' as const, limit };
+  });
+  if (new Set([...legacy, ...plans].map(p => p.priceId)).size !== legacy.length + plans.length)
+    throw new Error('Credit pack and legacy prices must be distinct');
   return plans;
 }
 export function resolvePrice(items: Array<{ price?: { id?: string }; price_id?: string; quantity?: number }>, plans: PricePlan[]): PricePlan {

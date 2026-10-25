@@ -6,9 +6,9 @@ afterEach(()=>vi.unstubAllGlobals());
 it('fails closed on unavailable or missing configuration and accepts only an open compatible revision',async()=>{
   fetchMock.mockResolvedValue(new Response('{}',{status:404}));
   await expect(requireRolloutOpen()).rejects.toThrow('Maintenance');
-  fetchMock.mockImplementation(async()=>new Response(JSON.stringify({mode:'open',minimum_client_revision:1})));
+  fetchMock.mockImplementation(async()=>new Response(JSON.stringify({mode:'open',minimum_client_revision:CLIENT_REVISION})));
   await expect(requireRolloutOpen()).resolves.toBeUndefined();
-  fetchMock.mockImplementation(async()=>new Response(JSON.stringify({mode:'open',minimum_client_revision:2})));
+  fetchMock.mockImplementation(async()=>new Response(JSON.stringify({mode:'open',minimum_client_revision:CLIENT_REVISION+1})));
   await expect(requireRolloutOpen()).rejects.toThrow('Export unsaved');
 });
 it('adds the compatibility header to guarded functions and database calls without forwarding it elsewhere',async()=>{

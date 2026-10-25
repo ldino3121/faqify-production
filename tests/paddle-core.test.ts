@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { webcrypto } from 'node:crypto';
-import { configuredPrices, resolvePrice, verifyPaddleSignature } from '../supabase/functions/_shared/paddle-core';
+import { configuredCreditPackPrices, configuredPrices, resolvePrice, verifyPaddleSignature } from '../supabase/functions/_shared/paddle-core';
 import { isPublicAddress } from '../supabase/functions/_shared/safe-fetch';
 const secret='test-secret';
 async function sign(raw: string, ts: number) {
@@ -31,6 +31,16 @@ describe('price trust boundary',()=>{
     expect(()=>resolvePrice([{price:{id:'unknown'},quantity:1}],prices)).toThrow();
     expect(()=>resolvePrice([{price:{id},quantity:2}],prices)).toThrow();
     expect(()=>resolvePrice([],prices)).toThrow();
+  });
+  it('maps only dedicated one-time credit-pack prices and rejects legacy overlap',()=>{
+    const pro='pri_'+'b'.repeat(26),business='pri_'+'c'.repeat(26);
+    const env=(name:string)=>({PADDLE_PRO_MONTHLY_PRICE_ID:id,
+      PADDLE_PRO_CREDIT_PACK_PRICE_ID:pro,PADDLE_BUSINESS_CREDIT_PACK_PRICE_ID:business})[name];
+    const packs=configuredCreditPackPrices(env);
+    expect(resolvePrice([{price:{id:pro},quantity:1}],packs)).toMatchObject({tier:'Pro',kind:'credit_pack',limit:100});
+    expect(resolvePrice([{price:{id:business},quantity:1}],packs)).toMatchObject({tier:'Business',kind:'credit_pack',limit:500});
+    expect(()=>configuredCreditPackPrices(name=>name==='PADDLE_PRO_CREDIT_PACK_PRICE_ID'?id:env(name))).toThrow('distinct');
+    expect(()=>configuredCreditPackPrices(name=>name==='PADDLE_BUSINESS_CREDIT_PACK_PRICE_ID'?undefined:env(name))).toThrow('missing');
   });
 });
 describe('website fetch boundary',()=>{

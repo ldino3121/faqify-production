@@ -1,5 +1,7 @@
 # FAQify coordinated rollout — Paddle SANDBOX
 
+**Credit-pack transition:** The monthly/30-day release described below is already deployed. For the proposed forward transition, use [FAQ_CREDIT_PACK_ROLLOUT.md](FAQ_CREDIT_PACK_ROLLOUT.md). Do not run the original migration a second time.
+
 Updated 2026-10-24. This document replaces the earlier preparation status. **Coordinated SANDBOX rollout authorized by the owner on 2026-10-25; follow the gates below.** Gemini rotation is explicitly deferred: preserve `GEMINI_API_KEY` and the current fallback selection; rotation is follow-up work, not an activity in this release preparation. No credential rotation is performed.
 
 ## Target and immutable artifacts

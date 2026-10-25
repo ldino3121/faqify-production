@@ -62,6 +62,7 @@ Deno.serve(withRolloutGuard(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  let activeGeneration: { id: string; userId: string } | null = null;
   try {
     // 🛡️ BULLETPROOF GEMINI API key validation
 
@@ -131,6 +132,7 @@ Deno.serve(withRolloutGuard(async (req) => {
     });
     if (generationError || !generationId) throw new Error(generationError?.message || 'Unable to start generation.');
     const generation = { id: generationId };
+    activeGeneration = { id: generationId, userId: user.id };
 
     let contentToAnalyze = '';
 
@@ -796,7 +798,7 @@ ${contentToAnalyze}`
     generatedFAQs = generatedFAQs.filter((faq: { question: string; answer: string }) => typeof faq?.question === 'string' && typeof faq?.answer === 'string'
       && faq.question.trim().length >= 3 && faq.answer.trim().length >= 3
       && faq.question.length <= 500 && faq.answer.length <= 4000).slice(0, validFaqCount);
-    if (generatedFAQs.length !== validFaqCount) throw new Error('The AI returned fewer valid FAQs than requested. Please retry; no quota was charged.');
+    if (generatedFAQs.length === 0) throw new Error('The AI returned no eligible FAQs. No credits were charged.');
     const { error: persistError } = await supabaseAdmin.from('faq_generation_requests')
       .update({ faqs: generatedFAQs, status: 'completed' }).eq('id', generation.id);
     if (persistError) throw new Error('Unable to preserve generated FAQs. Please retry; no quota was charged.');
@@ -813,6 +815,14 @@ ${contentToAnalyze}`
     });
 
   } catch (errorCaught) {
+    if (activeGeneration) {
+      try {
+        const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+        await db.rpc('fail_faq_generation', { p_user: activeGeneration.userId, p_generation_id: activeGeneration.id });
+      } catch (releaseError) {
+        console.error('Generation reservation release failed; ticket expiry will reconcile it', releaseError);
+      }
+    }
       const error = errorCaught instanceof Error ? errorCaught : new Error(String(errorCaught));
     console.error('Error in analyze-content function:', error);
 
