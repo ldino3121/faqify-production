@@ -76,6 +76,37 @@ DO $$ BEGIN
   PERFORM pg_temp.assert_ok((SELECT paid_available=600 FROM public.faq_credit_wallets WHERE user_id='c0000000-0000-0000-0000-000000000001'),'Pro then Business accumulation');
   PERFORM pg_temp.assert_ok((SELECT count(*)=2 FROM public.faq_credit_grants WHERE user_id='c0000000-0000-0000-0000-000000000001'),'both purchases retained');
 END $$;
+-- A genuine legacy period is a separate temporary allowance. It coexists
+-- with packs, does not lock checkout, and disappears without touching grants.
+UPDATE public.user_subscriptions SET plan_tier='Pro',plan_id='Pro',status='active',
+  faq_usage_current=20,faq_usage_limit=100,plan_expires_at=now()+interval '30 days',
+  paddle_subscription_id='sub_aaaaaaaaaaaaaaaaaaaaaaaaaa',payment_gateway='paddle'
+ WHERE user_id='c0000000-0000-0000-0000-000000000001';
+SET LOCAL ROLE service_role;
+SELECT set_config('request.jwt.claim.role','service_role',true);
+DO $$ DECLARE result jsonb; intent jsonb; BEGIN
+  result:=public.can_generate_faqs('c0000000-0000-0000-0000-000000000001',1);
+  PERFORM pg_temp.assert_ok((result->>'remaining_faqs')::integer=685 AND (result->>'legacy_credits')::integer=80,
+    'legacy period and permanent packs coexist');
+  intent:=public.begin_paddle_credit_checkout('c0000000-0000-0000-0000-000000000001','Pro','sandbox');
+  PERFORM pg_temp.assert_ok(intent->>'price_id'='pri_01m5s0d08dqp588cxhgq2vszzf',
+    'active legacy subscription cannot lock new pack purchase');
+  UPDATE public.paddle_checkouts SET closed=true WHERE id=(intent->>'id')::uuid;
+END $$;
+RESET ROLE;
+UPDATE public.user_subscriptions SET plan_expires_at=now()-interval '1 second'
+ WHERE user_id='c0000000-0000-0000-0000-000000000001';
+SET LOCAL ROLE service_role;
+SELECT set_config('request.jwt.claim.role','service_role',true);
+DO $$ DECLARE result jsonb; BEGIN
+  result:=public.can_generate_faqs('c0000000-0000-0000-0000-000000000001',1);
+  PERFORM pg_temp.assert_ok((result->>'remaining_faqs')::integer=605 AND (result->>'paid_credits')::integer=600
+    AND (result->>'legacy_credits')::integer=0,'expired legacy period leaves paid grants untouched');
+END $$;
+RESET ROLE;
+UPDATE public.user_subscriptions SET plan_tier='Free',plan_id='Free',status='active',
+  faq_usage_current=0,faq_usage_limit=5,plan_expires_at=NULL,paddle_subscription_id=NULL,payment_gateway=NULL
+ WHERE user_id='c0000000-0000-0000-0000-000000000001';
 -- Reserve before generation; a failed generation releases without usage.
 SET LOCAL ROLE service_role;
 SELECT set_config('request.jwt.claim.role','service_role',true);
