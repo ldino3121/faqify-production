@@ -1,397 +1,49 @@
+import { useQuery } from '@tanstack/react-query';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { useAuth } from '@/hooks/useAuth';
+import { useCredits } from '@/hooks/useCredits';
+import { useSubscription } from '@/hooks/useSubscription';
+import { supabase } from '@/integrations/supabase/client';
+import { SubscriptionManagement } from './SubscriptionManagement';
 
-import { useState, useEffect } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
-import { Badge } from "@/components/ui/badge";
-import {
-  FileText,
-  Sparkles,
-  Users,
-  TrendingUp,
-  Clock,
-  Globe,
-  BarChart3,
-  Zap,
-  Calendar,
-  User,
-  Mail,
-  CalendarDays
-} from "lucide-react";
-import { useAuth } from "@/hooks/useAuth";
-import { useSubscription } from "@/hooks/useSubscription";
-import { supabase } from "@/integrations/supabase/client";
-import { SubscriptionManagement } from "./SubscriptionManagement";
-
-interface DashboardStats {
-  totalCollections: number;
-  totalFAQs: number;
-  recentActivity: Array<{
-    id: string;
-    title: string;
-    created_at: string;
-    faq_count: number;
-  }>;
-}
-
-interface DashboardOverviewDataProps {
-  onNavigateToUpgrade?: () => void;
-}
-
-export const DashboardOverviewData = ({ onNavigateToUpgrade }: DashboardOverviewDataProps) => {
+export const DashboardOverviewData = ({ onNavigateToUpgrade }: { onNavigateToUpgrade?: () => void }) => {
   const { user } = useAuth();
-  const { subscription, loading: subscriptionLoading } = useSubscription();
-  const [stats, setStats] = useState<DashboardStats>({
-    totalCollections: 0,
-    totalFAQs: 0,
-    recentActivity: []
-  });
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetchDashboardStats();
-  }, [user]);
-
-  const fetchDashboardStats = async () => {
-    if (!user) return;
-
-    try {
-      // Fetch collections count and recent activity
-      const { data: collections, error: collectionsError } = await supabase
-        .from('faq_collections')
-        .select(`
-          id,
-          title,
-          created_at,
-          faqs(count)
-        `)
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-
-      if (collectionsError) throw collectionsError;
-
-      // Fetch total FAQs count
-      const { count: totalFAQs, error: faqsError } = await supabase
-        .from('faqs')
-        .select('*', { count: 'exact', head: true })
-        .in('collection_id', collections?.map(c => c.id) || []);
-
-      if (faqsError) throw faqsError;
-
-      // Process recent activity
-      const recentActivity = collections?.slice(0, 5).map(collection => ({
-        id: collection.id,
-        title: collection.title,
-        created_at: collection.created_at,
-        faq_count: Array.isArray(collection.faqs) ? (collection.faqs[0]?.count ?? 0) : 0
-      })) || [];
-
-      setStats({
-        totalCollections: collections?.length || 0,
-        totalFAQs: totalFAQs || 0,
-        recentActivity
-      });
-    } catch (error) {
-      console.error('Error fetching dashboard stats:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const usagePercentage = subscription && subscription.faq_usage_limit > 0
-    ? Math.min(100, Math.round((subscription.faq_usage_current / subscription.faq_usage_limit) * 100))
-    : 0;
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric'
-    });
-  };
-
-  const formatFullDate = (dateString: string) => {
-    if (!dateString) return 'Not available';
-    try {
-      return new Date(dateString).toLocaleDateString('en-US', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-      });
-    } catch (error) {
-      console.error('Error formatting date:', dateString, error);
-      return 'Invalid date';
-    }
-  };
-
-  // Free plans store a far-future sentinel (2099-12-31 UTC, which renders as
-  // January 1, 2100 in IST) to mean "never expires". Show that as "Never".
-  const isNeverExpires = (dateString?: string | null) => {
-    if (!dateString) return false;
-    const d = new Date(dateString);
-    return !Number.isNaN(d.getTime()) && d.getUTCFullYear() >= 2099;
-  };
-  const neverExpires =
-    subscription?.plan_tier === 'Free' ||
-    isNeverExpires(subscription?.plan_expires_at) ||
-    isNeverExpires(subscription?.current_period_end);
-
-  // Debug subscription data
-  useEffect(() => {
-    if (subscription) {
-      console.log('🔍 Subscription data in DashboardOverviewData:', {
-        plan_tier: subscription.plan_tier,
-        plan_activated_at: subscription.plan_activated_at,
-        plan_expires_at: subscription.plan_expires_at,
-        created_at: subscription.created_at,
-        updated_at: subscription.updated_at
-      });
-    }
-  }, [subscription]);
-
-  if (loading || subscriptionLoading) {
-    return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <Card key={i} className="bg-gray-900/50 border-gray-800">
-            <CardContent className="p-6">
-              <div className="animate-pulse">
-                <div className="h-4 bg-gray-700 rounded w-1/2 mb-2"></div>
-                <div className="h-8 bg-gray-700 rounded w-3/4"></div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold text-white mb-2">Dashboard Overview</h1>
-        <p className="text-gray-400">Monitor your FAQ generation and usage statistics</p>
-      </div>
-
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <Card className="bg-gray-900/50 border-gray-800">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-400">Total Collections</p>
-                <p className="text-2xl font-bold text-white">{stats.totalCollections}</p>
-              </div>
-              <div className="h-12 w-12 bg-blue-600/10 rounded-lg flex items-center justify-center">
-                <FileText className="h-6 w-6 text-blue-500" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gray-900/50 border-gray-800">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-400">Total FAQs</p>
-                <p className="text-2xl font-bold text-white">{stats.totalFAQs}</p>
-              </div>
-              <div className="h-12 w-12 bg-green-600/10 rounded-lg flex items-center justify-center">
-                <Sparkles className="h-6 w-6 text-green-500" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-
-
-        <Card className="bg-gray-900/50 border-gray-800">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-400">Plan Status</p>
-                <div className="flex items-center space-x-2">
-                  <Badge className="bg-blue-600/20 text-blue-400 border-blue-600/30">
-                    {subscription?.plan_tier || 'Free'}
-                  </Badge>
-                  <Badge className={`${
-                    subscription?.is_expired ? 'bg-red-600/20 text-red-400 border-red-600/30' :
-                    subscription?.expires_soon ? 'bg-yellow-600/20 text-yellow-400 border-yellow-600/30' :
-                    'bg-green-600/20 text-green-400 border-green-600/30'
-                  }`}>
-                    {subscription?.is_expired ? 'EXPIRED' :
-                     subscription?.status !== 'active' ? (subscription?.status || 'UNKNOWN').toUpperCase() : subscription?.expires_soon ? 'EXPIRES SOON' : 'ACTIVE'}
-                  </Badge>
-                </div>
-              </div>
-              <div className="h-12 w-12 bg-yellow-600/10 rounded-lg flex items-center justify-center">
-                <Zap className="h-6 w-6 text-yellow-500" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* User Profile Section */}
-      <Card className="bg-gray-900/50 border-gray-800">
-        <CardHeader>
-          <CardTitle className="text-white flex items-center space-x-2">
-            <User className="h-5 w-5 text-blue-500" />
-            <span>Profile Information</span>
-          </CardTitle>
-          <CardDescription className="text-gray-400">
-            Your account details and subscription information
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {/* Name */}
-            <div className="flex items-center space-x-3">
-              <div className="h-10 w-10 bg-blue-600/10 rounded-lg flex items-center justify-center">
-                <User className="h-5 w-5 text-blue-500" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-400">Name</p>
-                <p className="text-white font-medium">
-                  {user?.user_metadata?.full_name || user?.user_metadata?.name || 'Not provided'}
-                </p>
-              </div>
-            </div>
-
-            {/* Email */}
-            <div className="flex items-center space-x-3">
-              <div className="h-10 w-10 bg-green-600/10 rounded-lg flex items-center justify-center">
-                <Mail className="h-5 w-5 text-green-500" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-400">Email</p>
-                <p className="text-white font-medium">{user?.email}</p>
-              </div>
-            </div>
-
-            {/* Plan Activation Date */}
-            <div className="flex items-center space-x-3">
-              <div className="h-10 w-10 bg-purple-600/10 rounded-lg flex items-center justify-center">
-                <CalendarDays className="h-5 w-5 text-purple-500" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-400">Plan Activated</p>
-                <p className="text-white font-medium">
-                  {subscription?.plan_activated_at
-                    ? formatFullDate(subscription.plan_activated_at)
-                    : subscription?.created_at
-                      ? formatFullDate(subscription.created_at)
-                      : 'Not available'
-                  }
-                </p>
-              </div>
-            </div>
-
-            {/* Plan End Date */}
-            <div className="flex items-center space-x-3">
-              <div className="h-10 w-10 bg-orange-600/10 rounded-lg flex items-center justify-center">
-                <Calendar className="h-5 w-5 text-orange-500" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-400">Plan Expires</p>
-                <p className={`font-medium ${
-                  subscription?.is_expired ? 'text-red-400' :
-                  subscription?.expires_soon ? 'text-yellow-400' : 'text-white'
-                }`}>
-                  {neverExpires
-                    ? 'Never'
-                    : subscription?.plan_expires_at
-                      ? formatFullDate(subscription.plan_expires_at)
-                      : subscription?.current_period_end
-                        ? formatFullDate(subscription.current_period_end)
-                        : 'Not available'
-                  }
-                  {subscription?.is_expired && ' (Expired)'}
-                  {subscription?.expires_soon && !subscription?.is_expired && ' (Expires Soon)'}
-                </p>
-              </div>
-            </div>
-
-
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Usage and Activity */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Usage Overview */}
-        <Card className="bg-gray-900/50 border-gray-800">
-          <CardHeader>
-            <CardTitle className="text-white flex items-center space-x-2">
-              <TrendingUp className="h-5 w-5 text-blue-500" />
-              <span>Monthly Usage</span>
-            </CardTitle>
-            <CardDescription className="text-gray-400">
-              Track your FAQ generation limits
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-400">FAQs Generated</span>
-              <span className="text-sm font-medium text-white">
-                {subscription?.faq_usage_current || 0} / {subscription?.faq_usage_limit || 0}
-              </span>
-            </div>
-            <Progress value={usagePercentage} className="w-full" />
-            <div className="flex items-center justify-between text-xs text-gray-500">
-              <span>{usagePercentage}% used</span>
-              <span>{Math.max(0, (subscription?.faq_usage_limit || 0) - (subscription?.faq_usage_current || 0))} remaining</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Recent Activity */}
-        <Card className="bg-gray-900/50 border-gray-800">
-          <CardHeader>
-            <CardTitle className="text-white flex items-center space-x-2">
-              <Clock className="h-5 w-5 text-green-500" />
-              <span>Recent Activity</span>
-            </CardTitle>
-            <CardDescription className="text-gray-400">
-              Your latest FAQ collections
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {stats.recentActivity.length === 0 ? (
-              <div className="text-center py-8">
-                <FileText className="h-12 w-12 text-gray-600 mx-auto mb-4" />
-                <p className="text-gray-400">No FAQ collections yet</p>
-                <p className="text-sm text-gray-500">Create your first FAQ to get started</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {stats.recentActivity.map((activity) => (
-                  <div key={activity.id} className="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg">
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-white truncate">{activity.title}</p>
-                      <div className="flex items-center space-x-2 mt-1">
-                        <Calendar className="h-3 w-3 text-gray-400" />
-                        <span className="text-xs text-gray-400">{formatDate(activity.created_at)}</span>
-                      </div>
-                    </div>
-                    <Badge variant="secondary" className="bg-gray-700 text-gray-300">
-                      {activity.faq_count} FAQs
-                    </Badge>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Subscription Management Section */}
-      {subscription && (
-        <div>
-          <h2 className="text-2xl font-bold text-white mb-4">Subscription Management</h2>
-          <SubscriptionManagement onNavigateToUpgrade={onNavigateToUpgrade} />
-        </div>
-      )}
+  const { balance, loading: creditsLoading } = useCredits();
+  const { subscription } = useSubscription();
+  const content = useQuery({ queryKey: ['overview-content', user?.id], enabled: !!user,
+    queryFn: async () => {
+      const { data: collections, error } = await supabase.from('faq_collections')
+        .select('id,title,created_at,faqs(count)').eq('user_id', user!.id).order('created_at', { ascending: false });
+      if (error) throw error;
+      return collections ?? [];
+    }, staleTime: 15000 });
+  const collections = content.data ?? [];
+  const faqCount = collections.reduce((sum, item) => sum + (Array.isArray(item.faqs) ? (item.faqs[0]?.count ?? 0) : 0), 0);
+  const legacySubscription = !!(subscription?.paddle_subscription_id || subscription?.razorpay_subscription_id);
+  return <div className="space-y-6">
+    <div><h1 className="text-3xl font-bold">Dashboard</h1><p className="text-muted-foreground">Your FAQ content and available generation credits</p></div>
+    <div className="grid gap-4 md:grid-cols-3">
+      <Card><CardHeader><CardTitle>Available FAQ credits</CardTitle></CardHeader><CardContent>
+        <p className="text-3xl font-bold">{creditsLoading ? '…' : balance?.available ?? 0}</p>
+        <p className="text-sm text-muted-foreground">{balance?.free ?? 0} introductory · {balance?.paid ?? 0} purchased
+          {(balance?.legacy ?? 0) > 0 ? ` · ${balance!.legacy} in the current legacy period` : ''}</p>
+        {(balance?.reserved ?? 0) > 0 && <p className="text-xs text-muted-foreground">{balance!.reserved} reserved for unfinished generation</p>}
+        {balance?.introState === 'review' && <p className="text-xs text-muted-foreground">Existing-account introductory allowance is under review.</p>}
+        <Button className="mt-4" onClick={onNavigateToUpgrade}>Buy credits</Button>
+      </CardContent></Card>
+      <Card><CardHeader><CardTitle>Collections</CardTitle></CardHeader><CardContent><p className="text-3xl font-bold">{collections.length}</p>
+        <p className="text-sm text-muted-foreground">One collection before the first paid purchase; up to 100 thereafter.</p></CardContent></Card>
+      <Card><CardHeader><CardTitle>Saved FAQ pairs</CardTitle></CardHeader><CardContent><p className="text-3xl font-bold">{faqCount}</p>
+        <p className="text-sm text-muted-foreground">Existing FAQs, edits, exports and published embeds remain available at zero credits.</p></CardContent></Card>
     </div>
-  );
+    {balance?.hold && <Card><CardContent className="pt-6" role="alert">A billing adjustment needs review before new AI generation. Your existing FAQs and embeds remain available. Contact support.</CardContent></Card>}
+    <Card><CardHeader><CardTitle>Recent collections</CardTitle></CardHeader><CardContent className="space-y-2">
+      {collections.slice(0,5).map(item => <p key={item.id}>{item.title} · {Array.isArray(item.faqs) ? (item.faqs[0]?.count ?? 0) : 0} FAQ pairs</p>)}
+      {collections.length === 0 && <p className="text-muted-foreground">Your first collection will appear here.</p>}
+    </CardContent></Card>
+    {legacySubscription && <div><h2 className="text-xl font-semibold mb-3">Existing subscription</h2>
+      <p className="text-sm text-muted-foreground mb-3">This earlier billing arrangement remains separate from new non-expiring credit packs. Manage its renewal here.</p>
+      <SubscriptionManagement onNavigateToUpgrade={onNavigateToUpgrade} /></div>}
+  </div>;
 };

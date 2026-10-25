@@ -1,0 +1,51 @@
+# FAQ credit-pack transition — review candidate
+
+This is a **new, forward-only** release for production Supabase project `dlzshcshqjdghmtzlbma` and FAQify's GitHub `main` → Vercel Production flow. Migration `20261022000000` is already applied; do not replay or edit it. This branch has made no production migration, deployment, subscription or webhook change.
+
+## Credit and refund rules
+
+New accounts receive five introductory credits once. One saved AI-generated Q&A pair costs one credit; free credits are consumed before paid grants. Generation reserves the requested count before AI work. Failed AI work releases the reservation. The database charges the actual eligible pairs in the same transaction as FAQ inserts and releases the full reservation. A failed insert or same-ticket retry costs zero additional credits. Manual edits, deletion, export and embed reads do not charge; deletion never replenishes credits.
+
+Pro adds 100 credits for $9 and Business adds 500 for $29. Packs can be bought repeatedly and in either order, including before exhaustion. Paid credits have no scheduled expiry, reset or renewal. They share one wallet but remain attributable to each payment in grants, allocations and the append-only ledger. The 100-collection and 10,000-saved-pair operational limits remain separate from credits. Generation is limited to two unfinished tickets, three unsaved completed previews per day, the existing hourly rate and input limits. An expired ticket ceases to affect the visible balance and is cleaned up on the next generation.
+
+Only signed `transaction.completed` events grant a pack. A unique transaction grant and event key make retries safe; checkout ID, account custom data, customer, price and sandbox environment must match. The four old prices remain on the legacy webhook path. Late legacy events cannot change the credit wallet.
+
+An approved **full** refund or chargeback of a wholly unused pack reverses only that grant, once. Pending adjustments, partial refunds, consumed packs and chargeback reversals are recorded and placed on an operator reconciliation hold: other balances and existing FAQs remain intact. There is **no automatic credit debt**. A reviewed operator correction requires a unique reference and reason to adjust credits or clear a hold. A rejected adjustment also needs operator review if an earlier hold exists. Do not guess a partial-refund-to-credit conversion.
+
+## Sandbox catalog and configuration
+
+The old monthly and 30-day prices remain unchanged. Dedicated active sandbox catalog entries were read back at USD base prices with external tax, quantity one, no trial and no billing cycle:
+
+| Pack | Product ID | New price ID | Supabase secret name |
+|---|---|---|---|
+| Pro 100 credits | `pro_01m5s0czqtchfv52d0cx8e7r7e` | `pri_01m5s0d08dqp588cxhgq2vszzf` | `PADDLE_PRO_CREDIT_PACK_PRICE_ID` |
+| Business 500 credits | `pro_01m5s0d141br72qdn40rnde567` | `pri_01m5s0d1mqfwn77efkypa94ay4` | `PADDLE_BUSINESS_CREDIT_PACK_PRICE_ID` |
+
+Retain sandbox `PADDLE_ENVIRONMENT`, `PADDLE_API_KEY`, `PADDLE_WEBHOOK_SECRET`, `PUBLIC_APP_URL`, and the four **legacy** price-ID secrets. Never substitute pack IDs for legacy IDs. Frontend uses the existing public `VITE_PADDLE_CLIENT_TOKEN`, `VITE_PADDLE_ENVIRONMENT=sandbox`, and `VITE_BILLING_PROVIDER=paddle`; never place API or signing secrets in `VITE_*`. The existing destination `ntfset_01m5mgbrqtydk09vv9456hnvvs` and ten event selections need no change in this review branch. Gemini remains unchanged.
+
+## Existing-account and subscription decisions
+
+Read-only production inspection found eight subscription records: seven active Free and one active Pro monthly. The Pro subscription belongs to approved sandbox account `efb63f4a-dacd-4d78-a519-4f4e742ebf04`; provider ID `sub_01m5rxpafhkqpjhmk2g25v6kt2`, next billed `2026-11-25T06:59:10Z` at inspection. One linked recurring payment was completed and one checkout was closed; Paddle had one ready renewal transaction. No 30-day access payment was recorded. Reinspect before cutover because provider state can change.
+
+The seven Free accounts report zero **current monthly** usage, yet three collectively own 21 saved FAQ pairs. Lifetime use cannot be inferred; the other four may have deleted older content. The migration therefore creates **zero-credit review wallets** for existing accounts and grants five only to new accounts. This is a safe staging state, **not** a final allocation policy. Owner decision required: approve no automatic grant for existing accounts pending individual adjudication, or provide another explicit rule with evidence. Do not seed five across the board. Buying a pack never creates a free grant. Existing content and embeds remain accessible.
+
+The existing Pro monthly allowance stays in `user_subscriptions` through its valid period and is **not** converted to non-expiring credits. Other active, canceled, paused, past-due and pending legacy records keep their original event/access semantics. The owner must approve a scheduled cancellation or conversion decision for the identified subscription before a public transition that removes subscription purchase UI. Recommended: schedule cancellation at the current period end, retain its allowance until then, and do not convert unused allowance. Do not cancel merely to clear the purchase UI; packs can be bought alongside the legacy subscription. Reconcile pending checkouts and renewal/refund transactions by identity during drain.
+
+## Implementation, evidence and cutover
+
+Forward migration: `supabase/migrations/20261025000000_faq_credit_wallets.sql`. It creates wallets, server-owned price mapping, per-purchase grants, ledger, usage allocations and adjustments; replaces generation/save and monthly-reset RPCs; adds the new-account intro grant, pack checkout, event fulfillment and operator correction. It installs existing write guards on all new tables before commit. It requires frozen rollout and recorded original migration history. Record this new version **once** after successful application using the reviewed migration-history procedure.
+
+Changed Edge Functions: `analyze-content`, `create-paddle-checkout`, `paddle-webhook`, plus shared `paddle-core`. Keep `paddle-customer-portal` and all original guarded functions/JWT settings compatible. Frontend client revision rises from 1 to 2. The altered admin view shows both credit balances and legacy usage.
+
+Fresh read-only current-production archive: `/Users/carbonface/Backups/faqify/credit-current-20261025`, restored in isolated local container `faqify-credit-current-20261025` with networking and cron disabled. Migration and SQL acceptance pass. All 75 original table data blocks (1,773 rows), four original sequences and migration-history rows match the archive after rehearsal; only the isolated rollout-control state intentionally differs. Concurrency checks pass for same-account Pro+Business grants, competing reservations and same-ticket save retries. Application typecheck, 92 Vitest tests, 26 catalog tests, three preflight tests, lint, production build and Deno checks of the three changed entrypoints pass locally. These are not hosted checkout or browser acceptance.
+
+1. Obtain the two owner decisions above; review the PR. Verify current subscriptions, checkout/event backlog, cohort, destination, production build/domain routing, function versions/JWT settings and secret **names only**. GitHub `main` remains Production. Preview shares the database, so keep it protected and read-only; its credit queries cannot work before migration.
+2. Prepare revision-2 Production build and new pack secrets privately without promotion. Warn active users to finish/export drafts. Move `open/1` → `drain/1`, stop new generation/checkouts/webhooks, wait for guarded leases and old split saves, reconcile in-flight tickets/transactions and aggregate FAQ deltas. Move to `frozen/1` only after the barrier clears. Never delete leases or user content to force progress.
+3. While frozen, take a **final** consistent read-only backup with roles, schema, data and history; restore it to a new isolated database, compare rows/sequences and rehearse this exact forward migration. Stop on drift. This pre-window archive does not replace that final backup.
+4. Apply only the new forward migration with `psql -X -v ON_ERROR_STOP=1` against the privately verified project. Read back its committed objects; insert history version `20261025000000` once using the reviewed procedure. Retain frozen state. Do not rewrite `20261022000000`.
+5. Install the two pack price-ID secrets while retaining old IDs. Deploy the three changed functions with captured gateway settings; verify source/version, signature and sandbox configuration. Enroll only approved test UUIDs. Promote the reviewed revision-2 Production frontend from `main` through normal GitHub → Vercel flow, holding domain assignment until backend verification. Verify old revision-1 clients are rejected by the compatibility guard, and existing FAQ/embed reads work. Set `frozen/2` → `open/2` only when ready.
+6. Only after handler, signing secret, cohort, checkout page and frontend verification, decide whether the existing sandbox webhook needs activation. Use sandbox cards and approved accounts for hosted tests: login, URL/text/document generation, atomic saves, edit/delete/export/embed, Free-once and exhaustion, all pack orders/repeats, webhook retries, balance/portal and refund holds. Legacy cancellation and expiry remain pending until the real event/date. Non-cohort checkout must fail.
+
+Before migration, a failed cutover may return through the original compatible code after reconciliation. **After migration**, keep frozen and recover **forward** with revision-2-compatible functions/frontend; the original direct-save frontend is unsafe. Reconcile missed signed events by event and transaction ID before reopening. A production database restore requires a separate destructive-recovery decision, failure-time archive and reconciliation of intervening legitimate writes; never overwrite production from this pre-window snapshot.
+
+Outstanding security follow-up: previously exposed Supabase service-role and OpenRouter credentials require owner-approved rotation. Gemini rotation is deferred; preserve its working configuration. No rotation is part of this branch.

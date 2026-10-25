@@ -19,7 +19,7 @@ const Terms = () => {
             <p className="text-xl text-gray-400 mb-8 max-w-3xl mx-auto">
               These terms govern your use of FAQify. By using our service, you agree to these terms and conditions.
             </p>
-            <p className="text-sm text-gray-500">Last updated: January 2024</p>
+            <p className="text-sm text-gray-500">Last updated: October 2026</p>
           </div>
         </section>
 
@@ -214,28 +214,28 @@ const Terms = () => {
                 </Card>
               </div>
 
-              {/* Subscription and Billing */}
+              {/* Credits and legacy billing */}
               <div>
-                <h2 className="text-3xl font-bold mb-6">Subscription and Billing</h2>
+                <h2 className="text-3xl font-bold mb-6">Credits and Billing</h2>
                 <Card className="bg-gray-900/50 border-gray-800">
                   <CardContent className="p-8">
                     <div className="space-y-4">
                       <div>
-                        <h3 className="text-white font-semibold mb-2">Subscription Plans</h3>
+                        <h3 className="text-white font-semibold mb-2">FAQ credits</h3>
                         <p className="text-gray-400">
-                          We offer various subscription plans with different features and usage limits. Plan details and pricing are available on our website.
+                          New accounts receive five introductory FAQ credits once. Pro and Business credit packs add 100 or 500 credits to the same account balance. One credit is charged when one AI-generated question-and-answer pair is saved. Purchased credits do not expire on a schedule.
                         </p>
                       </div>
                       <div>
                         <h3 className="text-white font-semibold mb-2">Billing</h3>
                         <p className="text-gray-400">
-                          Subscriptions are billed in advance on a monthly or annual basis. All fees are non-refundable except as required by law.
+                          Credit packs are one-time purchases with no automatic renewal. Applicable taxes are added separately at checkout. See our cancellation and refund policy for billing adjustments. Storage and embeds remain subject to operational limits.
                         </p>
                       </div>
                       <div>
-                        <h3 className="text-white font-semibold mb-2">Cancellation</h3>
+                        <h3 className="text-white font-semibold mb-2">Existing subscriptions</h3>
                         <p className="text-gray-400">
-                          You may cancel your subscription at any time. Cancellation will take effect at the end of your current billing period.
+                          Existing subscriptions retain their original billing terms until resolved. Their renewal can be managed through the account billing portal or support.
                         </p>
                       </div>
                     </div>

@@ -4,7 +4,6 @@ import { supabase } from '@/integrations/supabase/client';
 
 export const BILLING_PROVIDER = import.meta.env.VITE_BILLING_PROVIDER === 'razorpay' ? 'razorpay' : 'paddle';
 export const PADDLE_READY = !!import.meta.env.VITE_PADDLE_CLIENT_TOKEN?.trim();
-export const PADDLE_ONETIME = import.meta.env.VITE_PADDLE_ENABLE_ONETIME !== 'false';
 let sdk: Promise<Paddle | undefined> | undefined;
 export async function paddle() {
   await requireRolloutOpen();
@@ -22,9 +21,9 @@ export async function paddle() {
   if (!instance) { sdk = undefined; throw new Error('Unable to load checkout. Please refresh and retry.'); }
   return instance;
 }
-export async function openPaddleCheckout(tier: 'Pro' | 'Business', kind: 'recurring' | 'one_time', email: string) {
+export async function openPaddleCheckout(pack: 'Pro' | 'Business', email: string) {
   const instance = await paddle();
-  const { data, error } = await supabase.functions.invoke('create-paddle-checkout', { body: { tier, kind } });
+  const { data, error } = await supabase.functions.invoke('create-paddle-checkout', { body: { pack } });
   if (error) {
     // FunctionsHttpError exposes the response; surface actionable server messages.
     const detail = await error.context?.json?.().catch(() => null);

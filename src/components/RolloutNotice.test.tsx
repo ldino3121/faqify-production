@@ -18,14 +18,14 @@ it('does not announce maintenance before the first status response, but reports 
   await act(async()=>root.unmount());
 });
 it('keeps an existing editor/draft mounted through drain, freeze and stale-client notices; refresh requires acknowledgement',async()=>{
-  let mode='open'; let revision=1; let mounts=0;
+  let mode='open'; let revision=2; let mounts=0;
   vi.stubGlobal('fetch',vi.fn(async()=>new Response(JSON.stringify({mode,minimum_client_revision:revision}))));
   function Editor(){const [draft]=useState(()=>{mounts++;return 'unsaved private draft';});return <textarea defaultValue={draft}/>;}
   const host=document.createElement('div');const root=createRoot(host);
   await act(async()=>root.render(<><RolloutNotice/><Editor/></>));
   const editor=host.querySelector('textarea');
   for(const state of ['drain','frozen','open']) {
-    mode=state; revision=2;
+    mode=state; revision=3;
     await act(async()=>{await refreshRollout();});
     expect(host.querySelector('textarea')).toBe(editor);
     expect(editor?.value).toBe('unsaved private draft');

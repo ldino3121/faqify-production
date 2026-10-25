@@ -17,7 +17,7 @@ const CancellationPolicy = () => {
               Cancellation and <span className="text-blue-500">Refund Policy</span>
             </h1>
             <p className="text-xl text-gray-400 mb-8 max-w-3xl mx-auto">
-              Thank you for choosing FAQify. Please read our Cancellation and Refund Policy carefully before subscribing to our services.
+              Please read our cancellation and refund policy before buying FAQ credits.
             </p>
           </div>
         </section>
@@ -34,7 +34,7 @@ const CancellationPolicy = () => {
                   <div>
                     <h2 className="text-2xl font-bold text-white mb-4">Free Plan</h2>
                     <p className="text-gray-300 text-lg leading-relaxed">
-                      We offer a free plan that lets you explore and evaluate our platform without any financial commitment. The free plan is free indefinitely and never expires; it is limited only by a monthly FAQ generation quota, which resets every month.
+                      New accounts receive five introductory FAQ credits once. There is no monthly reset. Existing collections, exports and published embeds remain available when credits reach zero, subject to operational limits.
                     </p>
                   </div>
                 </div>
@@ -47,13 +47,13 @@ const CancellationPolicy = () => {
                 <div className="flex items-start space-x-4">
                   <XCircle className="h-8 w-8 text-orange-500 mt-1 flex-shrink-0" />
                   <div>
-                    <h2 className="text-2xl font-bold text-white mb-4">Subscription Cancellation</h2>
+                    <h2 className="text-2xl font-bold text-white mb-4">Credit packs and existing subscriptions</h2>
                     <div className="text-gray-300 text-lg leading-relaxed space-y-4">
                       <p>
-                        Once you have subscribed to any of our paid plans, we do not allow cancellation of the subscription during the active billing period. You may continue to use the service until the end of your current subscription term. After that, the subscription will not be renewed if you choose not to continue.
+                        New Pro and Business credit packs are one-time purchases. They do not renew automatically, and purchased credits do not expire on a schedule. Additional purchases add to your balance.
                       </p>
                       <p>
-                        If you wish to cancel your subscription, please do so before the next billing cycle to avoid being charged for the subsequent term. Subscription cancellation can be managed through your account dashboard or by contacting our support team.
+                        If you have an existing subscription, manage its renewal through the secure billing portal in your dashboard or contact support. Its current billing terms continue until it is resolved.
                       </p>
                     </div>
                   </div>
@@ -70,13 +70,8 @@ const CancellationPolicy = () => {
                     <h2 className="text-2xl font-bold text-white mb-4">Refund Policy</h2>
                     <div className="text-gray-300 text-lg leading-relaxed space-y-4">
                       <p>
-                        We maintain a <strong className="text-red-400">strict no-refund policy</strong> on all paid subscription plans. Once a payment has been made, we do not offer refunds for any reason, including but not limited to:
+                        Contact support to request a refund or report an unauthorized charge. Approved refunds and chargebacks are reconciled against credits from the affected purchase; existing FAQ content is retained. Applicable consumer rights are unaffected.
                       </p>
-                      <ul className="list-disc list-inside space-y-2 ml-4">
-                        <li>Change of mind</li>
-                        <li>Dissatisfaction with the service</li>
-                        <li>Failure to use the service</li>
-                      </ul>
                     </div>
                   </div>
                 </div>
@@ -92,7 +87,7 @@ const CancellationPolicy = () => {
                     <h2 className="text-2xl font-bold text-white mb-4">Support and Assistance</h2>
                     <div className="text-gray-300 text-lg leading-relaxed space-y-4">
                       <p>
-                        We strive to provide high-quality service and support. If you experience any issues or have questions regarding your subscription, please contact our support team at{" "}
+                        We strive to provide high-quality service and support. If you have questions about credits or an existing subscription, please contact our support team at{" "}
                         <a href="mailto:faqify18@gmail.com" className="text-blue-400 hover:text-blue-300 underline">
                           faqify18@gmail.com
                         </a>

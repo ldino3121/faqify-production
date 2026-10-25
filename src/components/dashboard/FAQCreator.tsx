@@ -34,6 +34,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ToastAction } from "@/components/ui/toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useSubscription } from "@/hooks/useSubscription";
+import { useCredits } from "@/hooks/useCredits";
 import { supabase } from "@/integrations/supabase/client";
 import { validateUrl, validateText, validateFile, validateCollectionTitle, sanitizeText, globalRateLimiter } from "@/utils/validation";
 
@@ -77,7 +78,8 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
   const [savedFAQs, setSavedFAQs] = useState<FAQ[]>([]); // Database FAQs for export/embed
   const { toast } = useToast();
   const { user } = useAuth();
-  const { subscription, loading: subscriptionLoading, refetch: refetchSubscription, canCreateFAQ: canCreateFAQFromHook } = useSubscription();
+  const { loading: subscriptionLoading, refetch: refetchSubscription, canCreateFAQ: canCreateFAQFromHook } = useSubscription();
+  const { balance, loading: creditsLoading, refetch: refetchCredits } = useCredits();
 
   // Form states
   const [urlInput, setUrlInput] = useState("");
@@ -104,25 +106,17 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
   // Enhanced FAQ generation checking with expiry validation
   const [canCreateFAQ, setCanCreateFAQ] = useState(false);
   const [faqEligibility, setFaqEligibility] = useState<any>(null);
-  const remainingUsage = subscription ? Math.max(0, subscription.faq_usage_limit - subscription.faq_usage_current) : 0;
+  const remainingUsage = balance?.available ?? 0;
 
   // Global gating flags used across the Create FAQ UI
   const hasNoQuota = remainingUsage <= 0;
-  // Free plan never expires; only paid plans can be expired.
-  const isExpired = !!(
-    subscription?.plan_tier !== 'Free' && (
-      faqEligibility?.isExpired ||
-      subscription?.is_expired ||
-      (subscription?.plan_expires_at && new Date() >= new Date(subscription.plan_expires_at))
-    )
-  );
-  const isBlocked = isExpired || hasNoQuota;
+  const isBlocked = !!balance?.hold || hasNoQuota;
 
 
   // Check FAQ generation eligibility including expiry
   useEffect(() => {
     const checkEligibility = async () => {
-      if (!subscription || !user) {
+      if (!user) {
         setCanCreateFAQ(false);
         return;
       }
@@ -133,11 +127,11 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
     };
 
     checkEligibility();
-  }, [subscription?.id, subscription?.faq_usage_current, subscription?.faq_usage_limit, subscription?.status, subscription?.plan_expires_at, user?.id, canCreateFAQFromHook]);
+  }, [balance?.available, balance?.hold, user?.id, canCreateFAQFromHook]);
 
   // Function to check if user can generate a specific number of FAQs
   const canGenerateFAQCount = async (count: number) => {
-    if (!subscription || !user) return false;
+    if (!user) return false;
 
     const eligibility = await canCreateFAQFromHook(count);
     return eligibility.canGenerate;
@@ -149,7 +143,7 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
   // Update selected count eligibility when faqCount or subscription changes
   useEffect(() => {
     const checkSelectedCount = async () => {
-      if (!subscription || !user) {
+      if (!user) {
         setCanGenerateSelectedCount(false);
         return;
       }
@@ -159,7 +153,7 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
     };
 
     checkSelectedCount();
-  }, [faqCount, subscription?.id, subscription?.faq_usage_current, subscription?.faq_usage_limit, subscription?.status, subscription?.plan_expires_at, user?.id, canCreateFAQFromHook]);
+  }, [faqCount, balance?.available, balance?.hold, user?.id, canCreateFAQFromHook]);
 
   // Get maximum FAQ count user can generate based on remaining usage
   const maxGeneratableFAQs = Math.max(0, Math.min(10, remainingUsage));
@@ -219,11 +213,11 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
     });
     if (error || !data?.collection_id) {
       toast({ title: 'Save failed', description: error?.message || 'Please retry.', variant: 'destructive' });
-      return { success: false, collectionId: null };
+    return { success: false, collectionId: null, collectionTitle: null };
     }
     setPendingGenerationId(null);
-    await refetchSubscription();
-    return { success: true, collectionId: data.collection_id as string };
+    await Promise.all([refetchSubscription(), refetchCredits()]);
+    return { success: true, collectionId: data.collection_id as string, collectionTitle: data.collection_title as string };
   };
 
   const generateFAQs = async () => {
@@ -237,35 +231,16 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
     const eligibility = await canCreateFAQFromHook(faqCount);
 
     if (!eligibility.canGenerate) {
-      // Check if it's an expiry issue
-      if (eligibility.isExpired) {
-        toast({
-          title: "Subscription Expired",
-          description: eligibility.reason,
-          variant: "destructive",
-          action: (
-            <ToastAction
-              altText="Upgrade Plan"
-              onClick={() => onNavigateToUpgrade?.()}
-            >
-              Upgrade Plan
-            </ToastAction>
-          ),
-        });
-        return;
-      }
-
-      // Handle other issues (usage limits, etc.)
       toast({
-        title: eligibility.reason.includes("limit") ? "Usage Limit Reached" : "Cannot Generate FAQs",
+        title: 'Cannot generate FAQs',
         description: eligibility.reason,
         variant: "destructive",
-        action: eligibility.reason.includes("limit") ? (
+        action: eligibility.reason.includes('credit') ? (
           <ToastAction
-            altText="Upgrade Plan"
+            altText="Buy credits"
             onClick={() => onNavigateToUpgrade?.()}
           >
-            Upgrade Plan
+            Buy credits
           </ToastAction>
         ) : undefined,
       });
@@ -497,11 +472,11 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
 
 
         // Set the collection title in state
-        setCollectionTitle(autoTitle);
+        setCollectionTitle(saveResult.collectionTitle || autoTitle);
 
         setSavedCollection({
           id: saveResult.collectionId,
-          title: autoTitle
+          title: saveResult.collectionTitle || autoTitle
         });
 
         // Fetch the actual saved FAQs from database for accurate data
@@ -522,7 +497,7 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
 
         toast({
           title: "FAQs Generated & Saved!",
-          description: `Created ${responseData.faqs.length} FAQs and saved them to your collection "${autoTitle}". Redirecting to Manage FAQs...`,
+          description: `Created ${responseData.faqs.length} FAQs and saved them to your collection "${saveResult.collectionTitle || autoTitle}". Redirecting to Manage FAQs...`,
           action: (
             <ToastAction altText="View Now" onClick={() => onNavigateToManage?.()}>
               View Now
@@ -806,7 +781,7 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
     }
   };
 
-  if (subscriptionLoading) {
+  if (subscriptionLoading || creditsLoading) {
     return (
       <div className="flex items-center justify-center p-8">
         <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
@@ -823,7 +798,7 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
           try {
             const result = await saveFAQsToDatabase(pendingGenerationId, collectionTitle);
             if (result.success && result.collectionId) {
-              setSavedCollection({ id: result.collectionId, title: collectionTitle });
+              setSavedCollection({ id: result.collectionId, title: result.collectionTitle || collectionTitle });
               await fetchCollectionFAQs(result.collectionId);
               toast({ title: 'Draft saved' });
             }
@@ -843,9 +818,9 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
         </div>
 
         <div className="text-right">
-          <div className="text-sm text-gray-400 mb-1">Monthly FAQ Usage</div>
+          <div className="text-sm text-gray-400 mb-1">Available FAQ credits</div>
           <Badge variant={remainingUsage > 5 ? "secondary" : "destructive"}>
-            {subscription?.faq_usage_current || 0}/{subscription?.faq_usage_limit || 0} FAQs used
+            {remainingUsage} available · {balance?.free ?? 0} free · {balance?.paid ?? 0} purchased
           </Badge>
         </div>
       </div>
@@ -858,10 +833,10 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
               <AlertCircle className="h-5 w-5 text-red-400" />
               <div>
                 <p className="text-red-400 font-medium">
-                  Monthly limit reached
+                  FAQ credits exhausted
                 </p>
                 <p className="text-sm text-red-300">
-                  You've reached your monthly FAQ limit. Upgrade your plan or wait until your cycle resets.
+                  Existing FAQs and embeds remain available. Buy credits to save more AI-generated pairs.
                 </p>
               </div>
               <Button
@@ -869,7 +844,7 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
                 className="bg-red-600 hover:bg-red-700 text-white ml-auto"
                 onClick={onNavigateToUpgrade}
               >
-                Upgrade Plan
+                Buy credits
               </Button>
             </div>
           </CardContent>
@@ -884,10 +859,10 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
               <AlertCircle className="h-5 w-5 text-yellow-400" />
               <div>
                 <p className="text-yellow-400 font-medium">
-                  Only {remainingUsage} FAQ{remainingUsage === 1 ? '' : 's'} remaining this month
+                  Only {remainingUsage} FAQ credit{remainingUsage === 1 ? '' : 's'} available
                 </p>
                 <p className="text-sm text-yellow-300">
-                  Consider renewing for more FAQ generation capacity.
+                  You can add 100 or 500 credits before this balance reaches zero.
                 </p>
               </div>
             </div>
@@ -986,7 +961,7 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
                       className="hidden"
                       id="file-upload"
                     />
-                    <label htmlFor="file-upload" className={`${isExpired ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
+                    <label htmlFor="file-upload" className={`${isBlocked ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
                       <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
                       <p className="text-gray-300 mb-1">Click to upload file</p>
                       <p className="text-xs text-gray-400">PDF, DOCX, or TXT files supported</p>
@@ -1044,15 +1019,7 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
                       </>
                     ) : (
                       <>
-                        {isExpired ? (
-                          <>
-                            <span className="text-red-400">⚠</span> Monthly Pass expired.
-                          </>
-                        ) : (
-                          <>
-                            <span className="text-red-400">⚠</span> Not enough quota for {faqCount} FAQ{faqCount !== 1 ? 's' : ''}. You have {remainingUsage} FAQ{remainingUsage !== 1 ? 's' : ''} remaining.
-                          </>
-                        )}
+                        <span className="text-red-400">⚠</span> {faqEligibility?.reason || `You have ${remainingUsage} FAQ credits available.`}
                       </>
                     )}
                   </p>
@@ -1088,27 +1055,16 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
               )}
             </Button>
 
-            {/* Subscription status display */}
-            {subscription && (
+            <p className="text-sm text-muted-foreground mt-3">Estimated cost: {faqCount} credit{faqCount === 1 ? '' : 's'} if all {faqCount} generated pairs are saved. Generation alone does not charge credits.</p>
+            {balance && (
               <div className="mt-4 p-3 bg-gray-800 rounded-lg text-sm">
                 <div className="flex justify-between items-center text-gray-300">
-                  <span>Plan: {subscription.plan_tier}</span>
-                  <span>Status: {isExpired ? '❌ Expired' : (subscription.status === 'active' ? '✅ Active' : '❌ Inactive')}</span>
-                </div>
-                <div className="flex justify-between items-center text-gray-300 mt-1">
-                  <span>Usage: {subscription.faq_usage_current}/{subscription.faq_usage_limit}</span>
-                  <span>{remainingUsage} remaining</span>
+                  <span>Available: {remainingUsage} credits</span>
+                  <span>{balance.free} free · {balance.paid} purchased{balance.legacy > 0 ? ` · ${balance.legacy} legacy` : ''}</span>
                 </div>
                 {!canCreateFAQ && faqEligibility && (
                   <div className="mt-2 text-yellow-400 text-xs">
-                    {faqEligibility.isExpired
-                      ? '⚠️ Your plan has expired. Please renew to continue.'
-                      : '⚠️ You do not have enough remaining quota for the selected number of FAQs.'}
-                  </div>
-                )}
-                {isExpired && subscription.plan_expires_at && (
-                  <div className="mt-2 text-red-400 text-xs font-semibold">
-                    ⚠️ Plan expired on {new Date(subscription.plan_expires_at).toLocaleDateString()}
+                    {faqEligibility.reason}
                   </div>
                 )}
               </div>

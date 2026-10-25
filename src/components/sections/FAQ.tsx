@@ -26,16 +26,16 @@ export const FAQ = () => {
       answer: "Absolutely! All generated FAQs can be edited, reordered, or customized to match your brand voice. You have full control over the final output."
     },
     {
-      question: "What's the difference between the pricing plans?",
-      answer: `Free plan gives you ${FREE_FAQ_LIMIT} FAQ generations per month. Pro plan ($9/month) includes 100 FAQ generations monthly. Business plan ($29/month) offers 500 FAQ generations monthly plus advanced features.`
+      question: "How do credit packs work?",
+      answer: `Every account starts with ${FREE_FAQ_LIMIT} FAQ credits once. Pro adds 100 credits for $9 one time, and Business adds 500 for $29 one time. One credit saves one AI-generated question-and-answer pair. Purchased credits accumulate, never expire on a schedule, and do not renew automatically. Applicable taxes are added at checkout.`
     },
     {
       question: "Is there a limit to how long my content can be?",
-      answer: "Free plan supports content up to 5,000 words. Pro and Business plans can handle much larger documents and websites with no practical limits."
+      answer: "FAQ generation has input, request-rate, and storage limits. Credit packs do not promise unlimited hosting. Existing FAQ edits, exports, and embeds remain available when credits reach zero."
     },
     {
       question: "Can I use FAQify for clients?",
-      answer: "Yes! Our Pro and Business plans are perfect for agencies and freelancers serving clients. Business plan includes white-label options for seamless client delivery."
+      answer: "Yes. You can buy either credit pack as needed and organize generated FAQs in collections for different clients. Published embed appearance remains configurable per widget."
     },
     {
       question: "How accurate are the AI-generated answers?",

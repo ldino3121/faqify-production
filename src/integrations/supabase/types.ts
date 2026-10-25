@@ -39,6 +39,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      faq_credit_prices: {
+        Row: { price_id: string; environment: string; pack: string; credits: number; amount_cents: number; currency: string }
+        Insert: { price_id: string; environment: string; pack: string; credits: number; amount_cents: number; currency?: string }
+        Update: { price_id?: string; environment?: string; pack?: string; credits?: number; amount_cents?: number; currency?: string }
+        Relationships: []
+      }
+      faq_credit_usage_allocations: {
+        Row: { generation_id: string; grant_id: number; credits: number }
+        Insert: { generation_id: string; grant_id: number; credits: number }
+        Update: { generation_id?: string; grant_id?: number; credits?: number }
+        Relationships: []
+      }
+      faq_credit_wallets: {
+        Row: { user_id: string; free_available: number; paid_available: number; reserved: number; intro_state: string; ever_purchased: boolean; hold_reason: string | null; created_at: string; updated_at: string }
+        Insert: { user_id: string; free_available?: number; paid_available?: number; reserved?: number; intro_state: string; ever_purchased?: boolean; hold_reason?: string | null; created_at?: string; updated_at?: string }
+        Update: { user_id?: string; free_available?: number; paid_available?: number; reserved?: number; intro_state?: string; ever_purchased?: boolean; hold_reason?: string | null; created_at?: string; updated_at?: string }
+        Relationships: []
+      }
+      faq_credit_grants: {
+        Row: { id: number; user_id: string; transaction_id: string; checkout_id: string | null; environment: string; price_id: string | null; customer_id: string | null; credits: number; remaining: number; amount_cents: number | null; currency: string | null; granted_at: string; reversed_at: string | null }
+        Insert: { id?: number; user_id: string; transaction_id: string; checkout_id?: string | null; environment: string; price_id?: string | null; customer_id?: string | null; credits: number; remaining: number; amount_cents?: number | null; currency?: string | null; granted_at: string; reversed_at?: string | null }
+        Update: { id?: number; user_id?: string; transaction_id?: string; checkout_id?: string | null; environment?: string; price_id?: string | null; customer_id?: string | null; credits?: number; remaining?: number; amount_cents?: number | null; currency?: string | null; granted_at?: string; reversed_at?: string | null }
+        Relationships: []
+      }
+      faq_credit_ledger: {
+        Row: { id: number; user_id: string; bucket: string; entry_type: string; delta: number; idempotency_key: string; source_transaction_id: string | null; source_event_id: string | null; source_adjustment_id: string | null; generation_id: string | null; grant_id: number | null; note: string | null; created_at: string }
+        Insert: { id?: number; user_id: string; bucket: string; entry_type: string; delta: number; idempotency_key: string; source_transaction_id?: string | null; source_event_id?: string | null; source_adjustment_id?: string | null; generation_id?: string | null; grant_id?: number | null; note?: string | null; created_at?: string }
+        Update: { id?: number; user_id?: string; bucket?: string; entry_type?: string; delta?: number; idempotency_key?: string; source_transaction_id?: string | null; source_event_id?: string | null; source_adjustment_id?: string | null; generation_id?: string | null; grant_id?: number | null; note?: string | null; created_at?: string }
+        Relationships: []
+      }
+      faq_credit_adjustments: {
+        Row: { adjustment_id: string; transaction_id: string; user_id: string; action: string; adjustment_type: string | null; status: string; resolution: string; occurred_at: string; created_at: string }
+        Insert: { adjustment_id: string; transaction_id: string; user_id: string; action: string; adjustment_type?: string | null; status: string; resolution: string; occurred_at: string; created_at?: string }
+        Update: { adjustment_id?: string; transaction_id?: string; user_id?: string; action?: string; adjustment_type?: string | null; status?: string; resolution?: string; occurred_at?: string; created_at?: string }
+        Relationships: []
+      }
       faq_collections: {
         Row: {
           created_at: string | null
@@ -432,6 +468,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      apply_paddle_credit_event: { Args: { p_event_id: string; p_occurred_at: string; p_environment: string; p_payload: Json }; Returns: string }
+      begin_paddle_credit_checkout: { Args: { p_user: string; p_pack: string; p_environment: string }; Returns: Json }
+      fail_faq_generation: { Args: { p_user: string; p_generation_id: string }; Returns: undefined }
+      save_generated_faqs: { Args: { p_generation_id: string; p_title: string; p_collection_id?: string | null }; Returns: Json }
       can_generate_faqs: {
         Args: { faq_count?: number; user_uuid: string }
         Returns: Json

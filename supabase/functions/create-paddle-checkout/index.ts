@@ -1,6 +1,6 @@
 import { withRolloutGuard } from '../_shared/rollout.ts';
 import { adminClient, authenticated, environment, json, paddleApi } from '../_shared/paddle.ts';
-import { configuredPrices } from '../_shared/paddle-core.ts';
+import { configuredCreditPackPrices } from '../_shared/paddle-core.ts';
 Deno.serve(withRolloutGuard(async req => {
   if (req.method === 'OPTIONS') return json({});
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
@@ -11,7 +11,7 @@ Deno.serve(withRolloutGuard(async req => {
     if (!user) return json({ error: 'Please sign in.' }, 401);
     const { error: cohortError } = await db.rpc('faqify_require_sandbox_member', { p_user: user.id, p_environment: environment() });
     if (cohortError) return json({ error: 'Sandbox billing is restricted to approved test accounts.' }, 403);
-    const { tier, kind, action, transactionId } = await req.json();
+    const { pack, action, transactionId } = await req.json();
     if (action === 'resume') {
       if (!/^txn_[a-z0-9]{26}$/.test(transactionId ?? '')) return json({ error: 'Invalid checkout link.' }, 400);
       const { data: owned, error } = await db.from('paddle_checkouts').select('transaction_id')
@@ -31,12 +31,14 @@ Deno.serve(withRolloutGuard(async req => {
       if (error) throw error;
       return json({ success: true });
     }
-    const plan = configuredPrices(Deno.env.get).find(p => p.tier === tier && p.kind === kind);
-    if (!plan) return json({ error: 'This payment option has not been configured.' }, 400);
+    if (pack !== 'Pro' && pack !== 'Business') return json({ error: 'Refresh FAQify to buy a credit pack.' }, 400);
+    const plan = configuredCreditPackPrices(Deno.env.get).find(p => p.tier === pack);
+    if (!plan) return json({ error: 'This credit pack has not been configured.' }, 503);
     const env = environment();
-    // SQL locks the account and reuses an unexpired intent, preventing parallel checkouts.
-    const { data: intent, error } = await db.rpc('begin_paddle_checkout', { p_user: user.id, p_tier: tier, p_kind: kind, p_price: plan.priceId, p_environment: env });
+    // SQL owns the sandbox price mapping, account lock and open-intent dedupe.
+    const { data: intent, error } = await db.rpc('begin_paddle_credit_checkout', { p_user: user.id, p_pack: pack, p_environment: env });
     if (error) return json({ error: error.message }, 409);
+    if (intent.price_id !== plan.priceId) throw new Error('Credit price configuration mismatch');
     intentId = intent.id;
     if (intent.transaction_id) return json({ transactionId: intent.transaction_id });
     if (!intent.is_new) return json({ error: 'A checkout is being prepared. Please try again shortly.' }, 409);

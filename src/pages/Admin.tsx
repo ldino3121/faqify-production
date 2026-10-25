@@ -19,6 +19,9 @@ interface AdminUser {
   status: string | null;
   faq_usage_current: number | null;
   faq_usage_limit: number | null;
+  free_credits: number | null;
+  paid_credits: number | null;
+  credit_hold: boolean;
 }
 
 interface AdminTx {
@@ -46,10 +49,13 @@ const Admin = () => {
     const { data: subs } = await supabase
       .from('user_subscriptions')
       .select('user_id, plan_tier, status, faq_usage_current, faq_usage_limit');
+    const { data: wallets } = await supabase.from('faq_credit_wallets').select('user_id,free_available,paid_available,hold_reason');
     const subMap = new Map((subs || []).map((s: any) => [s.user_id, s]));
+    const walletMap = new Map((wallets || []).map(w => [w.user_id, w]));
     setUsers(
       ((profiles as any[]) || []).map((p) => {
         const s: any = subMap.get(p.id) || {};
+        const wallet = walletMap.get(p.id);
         return {
           id: p.id,
           email: p.email,
@@ -58,6 +64,9 @@ const Admin = () => {
           status: s.status ?? null,
           faq_usage_current: s.faq_usage_current ?? null,
           faq_usage_limit: s.faq_usage_limit ?? null,
+          free_credits: wallet?.free_available ?? null,
+          paid_credits: wallet?.paid_available ?? null,
+          credit_hold: !!wallet?.hold_reason,
         };
       }),
     );
@@ -69,7 +78,14 @@ const Admin = () => {
       .limit(100);
     const { data: paddlePayments } = await (supabase as any).from('paddle_payments')
       .select('*').order('paid_at', { ascending: false }).limit(100);
-    setTxs([...(t || []), ...(paddlePayments || []).map((p: any) => ({
+    const { data: creditGrants } = await supabase.from('faq_credit_grants')
+      .select('transaction_id,user_id,amount_cents,currency,credits,granted_at,reversed_at')
+      .order('granted_at', { ascending: false }).limit(100);
+    setTxs([...(t || []), ...(creditGrants || []).map(g => ({
+      id: g.transaction_id, user_id: g.user_id, payment_gateway: 'paddle credit pack',
+      status: g.reversed_at ? 'reversed' : 'completed', amount: g.amount_cents,
+      currency: g.currency, plan_tier: `${g.credits} credits`, created_at: g.granted_at,
+    })), ...(paddlePayments || []).map((p: any) => ({
       id: p.transaction_id, user_id: p.user_id, payment_gateway: 'paddle', status: p.status,
       amount: Number(p.amount), currency: p.currency, plan_tier: p.tier, created_at: p.paid_at,
     }))].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at)).slice(0, 100));
@@ -133,13 +149,13 @@ const Admin = () => {
 
             <TabsContent value="users">
               <Card>
-                <CardHeader><CardTitle>Users &amp; subscriptions ({users.length})</CardTitle></CardHeader>
+                <CardHeader><CardTitle>Users, credits &amp; legacy subscriptions ({users.length})</CardTitle></CardHeader>
                 <CardContent className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Email</TableHead><TableHead>Name</TableHead><TableHead>Plan</TableHead>
-                        <TableHead>Status</TableHead><TableHead>Usage</TableHead><TableHead>Set plan</TableHead>
+                        <TableHead>Status</TableHead><TableHead>Credits</TableHead><TableHead>Legacy period usage</TableHead><TableHead>Set legacy plan</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -149,6 +165,7 @@ const Admin = () => {
                           <TableCell>{u.full_name || '—'}</TableCell>
                           <TableCell><Badge variant="secondary">{u.plan_tier || 'Free'}</Badge></TableCell>
                           <TableCell>{u.status || '—'}</TableCell>
+                          <TableCell>{u.free_credits ?? '—'} free · {u.paid_credits ?? '—'} purchased{u.credit_hold ? ' · review' : ''}</TableCell>
                           <TableCell>{u.faq_usage_current ?? 0}/{u.faq_usage_limit ?? 0}</TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">

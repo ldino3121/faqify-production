@@ -22,7 +22,7 @@ export const DashboardSidebar = ({ activeTab, setActiveTab, isOpen }: DashboardS
     { id: "overview", label: "Overview", icon: LayoutDashboard },
     { id: "create", label: "Create FAQ", icon: Plus },
     { id: "manage", label: "Manage FAQs", icon: FileText },
-    { id: "upgrade", label: "Upgrade Plan", icon: CreditCard },
+    { id: "upgrade", label: "Buy Credits", icon: CreditCard },
   ];
 
   const bottomItems = [
