@@ -8,6 +8,7 @@ export interface PaymentSummary {
   kind: 'credit_pack' | 'recurring' | 'one_time';
   credits: number | null;
   fulfilledCredits: number | null;
+  creditReview?: boolean;
   amount: string | null;
   currency: string;
   createdAt: string;
@@ -39,6 +40,7 @@ export function legacyAllowanceMessage(subscription: Subscription, expiresAt: st
 
 export type PaymentCategory = 'pending' | 'completed' | 'failed' | 'refunded' | 'disputed' | 'review';
 export function paymentCategory(payment: PaymentSummary): PaymentCategory {
+  if (payment.creditReview) return 'review';
   if (payment.adjustments.some(item => item.action === 'chargeback_reverse' && item.status !== 'rejected')) return 'review';
   const adjustment = payment.adjustments.find(item =>
     ['refund', 'chargeback', 'chargeback_reverse'].includes(item.action) && item.status !== 'rejected');

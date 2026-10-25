@@ -69,6 +69,12 @@ Deno.serve(withRolloutGuard(async req => {
         : { data: [], error: null };
       if (grantError) throw grantError;
       const granted = new Map((grants ?? []).map(grant => [grant.transaction_id, grant.credits]));
+      const { data: adjustments, error: adjustmentError } = ids.length
+        ? await db.from('faq_credit_adjustments').select('transaction_id,resolution')
+          .eq('user_id', user.id).in('transaction_id', ids)
+        : { data: [], error: null };
+      if (adjustmentError) throw adjustmentError;
+      const reviews = new Set((adjustments ?? []).filter(item => item.resolution === 'review').map(item => item.transaction_id));
       const transactions = providerRows.map(transaction => {
         if (transaction.origin === 'subscription_payment_method_change') return null;
         const item = Array.isArray(transaction.items) && transaction.items.length === 1 ? transaction.items[0] : null;
@@ -77,6 +83,7 @@ Deno.serve(withRolloutGuard(async req => {
         return { id: transaction.id, status: transaction.status, pack: plan.tier,
           kind: plan.kind, credits: plan.kind === 'credit_pack' ? plan.limit : null,
           fulfilledCredits: granted.get(transaction.id) ?? null,
+          creditReview: reviews.has(transaction.id),
           amount: transaction.details?.totals?.total ?? null,
           currency: transaction.details?.totals?.currency_code ?? transaction.currency_code,
           createdAt: transaction.created_at, billedAt: transaction.billed_at,

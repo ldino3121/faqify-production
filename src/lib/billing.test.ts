@@ -35,6 +35,7 @@ describe('credit billing presentation', () => {
   it('separates refunds and disputes from fulfilled purchase status', () => {
     expect(paymentCategory({ ...purchase, adjustments: [{ action: 'refund', status: 'approved', type: 'full' }] })).toBe('refunded');
     expect(paymentCategory({ ...purchase, adjustments: [{ action: 'refund', status: 'pending_approval', type: 'partial' }] })).toBe('review');
+    expect(paymentCategory({ ...purchase, creditReview: true, adjustments: [{ action: 'refund', status: 'approved', type: 'partial' }] })).toBe('review');
     expect(paymentCategory({ ...purchase, adjustments: [{ action: 'chargeback', status: 'approved', type: 'full' }] })).toBe('disputed');
   });
   it('accepts only known pack purchase intents after authentication', () => {
