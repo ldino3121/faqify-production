@@ -84,7 +84,7 @@ const AppContent = () => {
 
 const App = () => (
   <ErrorBoundary>
-    <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} storageKey="faqify-theme">
+    <ThemeProvider attribute="class" forcedTheme="dark" enableSystem={false} storageKey="faqify-theme">
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <SubscriptionProvider><TooltipProvider>

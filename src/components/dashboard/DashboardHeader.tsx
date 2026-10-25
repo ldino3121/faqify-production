@@ -3,8 +3,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Menu, LogOut, Moon, Sun, ShieldCheck } from "lucide-react";
-import { useTheme } from "next-themes";
+import { Menu, LogOut, ShieldCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { FAQifyIconSimple } from "@/components/ui/faqify-icon";
 import { Link, useNavigate } from "react-router-dom";
@@ -22,7 +21,6 @@ export const DashboardHeader = ({ sidebarOpen, setSidebarOpen }: DashboardHeader
   const { subscription, loading } = useSubscription();
   const { toast } = useToast();
   const navigate = useNavigate();
-  const { theme, setTheme } = useTheme();
   const [isAdmin, setIsAdmin] = useState(false);
 
   // Show the Admin link only for admins (server-verified via is_admin()).
@@ -73,15 +71,6 @@ export const DashboardHeader = ({ sidebarOpen, setSidebarOpen }: DashboardHeader
         </div>
 
         <div className="flex items-center space-x-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-            className="text-white hover:bg-gray-800"
-            aria-label="Toggle theme"
-          >
-            {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-          </Button>
           {isAdmin && (
             <Button asChild variant="ghost" size="sm" className="text-white hover:bg-gray-800">
               <Link to="/admin" aria-label="Admin panel">
