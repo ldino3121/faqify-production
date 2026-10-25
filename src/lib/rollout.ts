@@ -1,8 +1,10 @@
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/config/env';
 export const CLIENT_REVISION = 1;
 export const PREVIEW_READ_ONLY = String(import.meta.env.VITE_FAQIFY_READ_ONLY) === 'true';
-export type RolloutStatus = { mode: 'open' | 'drain' | 'frozen' | 'unavailable'; minimum_client_revision: number };
-let status: RolloutStatus = { mode: 'unavailable', minimum_client_revision: 0 };
+export type RolloutStatus = { mode: 'checking' | 'open' | 'drain' | 'frozen' | 'unavailable'; minimum_client_revision: number };
+// An unanswered status request is not a maintenance failure. Keep writes fail-closed
+// through requireRolloutOpen(), but wait for an actual result before showing a banner.
+let status: RolloutStatus = { mode: 'checking', minimum_client_revision: 0 };
 const listeners = new Set<() => void>();
 export const rolloutSnapshot = () => status;
 export const subscribeRollout = (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener); }; };
