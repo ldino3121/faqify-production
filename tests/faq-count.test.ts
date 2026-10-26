@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { eligibleFaqs, requestedFaqCount } from '../supabase/functions/_shared/faq-count';
+import { eligibleFaqs, parseGeneratedFaqs, requestedFaqCount } from '../supabase/functions/_shared/faq-count';
 
 describe('FAQ count contract across text and extracted PDF/DOCX content', () => {
   it('accepts each selectable count and rejects silent clamping or malformed counts', () => {
@@ -26,5 +26,8 @@ describe('FAQ count contract across text and extracted PDF/DOCX content', () => 
   it('rejects malformed and empty AI output without a billable pair', () => {
     expect(() => eligibleFaqs('bad', 10)).toThrow('did not contain FAQ pairs');
     expect(() => eligibleFaqs([{ question: 'Hi', answer: '' }], 3)).toThrow('no eligible FAQs');
+    expect(() => parseGeneratedFaqs('Question: a vague answer', 10)).toThrow('incomplete or malformed');
+    expect(() => parseGeneratedFaqs('```json\n[{"question":"What is this?","answer":"A test."}]\n```', 10))
+      .not.toThrow();
   });
 });

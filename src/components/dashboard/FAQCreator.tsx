@@ -515,7 +515,7 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
 
         toast({
           title: "FAQs Generated & Saved!",
-          description: `Created ${responseData.faqs.length} of ${faqCount} requested FAQs and saved them to "${saveResult.collectionTitle || autoTitle}".${responseData.faqs.length < faqCount ? ' The source did not support the full count; only saved pairs were charged.' : ''}`,
+          description: `Created ${responseData.faqs.length} of ${faqCount} requested FAQs and saved them to "${saveResult.collectionTitle || autoTitle}".${responseData.faqs.length < faqCount ? ' The AI returned fewer eligible pairs; only saved pairs were charged.' : ''}`,
           action: (
             <ToastAction altText="View Now" onClick={() => onNavigateToManage?.()}>
               View Now
@@ -1075,7 +1075,7 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
             </Button>
 
             <p className="text-sm text-muted-foreground mt-3">Estimated cost: {faqCount} credit{faqCount === 1 ? '' : 's'} if all {faqCount} generated pairs are saved. Generation alone does not charge credits.</p>
-            {generationShortfall > 0 && <p role="status" className="text-sm text-amber-300">The source supported {generatedFAQs.length} of {lastRequestedCount} requested FAQ pairs. {savedCollection ? `Only ${generatedFAQs.length} saved pairs were charged.` : 'Credits are charged only when eligible pairs are saved.'}</p>}
+            {generationShortfall > 0 && <p role="status" className="text-sm text-amber-300">The AI returned {generatedFAQs.length} of {lastRequestedCount} requested eligible FAQ pairs. {savedCollection ? `Only ${generatedFAQs.length} saved pairs were charged.` : 'Credits are charged only when eligible pairs are saved.'}</p>}
             {balance && (
               <div className="mt-4 p-3 bg-gray-800 rounded-lg text-sm">
                 <div className="flex justify-between items-center text-gray-300">
@@ -1111,7 +1111,7 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
                 } else if (savedCollection) {
                   return `${publishedFAQs} published FAQs (${totalFAQs} total) - Synced with database`;
                 } else {
-                  return `${totalFAQs} FAQs generated and ready to save`;
+                  return `${totalFAQs} FAQ${totalFAQs === 1 ? '' : 's'} generated and ready to save`;
                 }
               })()}
             </CardDescription>
