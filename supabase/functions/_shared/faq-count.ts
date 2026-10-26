@@ -7,6 +7,14 @@ export function requestedFaqCount(value: unknown): number {
 }
 
 export type GeneratedPair = { question: string; answer: string };
+export function parseGeneratedFaqs(raw: unknown, requested: number): GeneratedPair[] {
+  if (typeof raw !== 'string') throw new Error('The AI response was incomplete or malformed. No credits were charged; please retry.');
+  const content = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+  let parsed: unknown;
+  try { parsed = JSON.parse(content); }
+  catch { throw new Error('The AI response was incomplete or malformed. No credits were charged; please retry.'); }
+  return eligibleFaqs(parsed, requested);
+}
 export function eligibleFaqs(value: unknown, requested: number): GeneratedPair[] {
   if (!Array.isArray(value)) throw new Error('The AI response did not contain FAQ pairs. No credits were charged.');
   const seen = new Set<string>();

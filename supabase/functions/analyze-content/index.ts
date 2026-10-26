@@ -1,6 +1,6 @@
 import { withRolloutGuard } from '../_shared/rollout.ts';
 import { safeFetch, publicUrl, readPublicText } from '../_shared/safe-fetch.ts';
-import { eligibleFaqs, requestedFaqCount } from '../_shared/faq-count.ts';
+import { parseGeneratedFaqs, requestedFaqCount } from '../_shared/faq-count.ts';
 
 import { createClient } from 'npm:@supabase/supabase-js@2.50.2';
 
@@ -767,32 +767,11 @@ ${contentToAnalyze}`
     console.log('Response structure:', Object.keys(data));
 
     if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
-      console.error('Invalid Gemini response structure:', data);
+      console.error('Invalid Gemini response structure');
       throw new Error('Invalid response from Gemini AI service');
     }
 
-    let generatedFAQs;
-    try {
-      // Extract content from Gemini response
-      const content = data.candidates[0].content.parts[0].text;
-
-
-      // Clean up the content (remove any markdown formatting)
-      const cleanContent = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-
-      generatedFAQs = JSON.parse(cleanContent);
-      console.log('✅ Successfully parsed Gemini JSON response');
-    } catch (parseErrorCaught) {
-      const parseError = parseErrorCaught instanceof Error ? parseErrorCaught : new Error(String(parseErrorCaught));
-      console.error('Failed to parse Gemini JSON response:', parseError);
-      console.log('Attempting fallback text extraction...');
-      // Fallback: extract questions and answers from text
-      const content = data.candidates[0].content.parts[0].text;
-      generatedFAQs = extractFAQsFromText(content);
-      console.log('✅ Fallback extraction completed');
-    }
-
-    generatedFAQs = eligibleFaqs(generatedFAQs, validFaqCount);
+    const generatedFAQs = parseGeneratedFaqs(data.candidates[0].content.parts?.[0]?.text, validFaqCount);
     const { error: persistError } = await supabaseAdmin.from('faq_generation_requests')
       .update({ faqs: generatedFAQs, status: 'completed' }).eq('id', generation.id);
     if (persistError) throw new Error('Unable to preserve generated FAQs. Please retry; no quota was charged.');
@@ -865,52 +844,3 @@ ${contentToAnalyze}`
     });
   }
 }, 'analyze-content', true));
-
-// 🛡️ BULLETPROOF FAQ GENERATION - Generate additional FAQs to reach exact count
-function extractFAQsFromText(text: string) {
-  const faqs = [];
-  const lines = text.split('\n');
-  let currentQuestion = '';
-  let currentAnswer = '';
-  let isAnswer = false;
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-
-    if (trimmed.match(/^\d+\.|^Q:|^Question:|^\*\*Question/i)) {
-      // Save previous FAQ if exists
-      if (currentQuestion && currentAnswer) {
-        faqs.push({
-          question: currentQuestion.replace(/^\d+\.\s*|^Q:\s*|^Question:\s*|\*\*/g, '').trim(),
-          answer: currentAnswer.replace(/^A:\s*|^Answer:\s*|\*\*/g, '').trim()
-        });
-      }
-      currentQuestion = trimmed;
-      currentAnswer = '';
-      isAnswer = false;
-    } else if (trimmed.match(/^A:|^Answer:|^\*\*Answer/i)) {
-      currentAnswer = trimmed;
-      isAnswer = true;
-    } else if (isAnswer) {
-      currentAnswer += ' ' + trimmed;
-    } else if (currentQuestion) {
-      currentQuestion += ' ' + trimmed;
-    }
-  }
-
-  // Save last FAQ
-  if (currentQuestion && currentAnswer) {
-    faqs.push({
-      question: currentQuestion.replace(/^\d+\.\s*|^Q:\s*|^Question:\s*|\*\*/g, '').trim(),
-      answer: currentAnswer.replace(/^A:\s*|^Answer:\s*|\*\*/g, '').trim()
-    });
-  }
-
-  return faqs.length > 0 ? faqs : [
-    {
-      question: "What is this content about?",
-      answer: "This content provides information on the specified topic. Please refer to the original source for detailed information."
-    }
-  ];
-}
