@@ -1,6 +1,7 @@
 import { withRolloutGuard } from '../_shared/rollout.ts';
 import { adminClient, authenticated, environment, json, paddleApi } from '../_shared/paddle.ts';
 import { configuredCreditPackPrices, configuredPrices } from '../_shared/paddle-core.ts';
+import { selectPortalLink } from '../_shared/portal-links.ts';
 
 const transactionIdPattern = /^txn_[a-z0-9]{26}$/;
 Deno.serve(withRolloutGuard(async req => {
@@ -101,17 +102,17 @@ Deno.serve(withRolloutGuard(async req => {
     let subscriptionId: string | null = null;
     if (action === 'subscription') {
       const { data: subscription, error: subscriptionError } = await db.from('user_subscriptions')
-        .select('paddle_subscription_id,paddle_customer_id').eq('user_id', user.id).maybeSingle();
+        .select('paddle_subscription_id,paddle_customer_id,subscription_source').eq('user_id', user.id).maybeSingle();
       if (subscriptionError) throw subscriptionError;
-      if (!subscription?.paddle_subscription_id || subscription.paddle_customer_id !== customer.customer_id)
+      if (subscription?.subscription_source !== 'paddle' || !subscription.paddle_subscription_id
+        || subscription.paddle_customer_id !== customer.customer_id)
         return json({ error: 'No previous subscription found for this account.' }, 404);
       subscriptionId = subscription.paddle_subscription_id;
     }
     const session = await paddleApi(`/customers/${customer.customer_id}/portal-sessions`,
       subscriptionId ? { subscription_ids: [subscriptionId] } : {});
-    const link = subscriptionId && session.urls.subscriptions?.find((item: any) => item.id === subscriptionId);
     // Portal URLs have temporary auth tokens and are returned only to this authenticated owner.
-    return json({ url: link?.view_subscription ?? session.urls.general.overview });
+    return json({ url: selectPortalLink(session, action, subscriptionId) });
   } catch (error) {
     console.error('Billing request failed', error);
     return json({ error: 'Unable to load billing. Please retry or contact support.' }, 503);

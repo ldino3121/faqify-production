@@ -98,8 +98,8 @@ export function PaddleBilling() {
     <Card><CardHeader><CardTitle>Purchases and invoices</CardTitle></CardHeader><CardContent className="space-y-4 text-sm">
       <p className="text-muted-foreground">Paddle sandbox payments. Amounts shown below are the actual transaction totals, including applicable checkout tax. A payment adds credits only after verified fulfillment.</p>
       <div className="flex flex-wrap gap-2">
-        {hasCustomer && <Button variant="outline" disabled={!!opening} onClick={() => void portal('payments')}>{opening === 'payments' ? 'Opening…' : 'View payments and invoices'}</Button>}
-        {canManage && hasCustomer && <Button variant="outline" disabled={!!opening} onClick={() => void portal('subscription')}>{opening === 'subscription' ? 'Opening…' : 'Manage previous subscription'}</Button>}
+        {hasCustomer && <Button disabled={!!opening} onClick={() => void portal('payments')}>{opening === 'payments' ? 'Opening…' : 'Open billing portal'}</Button>}
+        {canManage && hasCustomer && <Button variant="link" className="px-0" disabled={!!opening} onClick={() => void portal('subscription')}>{opening === 'subscription' ? 'Opening…' : 'Manage previous subscription'}</Button>}
       </div>
       {history.isPending && <p>Loading payments…</p>}
       {history.isError && <div role="alert"><p>Unable to load Paddle payment status. No payment has been marked fulfilled here.</p><Button variant="outline" onClick={() => void history.refetch()}>Retry</Button></div>}
