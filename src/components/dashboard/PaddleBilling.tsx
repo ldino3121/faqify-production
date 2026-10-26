@@ -8,7 +8,7 @@ import { useSubscription } from '@/hooks/useSubscription';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { openPaddlePortal } from '@/lib/paddle';
-import { formatPaymentAmount, legacyAllowance, legacyAllowanceMessage, localDate, manageablePreviousSubscription,
+import { formatPaymentAmount, legacyAllowance, legacyAllowanceMessage, localDate,
   paymentCategory, paymentStatusText, type PaymentCategory, type PaymentSummary } from '@/lib/billing';
 
 type LedgerEntry = { id: number; bucket: string; entry_type: string; delta: number;
@@ -41,7 +41,7 @@ export function PaddleBilling() {
   const { subscription } = useSubscription();
   const { toast } = useToast();
   const client = useQueryClient();
-  const [opening, setOpening] = useState<'payments' | 'subscription' | null>(null);
+  const [opening, setOpening] = useState(false);
   const accountId = user?.id;
   const history = useInfiniteQuery({ queryKey: ['paddle-history', accountId], enabled: !!accountId,
     initialPageParam: null as string | null,
@@ -71,17 +71,16 @@ export function PaddleBilling() {
     return () => window.removeEventListener('faqify-billing-updated', refresh);
   }, [accountId, client]);
   const legacy = legacyAllowance(balance, subscription);
-  const canManage = manageablePreviousSubscription(subscription);
   const transactions = history.data?.pages.flatMap(page => page.transactions) ?? [];
   const byTransaction = new Map(transactions.map(transaction => [transaction.id, transaction]));
   const entries = activity.data?.pages.flat() ?? [];
   const hasCustomer = history.data?.pages[0]?.hasCustomer ?? false;
-  async function portal(kind: 'payments' | 'subscription') {
-    setOpening(kind);
-    try { await openPaddlePortal(kind === 'subscription' ? 'subscription' : 'portal'); }
+  async function portal() {
+    setOpening(true);
+    try { await openPaddlePortal('portal'); }
     catch (error) { toast({ title: 'Billing unavailable',
       description: error instanceof Error ? error.message : 'Please retry.', variant: 'destructive' }); }
-    finally { setOpening(null); }
+    finally { setOpening(false); }
   }
   return <div className="space-y-6" aria-label="Billing details">
     <Card><CardHeader><CardTitle>Credit balance</CardTitle></CardHeader><CardContent className="space-y-2 text-sm">
@@ -98,8 +97,7 @@ export function PaddleBilling() {
     <Card><CardHeader><CardTitle>Purchases and invoices</CardTitle></CardHeader><CardContent className="space-y-4 text-sm">
       <p className="text-muted-foreground">Paddle sandbox payments. Amounts shown below are the actual transaction totals, including applicable checkout tax. A payment adds credits only after verified fulfillment.</p>
       <div className="flex flex-wrap gap-2">
-        {hasCustomer && <Button disabled={!!opening} onClick={() => void portal('payments')}>{opening === 'payments' ? 'Opening…' : 'Open billing portal'}</Button>}
-        {canManage && hasCustomer && <Button variant="link" className="px-0" disabled={!!opening} onClick={() => void portal('subscription')}>{opening === 'subscription' ? 'Opening…' : 'Manage previous subscription'}</Button>}
+        {hasCustomer && <Button disabled={opening} onClick={() => void portal()}>{opening ? 'Opening…' : 'Open billing portal'}</Button>}
       </div>
       {history.isPending && <p>Loading payments…</p>}
       {history.isError && <div role="alert"><p>Unable to load Paddle payment status. No payment has been marked fulfilled here.</p><Button variant="outline" onClick={() => void history.refetch()}>Retry</Button></div>}

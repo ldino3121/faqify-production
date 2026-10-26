@@ -1,6 +1,7 @@
 
 import { BillingSyncNotice } from '@/components/dashboard/BillingSyncNotice';
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useLocation, useNavigate } from 'react-router-dom';
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { DashboardOverviewData } from "@/components/dashboard/DashboardOverviewData";
@@ -10,14 +11,34 @@ import { PlanUpgrade } from "@/components/dashboard/PlanUpgrade";
 import { Button } from '@/components/ui/button';
 
 const Dashboard = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const contentRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState(() => {
+    const section = window.location.hash.slice(1);
+    if (['overview', 'create', 'manage', 'upgrade'].includes(section)) return section;
     const params = new URLSearchParams(window.location.search);
     return params.has('purchase') || params.get('billing') === 'processing' ? 'upgrade' : 'overview';
   });
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
   const [creatorVisited, setCreatorVisited] = useState(false);
-  const navigateTab = (tab: string) => { if (tab === 'create') setCreatorVisited(true); setActiveTab(tab); };
+  const navigateTab = (tab: string) => {
+    if (tab === 'create') setCreatorVisited(true);
+    setActiveTab(tab);
+    navigate({ pathname: '/dashboard', search: location.search, hash: `#${tab}` });
+    requestAnimationFrame(() => contentRef.current?.scrollIntoView({ block: 'start' }));
+  };
+  useEffect(() => {
+    const section = location.hash.slice(1);
+    if (['overview', 'create', 'manage', 'upgrade'].includes(section)) {
+      if (section === 'create') setCreatorVisited(true);
+      setActiveTab(section);
+    } else {
+      const params = new URLSearchParams(location.search);
+      setActiveTab(params.has('purchase') || params.get('billing') === 'processing' ? 'upgrade' : 'overview');
+    }
+  }, [location.hash, location.search]);
 
   // Force refresh function for data sync
   const forceRefresh = () => {
@@ -32,7 +53,7 @@ const Dashboard = () => {
         <div className={activeTab === "overview" ? "block" : "hidden"}>
           {activeTab === "overview" && <DashboardOverviewData
             key={`overview-${refreshKey}`}
-            onNavigateToUpgrade={() => setActiveTab("upgrade")}
+            onNavigateToUpgrade={() => navigateTab('upgrade')}
           />}
         </div>
 
@@ -40,10 +61,10 @@ const Dashboard = () => {
         <div className={activeTab === "create" ? "block" : "hidden"}>
           {creatorVisited && <FAQCreator
             key="create-persistent"
-            onNavigateToUpgrade={() => setActiveTab("upgrade")}
+            onNavigateToUpgrade={() => navigateTab('upgrade')}
             onNavigateToManage={() => {
               forceRefresh(); // Force refresh before navigating
-              setActiveTab("manage");
+              navigateTab('manage');
             }}
           />}
         </div>
@@ -58,7 +79,7 @@ const Dashboard = () => {
 
         {/* Upgrade Tab */}
         <div className={activeTab === "upgrade" ? "block" : "hidden"}>
-          {activeTab === "upgrade" && <PlanUpgrade key={`upgrade-${refreshKey}`} />}
+          {activeTab === "upgrade" && <PlanUpgrade key={`upgrade-${refreshKey}`} onNavigateToOverview={() => navigateTab('overview')} />}
         </div>
       </div>
     );
@@ -83,8 +104,8 @@ const Dashboard = () => {
             {([['overview','Overview'],['create','Create'],['manage','FAQs'],['upgrade','Billing']] as const).map(([tab,label]) =>
               <Button key={tab} size="sm" variant={activeTab === tab ? 'default' : 'outline'} onClick={() => navigateTab(tab)}>{label}</Button>)}
           </nav>
-          <div className="p-3 sm:p-6">
-            <BillingSyncNotice onOpenBilling={() => setActiveTab('upgrade')} />
+          <div ref={contentRef} className="p-3 sm:p-6 scroll-mt-20">
+            <BillingSyncNotice onOpenBilling={() => navigateTab('upgrade')} />
             {renderContent()}
           </div>
         </main>
