@@ -1,2 +1,3 @@
 import { BillingPlans } from '@/components/BillingPlans';
-export const PlanUpgrade = () => <BillingPlans dashboard={true} />;
+export const PlanUpgrade = ({ onNavigateToOverview }: { onNavigateToOverview: () => void }) =>
+  <BillingPlans dashboard={true} onNavigateToOverview={onNavigateToOverview} />;

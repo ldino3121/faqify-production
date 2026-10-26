@@ -13,7 +13,7 @@ const packs = [
   { pack: 'Pro' as const, credits: 100, dollars: 9 },
   { pack: 'Business' as const, credits: 500, dollars: 29 },
 ];
-export function BillingPlans({ dashboard = false }: { dashboard?: boolean }) {
+export function BillingPlans({ dashboard = false, onNavigateToOverview }: { dashboard?: boolean; onNavigateToOverview?: () => void }) {
   const [busy, setBusy] = useState<string | null>(null);
   const requestInFlight = useRef(false);
   const { user } = useAuth();
@@ -48,7 +48,8 @@ export function BillingPlans({ dashboard = false }: { dashboard?: boolean }) {
     <div className="grid md:grid-cols-3 gap-6">
       <Card><CardHeader><CardTitle>Free introduction</CardTitle><p className="text-3xl font-bold">$0</p></CardHeader>
         <CardContent className="space-y-4"><p>5 FAQ credits once per account.</p><p className="text-sm text-muted-foreground">One collection before your first paid purchase. Existing content and embeds remain accessible after credits run out.</p>
-          <Button asChild variant="outline" className="w-full"><Link to={user ? '/dashboard' : '/signup'}>{user ? 'Go to dashboard' : 'Start free'}</Link></Button></CardContent></Card>
+          {user && dashboard ? <Button variant="outline" className="w-full" onClick={onNavigateToOverview}>Go to dashboard</Button>
+            : <Button asChild variant="outline" className="w-full"><Link to={user ? '/dashboard#overview' : '/signup'}>{user ? 'Go to dashboard' : 'Start free'}</Link></Button>}</CardContent></Card>
       {packs.map(({ pack, credits, dollars }) => <Card key={pack} className={pack === intendedPack ? 'border-primary ring-1 ring-primary' : ''}>
         <CardHeader><CardTitle>{pack} credit pack</CardTitle><p className="text-3xl font-bold">${dollars}<span className="text-sm font-normal text-muted-foreground"> one time</span></p></CardHeader>
         <CardContent className="space-y-4"><p>{credits} FAQ credits. They add to your existing balance and do not expire.</p>

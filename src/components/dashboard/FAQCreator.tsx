@@ -1,7 +1,7 @@
 import { requireRolloutOpen } from '@/lib/rollout';
 import { escapeHtml, csvCell } from '@/utils/export';
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -72,6 +72,10 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedFAQs, setGeneratedFAQs] = useState<FAQ[]>([]);
   const [pendingGenerationId, setPendingGenerationId] = useState<string | null>(null);
+  const [generationShortfall, setGenerationShortfall] = useState(0);
+  const [lastRequestedCount, setLastRequestedCount] = useState(5);
+  const generationInFlight = useRef(false);
+  const saveInFlight = useRef(false);
   const [progress, setProgress] = useState(0);
   const [collectionTitle, setCollectionTitle] = useState("");
   const [savedCollection, setSavedCollection] = useState<SavedCollection | null>(null);
@@ -208,20 +212,27 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
   }, [savedCollection?.id]);
 
   const saveFAQsToDatabase = async (generationId: string, title: string) => {
-    const { data, error } = await (supabase as any).rpc('save_generated_faqs', {
-      p_generation_id: generationId, p_title: title.slice(0, 100),
-    });
-    if (error || !data?.collection_id) {
-      toast({ title: 'Save failed', description: error?.message || 'Please retry.', variant: 'destructive' });
-    return { success: false, collectionId: null, collectionTitle: null };
-    }
-    setPendingGenerationId(null);
-    await Promise.all([refetchSubscription(), refetchCredits()]);
-    window.dispatchEvent(new Event('faqify-billing-updated'));
-    return { success: true, collectionId: data.collection_id as string, collectionTitle: data.collection_title as string };
+    if (saveInFlight.current) return { success: false, collectionId: null, collectionTitle: null };
+    saveInFlight.current = true;
+    try {
+      const { data, error } = await (supabase as any).rpc('save_generated_faqs', {
+        p_generation_id: generationId, p_title: title.slice(0, 100),
+      });
+      if (error || !data?.collection_id) {
+        toast({ title: 'Save failed', description: error?.message || 'Please retry.', variant: 'destructive' });
+        return { success: false, collectionId: null, collectionTitle: null };
+      }
+      setPendingGenerationId(null);
+      await Promise.allSettled([refetchSubscription(), refetchCredits()]);
+      window.dispatchEvent(new Event('faqify-billing-updated'));
+      return { success: true, collectionId: data.collection_id as string, collectionTitle: data.collection_title as string };
+    } finally { saveInFlight.current = false; }
   };
 
   const generateFAQs = async () => {
+    if (generationInFlight.current) return;
+    generationInFlight.current = true;
+    try {
     try { await requireRolloutOpen(); }
     catch (error) { toast({ title: 'Generation paused', description: (error as Error).message, variant: 'destructive' }); return; }
     if (pendingGenerationId) {
@@ -335,6 +346,8 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
       inputData = { file: uploadedFile, type: "file", faqCount };
     }
 
+    setGenerationShortfall(0);
+    setLastRequestedCount(faqCount);
     setIsGenerating(true);
     setProgress(0);
 
@@ -420,13 +433,17 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
         throw new Error(responseData.message || 'Failed to generate FAQs');
       }
 
-      if (!responseData.faqs || !Array.isArray(responseData.faqs)) {
+      if (!responseData.faqs || !Array.isArray(responseData.faqs)
+        || typeof responseData.generation_id !== 'string'
+        || responseData.actualFaqCount !== responseData.faqs.length
+        || responseData.faqs.length < 1 || responseData.faqs.length > faqCount) {
         throw new Error('Invalid response format from content analysis');
       }
 
       setProgress(100);
       setGeneratedFAQs(responseData.faqs);
       setPendingGenerationId(responseData.generation_id);
+      setGenerationShortfall(Math.max(0, faqCount - responseData.faqs.length));
 
       // Auto-generate a title based on the input
       let autoTitle;
@@ -498,7 +515,7 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
 
         toast({
           title: "FAQs Generated & Saved!",
-          description: `Created ${responseData.faqs.length} FAQs and saved them to your collection "${saveResult.collectionTitle || autoTitle}". Redirecting to Manage FAQs...`,
+          description: `Created ${responseData.faqs.length} of ${faqCount} requested FAQs and saved them to "${saveResult.collectionTitle || autoTitle}".${responseData.faqs.length < faqCount ? ' The source did not support the full count; only saved pairs were charged.' : ''}`,
           action: (
             <ToastAction altText="View Now" onClick={() => onNavigateToManage?.()}>
               View Now
@@ -534,6 +551,7 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
     } finally {
       setIsGenerating(false);
     }
+    } finally { generationInFlight.current = false; }
   };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -998,11 +1016,11 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
                       <SelectItem
                         key={count}
                         value={count.toString()}
-                        disabled={!canGenerateFAQCount(count)}
+                        disabled={!!balance?.hold || count > remainingUsage}
                         className="text-white hover:bg-gray-700 focus:bg-gray-700"
                       >
                         {count} FAQ{count !== 1 ? 's' : ''}
-                        {!canGenerateFAQCount(count) && (
+                        {(!!balance?.hold || count > remainingUsage) && (
                           <span className="text-red-400 ml-2">(Exceeds limit)</span>
                         )}
                       </SelectItem>
@@ -1057,6 +1075,7 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
             </Button>
 
             <p className="text-sm text-muted-foreground mt-3">Estimated cost: {faqCount} credit{faqCount === 1 ? '' : 's'} if all {faqCount} generated pairs are saved. Generation alone does not charge credits.</p>
+            {generationShortfall > 0 && <p role="status" className="text-sm text-amber-300">The source supported {generatedFAQs.length} of {lastRequestedCount} requested FAQ pairs. {savedCollection ? `Only ${generatedFAQs.length} saved pairs were charged.` : 'Credits are charged only when eligible pairs are saved.'}</p>}
             {balance && (
               <div className="mt-4 p-3 bg-gray-800 rounded-lg text-sm">
                 <div className="flex justify-between items-center text-gray-300">
