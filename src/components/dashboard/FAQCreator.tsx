@@ -828,18 +828,18 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
             setPendingGenerationId(null);
           }
         }}>Allow a new generation</Button>}
-        {pendingGenerationId && <p className="text-sm">Keep this tab open. Retry uses the same generation ticket and cannot save it twice. If it expires, download the draft and contact support; do not regenerate automatically.</p>}
+        {pendingGenerationId && <p className="text-sm">Keep this tab open and retry saving. If the draft expires, download it and contact support.</p>}
       </div>}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-white mb-2">Create FAQ</h1>
-          <p className="text-gray-400">Generate professional FAQs from any content source</p>
+          <p className="text-gray-400">Generate FAQs from a URL, text, or document.</p>
         </div>
 
         <div className="text-right">
           <div className="text-sm text-gray-400 mb-1">Available FAQ credits</div>
           <Badge variant={remainingUsage > 5 ? "secondary" : "destructive"}>
-            {remainingUsage} available · {balance?.free ?? 0} free · {balance?.paid ?? 0} purchased
+            {remainingUsage} available
           </Badge>
         </div>
       </div>
@@ -870,25 +870,6 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
         </Card>
       )}
 
-      {/* Low Usage Warning - Show when 1-2 FAQs remaining */}
-      {remainingUsage > 0 && remainingUsage <= 2 && (
-        <Card className="bg-yellow-600/10 border border-yellow-600/20">
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-3">
-              <AlertCircle className="h-5 w-5 text-yellow-400" />
-              <div>
-                <p className="text-yellow-400 font-medium">
-                  Only {remainingUsage} FAQ credit{remainingUsage === 1 ? '' : 's'} available
-                </p>
-                <p className="text-sm text-yellow-300">
-                  You can add 100 or 500 credits before this balance reaches zero.
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Input Section */}
         <Card className="bg-gray-900/50 border-gray-800">
@@ -898,7 +879,7 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
               <span>Content Input</span>
             </CardTitle>
             <CardDescription className="text-gray-400">
-              Choose your content source and let AI generate FAQs
+              Choose a source for your FAQs.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -942,7 +923,7 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
                     className="bg-gray-800 border-gray-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
                   />
                   <p className="text-xs text-gray-400 mt-1">
-                    Enter any website URL to analyze and generate FAQs (https:// will be added automatically if missing)
+                    Enter a page URL. HTTPS is added if omitted.
                   </p>
                 </div>
               </TabsContent>
@@ -961,7 +942,7 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
                     className="bg-gray-800 border-gray-700 text-white resize-none disabled:opacity-50 disabled:cursor-not-allowed"
                   />
                   <p className="text-xs text-gray-400 mt-1">
-                    Paste any text content, product descriptions, or documentation
+                    Paste the source text for your FAQs.
                   </p>
                 </div>
               </TabsContent>
@@ -1027,22 +1008,9 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
                     ))}
                   </SelectContent>
                 </Select>
-                <div className="flex-1">
-                  <p className="text-xs text-gray-400">
-                    {canGenerateSelectedCount ? (
-                      <>
-                        <span className="text-green-400">✓</span> You can generate {faqCount} FAQ{faqCount !== 1 ? 's' : ''}
-                        {remainingUsage > faqCount && (
-                          <span className="ml-2">({remainingUsage - faqCount} will remain)</span>
-                        )}
-                      </>
-                    ) : (
-                      <>
-                        <span className="text-red-400">⚠</span> {faqEligibility?.reason || `You have ${remainingUsage} FAQ credits available.`}
-                      </>
-                    )}
-                  </p>
-                </div>
+                {!canGenerateSelectedCount && <p className="text-xs text-red-400" role="status">
+                  {faqEligibility?.reason || 'Not enough credits for this count. Choose fewer FAQs or buy credits.'}
+                </p>}
               </div>
             </div>
 
@@ -1074,21 +1042,8 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
               )}
             </Button>
 
-            <p className="text-sm text-muted-foreground mt-3">Estimated cost: {faqCount} credit{faqCount === 1 ? '' : 's'} if all {faqCount} generated pairs are saved. Generation alone does not charge credits.</p>
+            <p className="text-sm text-muted-foreground mt-3">Each generated FAQ pair uses one credit when saved.</p>
             {generationShortfall > 0 && <p role="status" className="text-sm text-amber-300">The AI returned {generatedFAQs.length} of {lastRequestedCount} requested eligible FAQ pairs. {savedCollection ? `Only ${generatedFAQs.length} saved pairs were charged.` : 'Credits are charged only when eligible pairs are saved.'}</p>}
-            {balance && (
-              <div className="mt-4 p-3 bg-gray-800 rounded-lg text-sm">
-                <div className="flex justify-between items-center text-gray-300">
-                  <span>Available: {remainingUsage} credits</span>
-                  <span>{balance.free} free · {balance.paid} purchased{balance.legacy > 0 ? ` · ${balance.legacy} legacy` : ''}</span>
-                </div>
-                {!canCreateFAQ && faqEligibility && (
-                  <div className="mt-2 text-yellow-400 text-xs">
-                    {faqEligibility.reason}
-                  </div>
-                )}
-              </div>
-            )}
           </CardContent>
         </Card>
 
@@ -1107,9 +1062,9 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
                   : totalFAQs;
 
                 if (totalFAQs === 0) {
-                  return "Your generated FAQs will appear here";
+                  return "Preview generated FAQs here.";
                 } else if (savedCollection) {
-                  return `${publishedFAQs} published FAQs (${totalFAQs} total) - Synced with database`;
+                  return `${publishedFAQs} published of ${totalFAQs} saved FAQs`;
                 } else {
                   return `${totalFAQs} FAQ${totalFAQs === 1 ? '' : 's'} generated and ready to save`;
                 }
@@ -1124,8 +1079,7 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
                 return (
                   <div className="text-center py-12">
                     <FileText className="h-12 w-12 text-gray-600 mx-auto mb-4" />
-                    <p className="text-gray-400">No FAQs generated yet</p>
-                    <p className="text-sm text-gray-500">Use the form on the left to create your first FAQ set</p>
+                    <p className="text-gray-400">Choose a source and generate FAQs.</p>
                   </div>
                 );
               }
@@ -1136,7 +1090,7 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
                     <div className="flex items-center gap-2 p-3 bg-green-900/20 border border-green-800 rounded-lg">
                       <CheckCircle className="h-4 w-4 text-green-400" />
                       <span className="text-green-400 text-sm">
-                        Collection saved to database - Real-time sync enabled
+                        Collection saved.
                       </span>
                     </div>
                   )}

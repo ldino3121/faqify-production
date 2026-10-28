@@ -4,6 +4,18 @@ import { supabase } from '@/integrations/supabase/client';
 
 export const BILLING_PROVIDER = import.meta.env.VITE_BILLING_PROVIDER === 'razorpay' ? 'razorpay' : 'paddle';
 export const PADDLE_READY = !!import.meta.env.VITE_PADDLE_CLIENT_TOKEN?.trim();
+export type PendingCheckout = { pack: 'Pro' | 'Business'; status: string; transactionId?: string; canResume?: boolean; canCancel?: boolean };
+async function checkoutRequest(body: Record<string, unknown>) {
+  const { data, error } = await supabase.functions.invoke('create-paddle-checkout', { body });
+  if (error) {
+    const detail = await error.context?.json?.().catch(() => null);
+    throw new Error(detail?.error || 'Unable to verify checkout. Please retry.');
+  }
+  return data;
+}
+export async function pendingPaddleCheckout(): Promise<PendingCheckout | null> {
+  return (await checkoutRequest({ action: 'pending' })).pending ?? null;
+}
 let sdk: Promise<Paddle | undefined> | undefined;
 export async function paddle() {
   await requireRolloutOpen();
@@ -23,15 +35,19 @@ export async function paddle() {
 }
 export async function openPaddleCheckout(pack: 'Pro' | 'Business', email: string) {
   const instance = await paddle();
-  const { data, error } = await supabase.functions.invoke('create-paddle-checkout', { body: { pack } });
-  if (error) {
-    // FunctionsHttpError exposes the response; surface actionable server messages.
-    const detail = await error.context?.json?.().catch(() => null);
-    throw new Error(detail?.error || 'Unable to open checkout. Please retry or contact support.');
-  }
+  const data = await checkoutRequest({ pack });
   if (!data?.transactionId) throw new Error(data?.error || 'Checkout could not be created.');
+  await showPaddleCheckout(instance, data.transactionId, email);
+}
+async function showPaddleCheckout(instance: Paddle, transactionId: string, email: string) {
   await requireRolloutOpen();
-  instance.Checkout.open({ transactionId: data.transactionId, customer: { email }, settings: { theme: 'dark', successUrl: `${window.location.origin}/dashboard?billing=processing&transaction_id=${encodeURIComponent(data.transactionId)}` } });
+  instance.Checkout.open({ transactionId, customer: { email }, settings: { theme: 'dark', successUrl: `${window.location.origin}/dashboard?billing=processing&transaction_id=${encodeURIComponent(transactionId)}` } });
+}
+export async function resumePaddleCheckout(transactionId: string, email: string) {
+  const instance = await paddle();
+  const data = await checkoutRequest({ action: 'resume', transactionId });
+  if (!data?.transactionId) throw new Error(data?.error || 'Checkout is no longer resumable.');
+  await showPaddleCheckout(instance, data.transactionId, email);
 }
 export async function openPaddlePortal(action: 'portal' | 'subscription' = 'portal') {
   const { data, error } = await supabase.functions.invoke('paddle-customer-portal', { body: { action } });
@@ -40,12 +56,8 @@ export async function openPaddlePortal(action: 'portal' | 'subscription' = 'port
   window.location.assign(data.url);
 }
 
-export async function closePendingPaddleCheckout() {
-  const { data, error } = await supabase.functions.invoke('create-paddle-checkout', { body: { action: 'cancel_pending' } });
-  if (error) {
-    const detail = await error.context?.json?.().catch(() => null);
-    throw new Error(detail?.error || 'Unable to close pending checkout. Please retry.');
-  }
-  if (!data?.success) throw new Error('Unable to close pending checkout.');
+export async function closePendingPaddleCheckout(transactionId: string) {
+  const data = await checkoutRequest({ action: 'cancel_pending', transactionId });
+  if (data?.result !== 'canceled') throw new Error('Payment status changed. Refresh checkout status before trying again.');
   window.dispatchEvent(new Event('faqify-billing-updated'));
 }
