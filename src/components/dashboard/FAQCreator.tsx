@@ -828,7 +828,7 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
             setPendingGenerationId(null);
           }
         }}>Allow a new generation</Button>}
-        {pendingGenerationId && <p className="text-sm">Keep this tab open. Retry uses the same generation ticket and cannot save it twice. If it expires, download the draft and contact support; do not regenerate automatically.</p>}
+        {pendingGenerationId && <p className="text-sm">Keep this tab open and retry saving. If the draft expires, download it and contact support.</p>}
       </div>}
       <div className="flex items-center justify-between">
         <div>
@@ -1062,9 +1062,9 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
                   : totalFAQs;
 
                 if (totalFAQs === 0) {
-                  return "Your generated FAQs will appear here";
+                  return "Preview generated FAQs here.";
                 } else if (savedCollection) {
-                  return `${publishedFAQs} published FAQs (${totalFAQs} total) - Synced with database`;
+                  return `${publishedFAQs} published of ${totalFAQs} saved FAQs`;
                 } else {
                   return `${totalFAQs} FAQ${totalFAQs === 1 ? '' : 's'} generated and ready to save`;
                 }
@@ -1079,8 +1079,7 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
                 return (
                   <div className="text-center py-12">
                     <FileText className="h-12 w-12 text-gray-600 mx-auto mb-4" />
-                    <p className="text-gray-400">No FAQs generated yet</p>
-                    <p className="text-sm text-gray-500">Use the form on the left to create your first FAQ set</p>
+                    <p className="text-gray-400">Choose a source and generate FAQs.</p>
                   </div>
                 );
               }
@@ -1091,7 +1090,7 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
                     <div className="flex items-center gap-2 p-3 bg-green-900/20 border border-green-800 rounded-lg">
                       <CheckCircle className="h-4 w-4 text-green-400" />
                       <span className="text-green-400 text-sm">
-                        Collection saved to database - Real-time sync enabled
+                        Collection saved.
                       </span>
                     </div>
                   )}
