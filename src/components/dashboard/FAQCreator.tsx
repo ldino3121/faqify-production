@@ -83,7 +83,7 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
   const { toast } = useToast();
   const { user } = useAuth();
   const { loading: subscriptionLoading, refetch: refetchSubscription, canCreateFAQ: canCreateFAQFromHook } = useSubscription();
-  const { balance, loading: creditsLoading, refetch: refetchCredits } = useCredits();
+  const { balance, loading: creditsLoading, error: creditsError, refetch: refetchCredits } = useCredits();
 
   // Form states
   const [urlInput, setUrlInput] = useState("");
@@ -806,6 +806,13 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
         <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
       </div>
     );
+  }
+
+  if (creditsError || !balance) {
+    return <Card className="bg-gray-900/50 border-gray-800"><CardContent className="p-6 space-y-3">
+      <p role="alert" className="text-white">Your FAQ credit balance is unavailable. Please retry before generating.</p>
+      <Button variant="outline" onClick={() => { void refetchCredits(); }}>Retry balance</Button>
+    </CardContent></Card>;
   }
 
   return (
