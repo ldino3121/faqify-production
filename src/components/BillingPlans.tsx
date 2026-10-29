@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useCredits } from '@/hooks/useCredits';
@@ -19,30 +19,72 @@ export function BillingPlans({ dashboard = false, onNavigateToOverview }: { dash
   const [pending, setPending] = useState<PendingCheckout | null>(null);
   const [selectedPack, setSelectedPack] = useState<'Pro' | 'Business' | null>(null);
   const [confirmCancel, setConfirmCancel] = useState(false);
+  const [checkingStatus, setCheckingStatus] = useState(false);
+  const [statusError, setStatusError] = useState<string | null>(null);
+  const [statusNotice, setStatusNotice] = useState<string | null>(null);
   const requestInFlight = useRef(false);
+  const statusInFlight = useRef<Promise<Awaited<ReturnType<typeof pendingPaddleCheckout>>> | null>(null);
   const { user } = useAuth();
   const userId = user?.id;
   const { balance, refetch: refetchCredits } = useCredits();
   const { toast } = useToast();
   const intendedPack = dashboard ? purchaseIntent(window.location.search) : null;
+  const pendingStatus = pending?.status;
+  const refreshPending = useCallback(() => {
+    if (statusInFlight.current) return statusInFlight.current;
+    const task = (async () => {
+      setCheckingStatus(true);
+      try {
+        const result = await pendingPaddleCheckout();
+        setPending(result.pending);
+        setStatusError(null);
+        if (result.result === 'fulfilled') setStatusNotice('Payment confirmed. Your credits and billing history are updated.');
+        else if (result.result === 'canceled') setStatusNotice('Unfinished checkout canceled. You can choose a pack again.');
+        else if (result.pending) setStatusNotice(null);
+        if (!result.pending) { setSelectedPack(null); await refetchCredits(); }
+        return result;
+      } catch (error) {
+        setStatusError('Could not check Paddle right now. Your checkout and credits have not been changed.');
+        throw error;
+      } finally { setCheckingStatus(false); statusInFlight.current = null; }
+    })();
+    statusInFlight.current = task;
+    return task;
+  }, [refetchCredits]);
   useEffect(() => {
     if (!userId || !PADDLE_READY) return;
+    const check = () => { if (document.visibilityState === 'visible') void refreshPending().catch(() => {}); };
+    check();
+    window.addEventListener('focus', check);
+    document.addEventListener('visibilitychange', check);
+    window.addEventListener('faqify-checkout-status-changed', check);
+    return () => {
+      window.removeEventListener('focus', check);
+      document.removeEventListener('visibilitychange', check);
+      window.removeEventListener('faqify-checkout-status-changed', check);
+    };
+  }, [userId, refreshPending]);
+  useEffect(() => {
+    if (!pendingStatus || !['processing', 'preparing'].includes(pendingStatus) || statusError) return;
     let active = true;
-    pendingPaddleCheckout().then(value => { if (active) setPending(value); }).catch(() => {});
-    return () => { active = false; };
-  }, [userId]);
-  async function refreshPending() {
-    const value = await pendingPaddleCheckout();
-    setPending(value);
-    if (!value) { setSelectedPack(null); await refetchCredits(); }
-    return value;
-  }
+    let timer: ReturnType<typeof setTimeout>;
+    let attempts = 0;
+    const poll = async () => {
+      try {
+        const result = await refreshPending();
+        if (active && result.pending && ['processing', 'preparing'].includes(result.pending.status) && ++attempts < 5)
+          timer = setTimeout(poll, Math.min(1500 * 2 ** attempts, 12000));
+      } catch { /* Retry appears only after a failed status check. */ }
+    };
+    timer = setTimeout(poll, 1500);
+    return () => { active = false; clearTimeout(timer); };
+  }, [pendingStatus, statusError, refreshPending]);
   async function buy(pack: 'Pro' | 'Business') {
     if (!user || requestInFlight.current) return;
     requestInFlight.current = true;
     setBusy(pack);
     try {
-      const existing = await refreshPending();
+      const existing = (await refreshPending()).pending;
       if (existing) { setSelectedPack(pack); return; }
       await openPaddleCheckout(pack, user.email ?? '');
       await refreshPending();
@@ -70,6 +112,7 @@ export function BillingPlans({ dashboard = false, onNavigateToOverview }: { dash
       await closePendingPaddleCheckout(pending.transactionId);
       setPending(null);
       setSelectedPack(null);
+      setStatusNotice('Unfinished checkout canceled. You can choose a pack again.');
       toast({ title: 'Unfinished checkout canceled' });
       if (nextPack && user) {
         setBusy(nextPack);
@@ -112,12 +155,18 @@ export function BillingPlans({ dashboard = false, onNavigateToOverview }: { dash
         : selectedPack && selectedPack !== pending.pack
           ? `Resume the ${pending.pack} checkout, or cancel it before buying ${selectedPack}. No credits change until payment completes.`
           : 'Resume this checkout, or cancel it if you no longer want it. Closing the payment window does not cancel the transaction.'}</p>
+      {checkingStatus && <p className="text-sm text-muted-foreground">Checking checkout status…</p>}
       <div className="flex flex-wrap gap-2">
         {pending.canResume && <Button disabled={!!busy} onClick={resumePending}>{busy === 'resume' ? 'Opening…' : 'Resume checkout'}</Button>}
         {pending.canCancel && <Button variant="outline" disabled={!!busy} onClick={() => setConfirmCancel(true)}>{selectedPack && selectedPack !== pending.pack ? `Cancel pending checkout and buy ${selectedPack}` : 'Cancel pending checkout'}</Button>}
-        <Button variant="ghost" disabled={!!busy} onClick={() => { setBusy('refresh'); void refreshPending().catch(error => toast({ title: 'Unable to refresh checkout', description: error instanceof Error ? error.message : 'Please retry.', variant: 'destructive' })).finally(() => setBusy(null)); }}>Refresh checkout status</Button>
       </div>
     </CardContent></Card>}
+    {user && PADDLE_READY && statusError && <div role="alert" className="text-center text-sm text-amber-300 space-y-2">
+      <p>{statusError}</p><Button variant="outline" disabled={checkingStatus || !!busy} onClick={() => { void refreshPending().catch(() => {}); }}>
+        {checkingStatus ? 'Checking…' : 'Retry status check'}
+      </Button>
+    </div>}
+    {user && PADDLE_READY && !pending && !statusError && statusNotice && <p role="status" className="text-center text-sm text-muted-foreground">{statusNotice}</p>}
     <AlertDialog open={confirmCancel} onOpenChange={setConfirmCancel}><AlertDialogContent><AlertDialogHeader>
       <AlertDialogTitle>Cancel unfinished {pending?.pack} checkout?</AlertDialogTitle>
       <AlertDialogDescription>We will ask Paddle to cancel this unpaid transaction and verify its status before starting another checkout. Completed payments and existing credits are preserved.</AlertDialogDescription>

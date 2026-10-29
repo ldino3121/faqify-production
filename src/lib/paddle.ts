@@ -5,6 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 export const BILLING_PROVIDER = import.meta.env.VITE_BILLING_PROVIDER === 'razorpay' ? 'razorpay' : 'paddle';
 export const PADDLE_READY = !!import.meta.env.VITE_PADDLE_CLIENT_TOKEN?.trim();
 export type PendingCheckout = { pack: 'Pro' | 'Business'; status: string; transactionId?: string; canResume?: boolean; canCancel?: boolean };
+export type CheckoutStatus = { pending: PendingCheckout | null; result?: 'canceled' | 'fulfilled' | 'processing' };
 async function checkoutRequest(body: Record<string, unknown>) {
   const { data, error } = await supabase.functions.invoke('create-paddle-checkout', { body });
   if (error) {
@@ -13,8 +14,9 @@ async function checkoutRequest(body: Record<string, unknown>) {
   }
   return data;
 }
-export async function pendingPaddleCheckout(): Promise<PendingCheckout | null> {
-  return (await checkoutRequest({ action: 'pending' })).pending ?? null;
+export async function pendingPaddleCheckout(): Promise<CheckoutStatus> {
+  const data = await checkoutRequest({ action: 'pending' });
+  return { pending: data.pending ?? null, result: data.result };
 }
 let sdk: Promise<Paddle | undefined> | undefined;
 export async function paddle() {
@@ -27,6 +29,8 @@ export async function paddle() {
     checkout: { settings: { displayMode: 'overlay', theme: 'dark', successUrl: `${window.location.origin}/dashboard?billing=processing` } },
     eventCallback: event => {
       if (event.name === 'checkout.completed') window.dispatchEvent(new Event('faqify-billing-updated'));
+      if (event.name === 'checkout.closed' || event.name === 'checkout.completed')
+        window.dispatchEvent(new Event('faqify-checkout-status-changed'));
     },
   }).catch(error => { sdk = undefined; throw error; });
   const instance = await sdk;
