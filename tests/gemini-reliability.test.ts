@@ -89,6 +89,8 @@ describe('bounded Gemini generation', () => {
     await category(empty.result, 'invalid_output');
     const invalidJson = run([new Response('{broken', { status: 200 })]);
     await category(invalidJson.result, 'invalid_output');
+    const truncated = run([new Response(JSON.stringify({ candidates: [{ finishReason: 'MAX_TOKENS', content: { parts: [{ text: JSON.stringify(pair) }] } }] }), { status: 200 })]);
+    await category(truncated.result, 'invalid_output');
   });
   it('stops after both models fail and enforces the overall deadline', async () => {
     const x = run([failure(503, 'UNAVAILABLE'), failure(503, 'UNAVAILABLE'), failure(503, 'UNAVAILABLE'), failure(503, 'UNAVAILABLE')]);

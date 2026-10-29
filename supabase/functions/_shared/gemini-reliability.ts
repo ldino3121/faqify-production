@@ -105,8 +105,15 @@ export async function generateWithGemini(options: {
           options.record?.({ model, attempt, latency_ms: now() - start, category: 'safety_block', status: response.status, fallback: index > 0 });
           throw new GeminiFailure('safety_block', response.status);
         }
+        if (finishReason && finishReason !== 'STOP') {
+          options.record?.({ model, attempt, latency_ms: now() - start, category: 'invalid_output', status: response.status, fallback: index > 0 });
+          throw new GeminiFailure('invalid_output', response.status);
+        }
         let faqs: ReturnType<typeof parseGeneratedFaqs>;
-        try { faqs = parseGeneratedFaqs(data?.candidates?.[0]?.content?.parts?.[0]?.text, options.count); }
+        try {
+          const text = data?.candidates?.[0]?.content?.parts?.map(part => typeof part.text === 'string' ? part.text : '').join('');
+          faqs = parseGeneratedFaqs(text, options.count);
+        }
         catch {
           options.record?.({ model, attempt, latency_ms: now() - start, category: 'invalid_output', status: response.status, fallback: index > 0 });
           throw new GeminiFailure('invalid_output', response.status);
