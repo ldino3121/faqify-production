@@ -1,20 +1,16 @@
 import { withRolloutGuard } from '../_shared/rollout.ts';
 import { safeFetch, publicUrl, readPublicText } from '../_shared/safe-fetch.ts';
-import { parseGeneratedFaqs, requestedFaqCount } from '../_shared/faq-count.ts';
+import { requestedFaqCount } from '../_shared/faq-count.ts';
+import { GeminiFailure, configuredGeminiModels, generateWithGemini, publicGeminiMessage } from '../_shared/gemini-reliability.ts';
 
 import { createClient } from 'npm:@supabase/supabase-js@2.50.2';
 
-// 🛡️ BULLETPROOF GOOGLE GEMINI API CONFIGURATION
 // Secrets are supplied by the Edge Function environment.
-const getBulletproofGeminiApiKey = () => {
-  // BULLETPROOF STRATEGY: Multiple fallback layers
-
-  // Layer 1: Environment variables (preferred for security)
+const getGeminiApiKey = () => {
   const envApiKey = Deno.env.get('GEMINI_API_KEY') ||
                     Deno.env.get('GOOGLE_AI_API_KEY') ||
                     Deno.env.get('GOOGLE_GEMINI_API_KEY');
 
-  // Layer 2: Strict validation – no hard-coded fallback keys
   const apiKey = envApiKey?.trim();
   if (!apiKey || apiKey === 'undefined' || apiKey === 'null') {
     console.error('🚨 CRITICAL: No Gemini API key found in environment variables.');
@@ -24,16 +20,8 @@ const getBulletproofGeminiApiKey = () => {
   return apiKey;
 };
 
-// Get the bulletproof Gemini API key
-const BULLETPROOF_GEMINI_API_KEY = getBulletproofGeminiApiKey();
-
-// 🛡️ BULLETPROOF PROTECTION: Prevent any future modifications from breaking FAQ generation
-// Primary model with a fallback selected below.
-const BULLETPROOF_FAQ_GENERATION_ENABLED = true;
-const BULLETPROOF_GEMINI_MODEL = 'gemini-2.5-flash'; // Updated to use available model
-const BULLETPROOF_API_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models';
-
-// 🚨 WARNING: DO NOT MODIFY THE ABOVE CONSTANTS - THEY ENSURE PRODUCTION STABILITY
+const GEMINI_API_KEY = getGeminiApiKey();
+const GEMINI_MODELS = configuredGeminiModels(Deno.env.get);
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -47,15 +35,9 @@ const APP_HOST = (() => {
   try { return new URL(APP_ORIGIN).hostname; } catch { return 'YOUR-DOMAIN.example'; }
 })();
 
-// PRODUCTION MODE - NEVER allow demo mode
-const FORCE_PRODUCTION_MODE = true;
-
-
 
 Deno.serve(withRolloutGuard(async (req) => {
-  console.log('=== BULLETPROOF ANALYZE-CONTENT FUNCTION v2.0 - FAQ COUNT FIX ===');
-  console.log('Method:', req.method);
-  console.log('Production Mode:', FORCE_PRODUCTION_MODE);
+  const requestStartedAt = Date.now();
 
 
   // Handle CORS preflight requests
@@ -65,33 +47,18 @@ Deno.serve(withRolloutGuard(async (req) => {
 
   let activeGeneration: { id: string; userId: string } | null = null;
   try {
-    // 🛡️ BULLETPROOF GEMINI API key validation
+    // Authentication, quota and generation-ticket checks precede provider work.
 
     if (!req.headers.get('content-type')?.includes('application/json')) throw new Error('Use document processing before analyzing uploaded files.');
     const requestData = await req.json();
-    const { url, text, type, fileName, faqCount = 5 } = requestData;
+    const { url, text, type, fileName, faqCount = 5, action } = requestData;
     // Defensive contract repair (Oct 2026 sim found raw `{ text }` calls with no
     // `type` were rejected): a bare text/URL body is common, so infer the
     // missing discriminator. An explicit `type` always wins.
     const inferredType = type || (url && !text ? 'url' : (text ? 'text' : undefined));
-    if (inferredType && inferredType !== type) {
-      console.log('🔧 Input contract repair: inferred missing type discriminator', {
-        inferredType, hasUrl: !!url, textLength: text?.length ?? 0,
-      });
-    }
-
     // 🔍 DETAILED DEBUGGING - Check what we're actually receiving
     // Validate FAQ count (1-10 range)
     const validFaqCount = requestedFaqCount(faqCount);
-    console.log('🎯 FINAL FAQ COUNT DECISION:', {
-      requestedFaqCount: faqCount,
-      validFaqCount,
-      url,
-      type,
-      textLength: text?.length,
-      fileName
-    });
-
     // 🔒 AUTH + QUOTA ENFORCEMENT (defense in depth; verify_jwt is also enabled).
     // The client already pre-checks, but we must never trust it for billing/cost.
     const supabaseAdmin = createClient(
@@ -106,6 +73,30 @@ Deno.serve(withRolloutGuard(async (req) => {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (action === 'model_health') {
+      const { data: role, error: roleError } = await supabaseAdmin.from('user_roles').select('role')
+        .eq('user_id', user.id).eq('role', 'admin').maybeSingle();
+      if (roleError) throw roleError;
+      if (!role) return new Response(JSON.stringify({ error: 'Forbidden' }), {
+        status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+      const models = await Promise.all([GEMINI_MODELS.primary, GEMINI_MODELS.fallback].map(async model => {
+        try {
+          const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}`, {
+            headers: { 'x-goog-api-key': GEMINI_API_KEY }, signal: AbortSignal.timeout(8_000),
+          });
+          if (!response.ok) return { model, available: false, status: response.status };
+          const data = await response.json();
+          return { model, available: data.name === `models/${model}` &&
+            data.supportedGenerationMethods?.includes('generateContent') === true &&
+            Number(data.outputTokenLimit) >= 4096, status: response.status };
+        } catch { return { model, available: false, status: 0 }; }
+      }));
+      return new Response(JSON.stringify({ models }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
       });
     }
 
@@ -139,7 +130,6 @@ Deno.serve(withRolloutGuard(async (req) => {
 
     if (inferredType === 'url' && url) {
       try {
-        console.log('Starting robust web scraping for URL:', url);
 
         // Advanced web scraping with multiple strategies
         const maxRetries = 2;
@@ -160,12 +150,10 @@ Deno.serve(withRolloutGuard(async (req) => {
 
         for (let attempt = 0; attempt < maxRetries; attempt++) {
           try {
-            console.log(`🔄 Scraping attempt ${attempt + 1}/${maxRetries} for URL: ${url}`);
 
             // Progressive delay between attempts
             if (attempt > 0) {
               const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000); // Exponential backoff, max 5s
-              console.log(`⏳ Waiting ${delay}ms before retry...`);
               await new Promise(resolve => setTimeout(resolve, delay));
             }
 
@@ -237,7 +225,6 @@ Deno.serve(withRolloutGuard(async (req) => {
               };
             }
 
-            console.log(`📡 Using strategy ${attempt + 1}: ${currentUA}`);
             const response = await safeFetch(url, fetchOptions);
 
             if (!response.ok) {
@@ -245,17 +232,14 @@ Deno.serve(withRolloutGuard(async (req) => {
             }
 
             const html = await readPublicText(response);
-            console.log(`Fetched HTML length: ${html.length}`);
 
             // 🧠 ULTRA-INTELLIGENT CONTENT EXTRACTION - Aggressively filters secondary content
-            console.log('🧠 Starting ultra-intelligent content analysis...');
 
             // Step 1: Detect and handle special URLs (but allow processing to continue for debugging)
             const isRedditUrl = url.includes('reddit.com');
             const isSocialMedia = url.includes('facebook.com') || url.includes('twitter.com') || url.includes('instagram.com') || url.includes('linkedin.com');
 
             if (isRedditUrl || isSocialMedia) {
-              console.log('⚠️ Social media URL detected, but continuing for debugging...');
               // Don't throw error immediately, let it try to process and fail gracefully later
             }
 
@@ -346,7 +330,6 @@ Deno.serve(withRolloutGuard(async (req) => {
 
               const authorKeywordCount = authorBioKeywords.filter(keyword => lowerContent.includes(keyword)).length;
               if (authorKeywordCount > 0) {
-                console.log(`⚠️ Author content detected (${authorKeywordCount} keywords): ${content.substring(0, 100)}...`);
                 score -= (authorKeywordCount * 20); // Penalty based on number of author keywords
               }
 
@@ -359,7 +342,6 @@ Deno.serve(withRolloutGuard(async (req) => {
               const mainKeywordCount = mainContentKeywords.filter(keyword => lowerContent.includes(keyword)).length;
               if (mainKeywordCount > 0) {
                 score += (mainKeywordCount * 30); // Big bonus for main content
-                console.log(`✅ Main content detected (${mainKeywordCount} keywords)`);
               }
 
               // Length scoring (optimal range: 500-5000 characters)
@@ -380,7 +362,6 @@ Deno.serve(withRolloutGuard(async (req) => {
               if (primaryContentSelectors.includes(selector)) score += 30;
               else if (secondaryContentSelectors.includes(selector)) score += 10;
 
-              console.log(`📊 Content score: ${score} for selector: ${selector} (length: ${content.length})`);
               return score;
             };
 
@@ -393,7 +374,6 @@ Deno.serve(withRolloutGuard(async (req) => {
                   bestContent = extractedContent;
                   bestScore = score;
                   bestSelector = selector;
-                  console.log(`🎯 Primary content found: ${selector}, score: ${score}, length: ${extractedContent.length}`);
                 }
               }
             }
@@ -408,7 +388,6 @@ Deno.serve(withRolloutGuard(async (req) => {
                     bestContent = extractedContent;
                     bestScore = score;
                     bestSelector = selector;
-                    console.log(`🔍 Secondary content found: ${selector}, score: ${score}, length: ${extractedContent.length}`);
                   }
                 }
               }
@@ -440,15 +419,12 @@ Deno.serve(withRolloutGuard(async (req) => {
 
             if (bestContent.length > 200 && bestScore > -50) { // More lenient thresholds
               extractedText = bestContent;
-              console.log(`✅ Using intelligent extraction: ${bestSelector}, score: ${bestScore}`);
             } else {
-              console.log(`⚠️ Intelligent extraction failed (best score: ${bestScore}, length: ${bestContent.length}), using fallback methods...`);
 
               // Fallback 1: Try to find content by looking for article title patterns
               const titleMatch = cleanedHtml.match(/<h1[^>]*>([^<]+)<\/h1>/i);
               if (titleMatch) {
                 const title = titleMatch[1].trim();
-                console.log(`📰 Found article title: ${title}`);
 
                 // Look for content after the title
                 const titleIndex = cleanedHtml.indexOf(titleMatch[0]);
@@ -458,13 +434,11 @@ Deno.serve(withRolloutGuard(async (req) => {
                 const paragraphs = contentAfterTitle.match(/<p[^>]*>([^<]+(?:<[^>]*>[^<]*<\/[^>]*>[^<]*)*)<\/p>/gi);
                 if (paragraphs && paragraphs.length > 2) {
                   extractedText = paragraphs.slice(0, 8).map(p => p.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()).join(' ');
-                  console.log('📝 Using paragraph extraction after title');
                 }
               }
 
               // Fallback 2: SMART content filtering (less aggressive)
               if (!extractedText || extractedText.length < 200) {
-                console.log('🔄 Trying smart content filtering...');
                 extractedText = cleanedHtml.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
 
                 // First, try to get any reasonable content
@@ -498,31 +472,21 @@ Deno.serve(withRolloutGuard(async (req) => {
 
                   if (bestSentences.length > 0) {
                     extractedText = bestSentences.join('. ') + '.';
-                    console.log(`🔄 Using smart filtered extraction (${bestSentences.length} sentences)`);
                   }
                 }
 
                 // Last resort: use any content we can find
                 if (!extractedText || extractedText.length < 100) {
-                  console.log('🔄 Using basic content extraction as last resort...');
                   const basicText = cleanedHtml.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
                   if (basicText.length > 100) {
                     extractedText = basicText.substring(0, 2000); // Take first 2000 chars
-                    console.log('🔄 Using basic text extraction');
                   }
                 }
               }
             }
 
-            console.log(`📊 Final extracted text length: ${extractedText.length}`);
-            console.log(`📝 Content preview: ${extractedText.substring(0, 500)}...`);
 
             if (extractedText.length < 50) {
-              console.error('❌ Insufficient content extracted!');
-              console.error(`   - Original HTML length: ${html.length}`);
-              console.error(`   - Cleaned HTML length: ${cleanedHtml.length}`);
-              console.error(`   - Best content found: ${bestContent.length} chars (score: ${bestScore})`);
-              console.error(`   - URL: ${url}`);
 
               // Try one more emergency fallback
               const emergencyText = html
@@ -533,7 +497,6 @@ Deno.serve(withRolloutGuard(async (req) => {
                 .trim();
 
               if (emergencyText.length > 100) {
-                console.log('🚨 Using emergency text extraction');
                 extractedText = emergencyText.substring(0, 3000);
               } else {
                 throw new Error(`Could not extract sufficient content from this URL. Original HTML: ${html.length} chars, Cleaned: ${cleanedHtml.length} chars. The page may be heavily JavaScript-based or have restricted access.`);
@@ -541,12 +504,10 @@ Deno.serve(withRolloutGuard(async (req) => {
             }
 
             contentToAnalyze = extractedText.substring(0, 12000);
-            console.log('Successfully extracted content for AI processing');
             break;
 
           } catch (errorCaught) {
       const error = errorCaught instanceof Error ? errorCaught : new Error(String(errorCaught));
-            console.error(`Attempt ${attempt + 1} failed:`, error.message);
             lastError = error;
 
             if (attempt === maxRetries - 1) {
@@ -568,11 +529,9 @@ Deno.serve(withRolloutGuard(async (req) => {
 
       } catch (errorCaught) {
       const error = errorCaught instanceof Error ? errorCaught : new Error(String(errorCaught));
-        console.error('❌ Direct web scraping failed:', error.message);
 
         // Fallback: Try alternative scraping methods
         try {
-          console.log('🔄 Attempting fallback scraping methods...');
 
           // Method 1: Try with different protocol (http vs https)
           let fallbackUrl = url;
@@ -583,7 +542,6 @@ Deno.serve(withRolloutGuard(async (req) => {
           }
 
           if (fallbackUrl !== url) {
-            console.log(`🔄 Trying alternative protocol: ${fallbackUrl}`);
             try {
               const fallbackResponse = await safeFetch(fallbackUrl, {
                 headers: {
@@ -598,7 +556,6 @@ Deno.serve(withRolloutGuard(async (req) => {
               if (fallbackResponse.ok) {
                 const fallbackHtml = await readPublicText(fallbackResponse);
                 if (fallbackHtml.length > 1000) {
-                  console.log('✅ Alternative protocol worked!');
                   // Process the fallback HTML with same extraction logic
                   let extractedText = fallbackHtml
                     .replace(/<script[^>]*>[\s\S]*?<\/script>/gmi, '')
@@ -614,13 +571,11 @@ Deno.serve(withRolloutGuard(async (req) => {
               }
             } catch (fallbackErrorCaught) {
       const fallbackError = fallbackErrorCaught instanceof Error ? fallbackErrorCaught : new Error(String(fallbackErrorCaught));
-              console.log('⚠️ Alternative protocol also failed:', fallbackError.message);
             }
           }
 
           // Method 2: If still no content, try a simple text extraction from any HTML
           if (!contentToAnalyze) {
-            console.log('🔄 Attempting basic HTML parsing...');
             try {
               const basicResponse = await safeFetch(url, {
                 headers: { 'User-Agent': 'curl/7.68.0' },
@@ -637,13 +592,11 @@ Deno.serve(withRolloutGuard(async (req) => {
                   .trim();
 
                 if (basicText.length > 200) {
-                  console.log('✅ Basic HTML parsing extracted some content');
                   contentToAnalyze = basicText.substring(0, 12000);
                 }
               }
             } catch (basicErrorCaught) {
       const basicError = basicErrorCaught instanceof Error ? basicErrorCaught : new Error(String(basicErrorCaught));
-              console.log('⚠️ Basic HTML parsing also failed:', basicError.message);
             }
           }
 
@@ -654,14 +607,12 @@ Deno.serve(withRolloutGuard(async (req) => {
 
         } catch (fallbackErrorCaught) {
       const fallbackError = fallbackErrorCaught instanceof Error ? fallbackErrorCaught : new Error(String(fallbackErrorCaught));
-          console.error('❌ All fallback methods failed:', fallbackError.message);
           throw error; // Throw original error
         }
       }
     } else if ((inferredType === 'text' || inferredType === 'file') && text) {
       contentToAnalyze = text.substring(0, 8000);
       if (inferredType === 'file') {
-        console.log('Processing file:', fileName);
       }
     } else {
       throw new Error('Invalid input: provide URL, text content, or file');
@@ -671,17 +622,11 @@ Deno.serve(withRolloutGuard(async (req) => {
       throw new Error('Not enough readable source content to generate FAQs. Add more source detail or paste text instead.');
     }
 
-    // 🛡️ BULLETPROOF PRODUCTION MODE - Google Gemini GUARANTEED to work
-    console.log('🛡️ BULLETPROOF MODE - Generating AI content with Google Gemini');
-    console.log('Content length available:', contentToAnalyze.length);
-    console.log('Bulletproof Gemini API key ready:', !!BULLETPROOF_GEMINI_API_KEY);
+    // Use only the configured, reviewed Gemini model pair.
 
     // Demo mode is PERMANENTLY DISABLED for production stability
 
-    // Generate FAQs using Google Gemini - BULLETPROOF AI capabilities
-    console.log('🤖 Generating FAQs using Bulletproof Google Gemini...');
-    console.log('Content length being sent to Gemini:', contentToAnalyze.length);
-    console.log('Bulletproof Gemini API Key configured:', !!BULLETPROOF_GEMINI_API_KEY);
+    // Generate FAQs using Google Gemini.
 
     // 🛡️ Google Gemini API call with retry + fallback model (model resilience)
     const requestPayload = {
@@ -705,73 +650,15 @@ ${contentToAnalyze}`
           }
     };
 
-    // Retry (2x per model) on rate-limit / server / network errors, then fall back
-    // to a cheaper model so generation survives a primary-model outage.
-    const GEMINI_MODEL_CHAIN = [BULLETPROOF_GEMINI_MODEL, 'gemini-2.5-flash-lite'];
-    let response: Response | undefined = undefined;
-    let lastAttemptError = 'no attempt made';
-
-    modelLoop: for (const modelName of GEMINI_MODEL_CHAIN) {
-      for (let attempt = 0; attempt < 2; attempt++) {
-        const modelUrl = `${BULLETPROOF_API_ENDPOINT}/${modelName}:generateContent?key=${BULLETPROOF_GEMINI_API_KEY}`;
-        try {
-          response = await fetch(modelUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(requestPayload),
-          });
-        } catch (netErrCaught) {
-      const netErr = netErrCaught instanceof Error ? netErrCaught : new Error(String(netErrCaught));
-          lastAttemptError = `Network error: ${netErr instanceof Error ? netErr.message : String(netErr)}`;
-          response = undefined;
-        }
-
-        if (response?.ok) {
-          if (modelName !== BULLETPROOF_GEMINI_MODEL) {
-            console.log(`Fallback model used: ${modelName}`);
-          }
-          break modelLoop;
-        }
-
-        lastAttemptError = response ? `HTTP ${response.status}` : lastAttemptError;
-        const retryable = !response || response.status === 429 || response.status >= 500;
-        if (!retryable || attempt > 0) break; // non-retryable → move to the fallback model
-        await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
-      }
-    }
-
-    if (!response || !response.ok) {
-      let errorText = lastAttemptError;
-      const status = response?.status ?? 0;
-      if (response) {
-        try { errorText = await response.text(); } catch { /* keep lastAttemptError */ }
-      }
-      console.error('GOOGLE GEMINI API ERROR:', { status, errorText, lastAttemptError });
-
-      // Return 200 with error flag so Supabase SDK populates response.data
-      return new Response(JSON.stringify({
-        error: true,
-        message: `Gemini API Error: ${status} - ${lastAttemptError}`,
-        details: errorText,
-        status,
-        isDemoMode: false,
-        faqs: [] // Empty FAQs array to maintain response structure
-      }), {
-        status: 200, // Return 200 so Supabase SDK populates response.data
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
-
-    const data = await response.json();
-    console.log('✅ Google Gemini response received successfully');
-    console.log('Response structure:', Object.keys(data));
-
-    if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
-      console.error('Invalid Gemini response structure');
-      throw new Error('Invalid response from Gemini AI service');
-    }
-
-    const generatedFAQs = parseGeneratedFaqs(data.candidates[0].content.parts?.[0]?.text, validFaqCount);
+    const gemini = await generateWithGemini({
+      apiKey: GEMINI_API_KEY,
+      models: GEMINI_MODELS,
+      payload: requestPayload,
+      count: validFaqCount,
+      requestStartedAt,
+      record: metric => console.info('gemini_attempt', metric),
+    });
+    const generatedFAQs = gemini.faqs;
     const { error: persistError } = await supabaseAdmin.from('faq_generation_requests')
       .update({ faqs: generatedFAQs, status: 'completed' }).eq('id', generation.id);
     if (persistError) throw new Error('Unable to preserve generated FAQs. Please retry; no quota was charged.');
@@ -792,55 +679,34 @@ ${contentToAnalyze}`
     if (activeGeneration) {
       try {
         const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
-        await db.rpc('fail_faq_generation', { p_user: activeGeneration.userId, p_generation_id: activeGeneration.id });
-      } catch (releaseError) {
-        console.error('Generation reservation release failed; ticket expiry will reconcile it', releaseError);
+        const { error: releaseError } = await db.rpc('fail_faq_generation', {
+          p_user: activeGeneration.userId, p_generation_id: activeGeneration.id,
+        });
+        if (releaseError) console.error('generation_reservation_release_failed', { generation_id: activeGeneration.id });
+      } catch {
+        console.error('generation_reservation_release_failed', { generation_id: activeGeneration.id });
       }
     }
-      const error = errorCaught instanceof Error ? errorCaught : new Error(String(errorCaught));
-    console.error('Error in analyze-content function:', error);
-
-    // Provide comprehensive error messages for production use
-    let errorMessage = 'Failed to analyze content';
-
-    if (error.message.includes('API authentication failed')) {
-      errorMessage = 'Service configuration error. Please contact support.';
-    } else if (error.message.includes('API rate limit exceeded')) {
-      errorMessage = 'Service temporarily busy. Please try again in a few moments.';
-    } else if (error.message.includes('API quota exceeded')) {
-      errorMessage = 'Service temporarily unavailable. Please try again later.';
+    const error = errorCaught instanceof Error ? errorCaught : new Error('unknown');
+    let errorMessage = 'Unable to generate FAQs. Your credits were not charged; please retry.';
+    let category = 'application';
+    if (error instanceof GeminiFailure) {
+      category = error.category;
+      errorMessage = publicGeminiMessage(error.category);
     } else if (error.message.includes('Website timeout') || error.message.includes('timeout')) {
-      errorMessage = 'The website took too long to respond. Please try again or use a different URL.';
+      errorMessage = 'The website took too long to respond. Try again or paste its text.';
     } else if (error.message.includes('Access denied') || error.message.includes('blocking automated requests')) {
-      errorMessage = 'This website blocks automated access. Please copy the content manually using the Text tab.';
+      errorMessage = 'This website blocks automated access. Paste its text instead.';
     } else if (error.message.includes('Page not found')) {
-      errorMessage = 'The webpage could not be found. Please check the URL and try again.';
-    } else if (error.message.includes('Unable to extract meaningful content')) {
-      errorMessage = 'Could not extract content from this webpage. Try copying the text manually using the Text tab.';
-    } else if (error.message.includes('DeepSeek API') || error.message.includes('AI service')) {
-      errorMessage = 'AI service temporarily unavailable. Please try again in a moment.';
-    } else if (error.message.includes('fetch')) {
-      errorMessage = 'Unable to access the website. Please check the URL and try again.';
-    } else {
-      errorMessage = error.message || 'Failed to analyze content. Please try again.';
+      errorMessage = 'The webpage could not be found. Check the URL and retry.';
+    } else if (error.message.includes('Unable to extract meaningful content') || error.message.includes('Not enough readable source content')) {
+      errorMessage = 'Add more readable source detail or paste text instead.';
+    } else if (error.message.includes('Choose a FAQ count')) {
+      errorMessage = 'Choose between 1 and 10 FAQs.';
     }
-
-    // Log detailed error for debugging
-    console.error('🚨 DETAILED FUNCTION ERROR:', {
-      message: error.message,
-      stack: error.stack,
-      name: error.name,
-      errorMessage: errorMessage
-    });
-
-    return new Response(JSON.stringify({
-      error: true,
-      message: errorMessage,
-      details: error.message,
-      faqs: [] // Empty FAQs array to maintain response structure
-    }), {
-      status: 200, // Return 200 so Supabase SDK populates response.data
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    console.error('analyze_content_failed', { category, reserved: !!activeGeneration });
+    return new Response(JSON.stringify({ error: true, message: errorMessage, faqs: [] }), {
+      status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 }, 'analyze-content', true));
