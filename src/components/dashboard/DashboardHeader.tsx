@@ -52,9 +52,9 @@ export const DashboardHeader = ({ sidebarOpen, setSidebarOpen }: DashboardHeader
   const userInitials = userName.split(' ').map(n => n[0]).join('').toUpperCase();
 
   return (
-    <header className="bg-gray-900/50 border-b border-gray-800 px-6 py-4">
+    <header className="bg-gray-900/50 border-b border-gray-800 px-3 sm:px-6 py-4">
       <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-2 sm:space-x-4">
           <Button
             variant="ghost"
             size="sm"
@@ -70,12 +70,12 @@ export const DashboardHeader = ({ sidebarOpen, setSidebarOpen }: DashboardHeader
           </Link>
         </div>
 
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-2 sm:space-x-4">
           {isAdmin && (
             <Button asChild variant="ghost" size="sm" className="text-white hover:bg-gray-800">
               <Link to="/admin" aria-label="Admin panel">
-                <ShieldCheck className="h-4 w-4 mr-2" />
-                Admin
+                <ShieldCheck className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Admin</span>
               </Link>
             </Button>
           )}
