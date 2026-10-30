@@ -15,15 +15,19 @@ export interface CreditBalance {
 }
 
 export function useCredits() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const userId = user?.id;
   const client = useQueryClient();
   const queryKey = ['faq-credits', userId] as const;
-  const query = useQuery({ queryKey, enabled: !!userId,
+  const query = useQuery({ queryKey, enabled: !!userId && !authLoading,
     queryFn: async (): Promise<CreditBalance> => {
       const { data, error } = await supabase.rpc('can_generate_faqs', { user_uuid: userId!, faq_count: 1 });
       if (error || !data || typeof data !== 'object' || Array.isArray(data)) throw error ?? new Error('Credit balance unavailable');
       const result = data as Record<string, unknown>;
+      for (const key of ['free_credits', 'paid_credits', 'legacy_credits', 'reserved_credits', 'remaining_faqs']) {
+        const value = result[key];
+        if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) throw new Error('Credit balance response is incomplete');
+      }
       return {
         free: Number(result.free_credits ?? 0), paid: Number(result.paid_credits ?? 0),
         legacy: Number(result.legacy_credits ?? 0), reserved: Number(result.reserved_credits ?? 0),
@@ -41,6 +45,7 @@ export function useCredits() {
     window.addEventListener('faqify-billing-updated', refresh);
     return () => { void supabase.removeChannel(channel); window.removeEventListener('faqify-billing-updated', refresh); };
   }, [userId, client]);
-  return { balance: query.data ?? null, loading: !!userId && query.isPending, error: query.error,
+  return { balance: userId ? query.data ?? null : null,
+    loading: authLoading || (!!userId && query.isPending), error: userId ? query.error : null,
     refetch: query.refetch };
 }

@@ -16,7 +16,10 @@ const packs = [
   { pack: 'Pro' as const, credits: 100, dollars: 9 },
   { pack: 'Business' as const, credits: 500, dollars: 29 },
 ];
-export function BillingPlans({ dashboard = false, onNavigateToOverview }: { dashboard?: boolean; onNavigateToOverview?: () => void }) {
+export function BillingPlans({ dashboard = false, onNavigateToOverview, usageLimitsOpen, onUsageLimitsChange }: {
+  dashboard?: boolean; onNavigateToOverview?: () => void;
+  usageLimitsOpen?: boolean; onUsageLimitsChange?: (open: boolean) => void;
+}) {
   const [busy, setBusy] = useState<string | null>(null);
   const [pending, setPending] = useState<PendingCheckout | null>(null);
   const [selectedPack, setSelectedPack] = useState<'Pro' | 'Business' | null>(null);
@@ -28,7 +31,7 @@ export function BillingPlans({ dashboard = false, onNavigateToOverview }: { dash
   const pendingRef = useRef<PendingCheckout | null>(null);
   const { user } = useAuth();
   const userId = user?.id;
-  const { balance, refetch: refetchCredits } = useCredits();
+  const { balance, loading: creditsLoading, error: creditsError, refetch: refetchCredits } = useCredits();
   const { subscription } = useSubscription();
   const { toast } = useToast();
   const location = useLocation();
@@ -141,7 +144,8 @@ export function BillingPlans({ dashboard = false, onNavigateToOverview }: { dash
       <p className="text-sm text-muted-foreground">One-time payment · No automatic renewal · Purchased credits do not expire · Applicable taxes shown at checkout.</p>
     </div>
     {dashboard && <Card aria-label="Available credit balance"><CardContent className="py-4 min-h-32 sm:min-h-20 text-sm">
-      <p className="font-semibold text-lg">{balance ? `${balance.available} credits available` : 'Loading available credits…'}</p>
+      <p className="font-semibold text-lg">{balance ? `${balance.available} credits available` : creditsLoading ? 'Loading available credits…' : 'Credit balance unavailable'}</p>
+      {creditsError && <p role="alert" className="text-sm text-destructive">Could not refresh your balance. <Button variant="link" className="p-0 h-auto" onClick={() => void refetchCredits()}>Retry</Button></p>}
       {balance && <p className="text-muted-foreground">{balance.paid} purchased
         {balance.free > 0 ? ` · ${balance.free} free` : ''}
         {legacy ? ` · ${legacy.remaining} temporary until ${localDate(legacy.expiresAt)}` : ''}
@@ -160,8 +164,8 @@ export function BillingPlans({ dashboard = false, onNavigateToOverview }: { dash
         </CardContent></Card>)}
     </div>
     <p className="text-center text-sm text-muted-foreground"><span className="font-medium">Test mode</span> · Secure checkout by Paddle.{!PADDLE_READY ? ' Payments are being set up.' : ''}</p>
-    <details className="rounded border border-border p-4 text-sm"><summary className="cursor-pointer font-medium">Usage limits</summary>
-      <p className="mt-2 text-muted-foreground">Free accounts can create one collection until their first paid purchase. Paid accounts can keep up to 100 collections and 10,000 saved FAQ pairs. Existing FAQs, exports and published embeds remain available when generation credits reach zero. Credits cover generation, not unlimited storage or hosting.</p>
+    <details open={dashboard ? usageLimitsOpen : undefined} onToggle={dashboard ? event => onUsageLimitsChange?.(event.currentTarget.open) : undefined} className="rounded border border-border p-4 text-sm"><summary className="cursor-pointer font-medium">Usage limits</summary>
+      <p className="mt-2 text-muted-foreground">Free accounts can create one collection. After buying a credit pack, you can create up to 100 collections. You can store up to 10,000 FAQ pairs. Each successfully saved AI-generated pair uses one credit. Existing FAQs and embeds remain available when credits run out.</p>
     </details>
     {user && PADDLE_READY && pending && <Card className="border-amber-500/40" role="status"><CardContent className="pt-6 space-y-3">
       <p className="font-medium">{pending.pack} checkout {pending.status === 'processing' ? 'is being confirmed' : pending.status === 'preparing' ? 'is being prepared' : 'is unfinished'}</p>
