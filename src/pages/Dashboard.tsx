@@ -9,11 +9,15 @@ import { FAQCreator } from "@/components/dashboard/FAQCreator";
 import { FAQManager } from "@/components/dashboard/FAQManager";
 import { PlanUpgrade } from "@/components/dashboard/PlanUpgrade";
 import { Button } from '@/components/ui/button';
+import { useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '@/hooks/useAuth';
 
 const Dashboard = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const contentRef = useRef<HTMLDivElement>(null);
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState(() => {
     const section = window.location.hash.slice(1);
     if (['overview', 'create', 'manage', 'upgrade'].includes(section)) return section;
@@ -21,10 +25,21 @@ const Dashboard = () => {
     return params.has('purchase') || params.get('billing') === 'processing' ? 'upgrade' : 'overview';
   });
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [refreshKey, setRefreshKey] = useState(0);
   const [creatorVisited, setCreatorVisited] = useState(false);
+  const [managerVisited, setManagerVisited] = useState(() => window.location.hash === '#manage');
+  useEffect(() => {
+    if (!user?.id) return;
+    const accountId = user.id;
+    const refresh = () => {
+      for (const key of ['paddle-recent-completed', 'credit-recent-activity', 'paddle-history', 'credit-activity'])
+        void queryClient.invalidateQueries({ queryKey: [key, accountId] });
+    };
+    window.addEventListener('faqify-billing-updated', refresh);
+    return () => window.removeEventListener('faqify-billing-updated', refresh);
+  }, [queryClient, user?.id]);
   const navigateTab = (tab: string) => {
     if (tab === 'create') setCreatorVisited(true);
+    if (tab === 'manage') setManagerVisited(true);
     setActiveTab(tab);
     navigate({ pathname: '/dashboard', search: location.search, hash: `#${tab}` });
     requestAnimationFrame(() => contentRef.current?.scrollIntoView({ block: 'start' }));
@@ -33,6 +48,7 @@ const Dashboard = () => {
     const section = location.hash.slice(1);
     if (['overview', 'create', 'manage', 'upgrade'].includes(section)) {
       if (section === 'create') setCreatorVisited(true);
+      if (section === 'manage') setManagerVisited(true);
       setActiveTab(section);
     } else {
       const params = new URLSearchParams(location.search);
@@ -40,10 +56,11 @@ const Dashboard = () => {
     }
   }, [location.hash, location.search]);
 
-  // Force refresh function for data sync
-  const forceRefresh = () => {
-    console.log('🔄 Force refreshing dashboard data');
-    setRefreshKey(prev => prev + 1);
+  const openHistory = (kind: 'payments' | 'activity') => {
+    const params = new URLSearchParams(location.search);
+    params.set('history', kind);
+    setActiveTab('upgrade');
+    navigate({ pathname: '/dashboard', search: `?${params}`, hash: '#upgrade' });
   };
 
   const renderContent = () => {
@@ -52,8 +69,8 @@ const Dashboard = () => {
         {/* Overview Tab */}
         <div className={activeTab === "overview" ? "block" : "hidden"}>
           {activeTab === "overview" && <DashboardOverviewData
-            key={`overview-${refreshKey}`}
             onNavigateToUpgrade={() => navigateTab('upgrade')}
+            onOpenBillingHistory={openHistory}
           />}
         </div>
 
@@ -63,7 +80,8 @@ const Dashboard = () => {
             key="create-persistent"
             onNavigateToUpgrade={() => navigateTab('upgrade')}
             onNavigateToManage={() => {
-              forceRefresh(); // Force refresh before navigating
+              void queryClient.invalidateQueries({ queryKey: ['faq-collections', user?.id] });
+              void queryClient.invalidateQueries({ queryKey: ['overview-content', user?.id] });
               navigateTab('manage');
             }}
           />}
@@ -71,15 +89,14 @@ const Dashboard = () => {
 
         {/* Manage Tab */}
         <div className={activeTab === "manage" ? "block" : "hidden"}>
-          {activeTab === "manage" && <FAQManager
-            key={`manage-${refreshKey}`}
+          {managerVisited && <FAQManager
             onNavigateToCreate={() => navigateTab("create")}
           />}
         </div>
 
         {/* Upgrade Tab */}
         <div className={activeTab === "upgrade" ? "block" : "hidden"}>
-          {activeTab === "upgrade" && <PlanUpgrade key={`upgrade-${refreshKey}`} onNavigateToOverview={() => navigateTab('overview')} />}
+          {activeTab === "upgrade" && <PlanUpgrade onNavigateToOverview={() => navigateTab('overview')} />}
         </div>
       </div>
     );

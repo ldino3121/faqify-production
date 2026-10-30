@@ -6,11 +6,15 @@ import { useCredits } from '@/hooks/useCredits';
 import { useSubscription } from '@/hooks/useSubscription';
 import { supabase } from '@/integrations/supabase/client';
 import { legacyAllowance, legacyAllowanceMessage } from '@/lib/billing';
+import { useBillingRecords } from '@/hooks/useBillingRecords';
+import { ActivityRecord, PaymentRecord } from './BillingRecordCards';
 
-export const DashboardOverviewData = ({ onNavigateToUpgrade }: { onNavigateToUpgrade?: () => void }) => {
+export const DashboardOverviewData = ({ onNavigateToUpgrade, onOpenBillingHistory }: {
+  onNavigateToUpgrade?: () => void; onOpenBillingHistory?: (kind: 'payments' | 'activity') => void }) => {
   const { user } = useAuth();
   const { balance, loading: creditsLoading } = useCredits();
   const { subscription } = useSubscription();
+  const billing = useBillingRecords();
   const content = useQuery({ queryKey: ['overview-content', user?.id], enabled: !!user,
     queryFn: async () => {
       const { data: collections, error } = await supabase.from('faq_collections')
@@ -39,6 +43,22 @@ export const DashboardOverviewData = ({ onNavigateToUpgrade }: { onNavigateToUpg
         <p className="text-sm text-muted-foreground">Existing FAQs, edits, exports and published embeds remain available at zero credits.</p></CardContent></Card>
     </div>
     {balance?.hold && <Card><CardContent className="pt-6" role="alert">A billing adjustment needs review before new AI generation. Your existing FAQs and embeds remain available. Contact support.</CardContent></Card>}
+    <div className="grid gap-4 lg:grid-cols-2">
+      <Card><CardHeader><CardTitle>Most recent completed payment</CardTitle></CardHeader><CardContent className="space-y-3 text-sm">
+        {billing.payments.isPending && <p>Loading payment…</p>}
+        {billing.payments.isError && <p role="alert">Payment summary unavailable.</p>}
+        {billing.payments.isSuccess && (billing.completed[0]
+          ? <ul><PaymentRecord payment={billing.completed[0]} /></ul> : <p>No completed purchases yet.</p>)}
+        <Button variant="outline" onClick={() => onOpenBillingHistory?.('payments')}>View all payments</Button>
+      </CardContent></Card>
+      <Card><CardHeader><CardTitle>Most recent credit activity</CardTitle></CardHeader><CardContent className="space-y-3 text-sm">
+        {billing.activity.isPending && <p>Loading activity…</p>}
+        {billing.activity.isError && <p role="alert">Credit activity unavailable.</p>}
+        {billing.activity.isSuccess && (billing.activity.data[0]
+          ? <ul><ActivityRecord entry={billing.activity.data[0]} /></ul> : <p>No credit activity yet.</p>)}
+        <Button variant="outline" onClick={() => onOpenBillingHistory?.('activity')}>View all credit activity</Button>
+      </CardContent></Card>
+    </div>
     <Card><CardHeader><CardTitle>Recent collections</CardTitle></CardHeader><CardContent className="space-y-2">
       {collections.slice(0,5).map(item => <p key={item.id}>{item.title} · {Array.isArray(item.faqs) ? (item.faqs[0]?.count ?? 0) : 0} FAQ pairs</p>)}
       {collections.length === 0 && <p className="text-muted-foreground">Your first collection will appear here.</p>}

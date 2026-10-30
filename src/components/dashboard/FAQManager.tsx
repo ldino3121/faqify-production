@@ -1,5 +1,6 @@
 import { escapeHtml, csvCell } from '@/utils/export';
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -24,6 +25,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import WIDGET_CONFIG from "@/config/widget";
+import { searchCollections } from '@/lib/faq-search';
 
 interface FAQCollection {
   id: string;
@@ -49,10 +51,11 @@ interface FAQ {
 interface FAQManagerProps {
   onNavigateToCreate?: () => void;
 }
+const PAGE_SIZE = 5;
 
 export const FAQManager = ({ onNavigateToCreate }: FAQManagerProps) => {
-  const [collections, setCollections] = useState<FAQCollection[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
   const [selectedCollection, setSelectedCollection] = useState<FAQCollection | null>(null);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -68,88 +71,65 @@ export const FAQManager = ({ onNavigateToCreate }: FAQManagerProps) => {
     faqs: [] as { id: string; question: string; answer: string; order_index: number }[]
   });
   const { user } = useAuth();
+  const accountId = user?.id;
+  const queryClient = useQueryClient();
   const { toast } = useToast();
-
-  useEffect(() => {
-    if (user) {
-      fetchCollections();
-    }
-  }, [user]);
+  const collectionQuery = useQuery({ queryKey: ['faq-collections', accountId], enabled: !!accountId,
+    queryFn: async ({ signal }): Promise<FAQCollection[]> => {
+      const { data, error } = await supabase.from('faq_collections')
+        .select('id,title,description,status,created_at,updated_at,source_url')
+        .eq('user_id', accountId!).order('created_at', { ascending: false }).order('id', { ascending: false })
+        .abortSignal(signal);
+      if (error) throw error;
+      if (!data?.length) return [];
+      const ids = data.map(collection => collection.id);
+      const faqs: FAQ[] = [];
+      for (let offset = 0; ; offset += 1000) {
+        const { data: rows, error: faqError } = await supabase.from('faqs')
+          .select('id,collection_id,question,answer,order_index,is_published')
+          .in('collection_id', ids).order('id', { ascending: true }).range(offset, offset + 999).abortSignal(signal);
+        if (faqError) throw faqError;
+        faqs.push(...(rows ?? []));
+        if (!rows || rows.length < 1000) break;
+      }
+      const byCollection = new Map(ids.map(id => [id, [] as FAQ[]]));
+      for (const faq of faqs) byCollection.get(faq.collection_id)?.push(faq);
+      return data.map(collection => ({ ...collection,
+        faqs: (byCollection.get(collection.id) ?? []).sort((a, b) => a.order_index - b.order_index) })) as FAQCollection[];
+    }, staleTime: 30000, gcTime: 300000 });
+  const collections = collectionQuery.data ?? [];
+  const filteredCollections = searchCollections(collections, search);
+  const pageCount = Math.max(1, Math.ceil(filteredCollections.length / PAGE_SIZE));
+  const currentPage = Math.min(page, pageCount);
+  const visibleCollections = filteredCollections.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const refreshCollections = useCallback(() => queryClient.invalidateQueries({ queryKey: ['faq-collections', accountId] }), [accountId, queryClient]);
 
   // Set up real-time subscription for FAQ collections
   useEffect(() => {
-    if (!user) return;
+    if (!accountId) return;
 
 
 
     const collectionsChannel = supabase
-      .channel('faq-collections-realtime')
+      .channel(`faq-collections-realtime-${accountId}`)
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
         table: 'faq_collections',
-        filter: `user_id=eq.${user.id}`,
-      }, (payload) => {
-
-        fetchCollections(); // Refetch all collections when any collection changes
-      })
+        filter: `user_id=eq.${accountId}`,
+      }, () => { void refreshCollections(); })
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
         table: 'faqs',
-      }, (payload) => {
-
-        fetchCollections(); // Realtime applies row ownership policies before delivery.
-      })
+      }, () => { void refreshCollections(); })
       .subscribe();
 
     return () => {
 
       supabase.removeChannel(collectionsChannel);
     };
-  }, [user?.id]);
-
-  const fetchCollections = async () => {
-    try {
-      setLoading(true);
-
-
-      const { data: collectionsData, error: collectionsError } = await supabase
-        .from('faq_collections')
-        .select(`
-          *,
-          faqs (*)
-        `)
-        .eq('user_id', user?.id)
-        .order('created_at', { ascending: false });
-
-      if (collectionsError) {
-        console.error('❌ Error fetching collections:', collectionsError);
-        throw collectionsError;
-      }
-
-
-
-
-      // Sort FAQs within each collection by order_index
-      const sortedCollections = (collectionsData || []).map(collection => ({
-        ...collection,
-        faqs: (collection.faqs || []).sort((a, b) => (a.order_index || 0) - (b.order_index || 0))
-      }));
-
-      // The DB `status` column is a free-form string; narrow it to the UI union.
-      setCollections(sortedCollections as FAQCollection[]);
-    } catch (error) {
-      console.error('Error fetching collections:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load FAQ collections.",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [accountId, refreshCollections]);
 
   const deleteCollection = async (collectionId: string) => {
     try {
@@ -160,7 +140,7 @@ export const FAQManager = ({ onNavigateToCreate }: FAQManagerProps) => {
 
       if (error) throw error;
 
-      setCollections(collections.filter(c => c.id !== collectionId));
+      await refreshCollections();
       toast({
         title: "Collection Deleted",
         description: "FAQ collection has been deleted successfully.",
@@ -249,7 +229,7 @@ export const FAQManager = ({ onNavigateToCreate }: FAQManagerProps) => {
       }
 
       // Refresh collections
-      await fetchCollections();
+      await refreshCollections();
 
       setEditDialogOpen(false);
       toast({
@@ -258,6 +238,7 @@ export const FAQManager = ({ onNavigateToCreate }: FAQManagerProps) => {
       });
     } catch (error) {
       console.error('Error updating collection:', error);
+      void refreshCollections();
       toast({
         title: "Update Failed",
         description: "Failed to update FAQ collection. Please try again.",
@@ -289,6 +270,7 @@ export const FAQManager = ({ onNavigateToCreate }: FAQManagerProps) => {
       // Remove from form state
       const updatedFAQs = editForm.faqs.filter((_, i) => i !== index);
       setEditForm({ ...editForm, faqs: updatedFAQs });
+      await refreshCollections();
 
       toast({
         title: "FAQ Removed",
@@ -296,6 +278,7 @@ export const FAQManager = ({ onNavigateToCreate }: FAQManagerProps) => {
       });
     } catch (error) {
       console.error('Error removing FAQ:', error);
+      void refreshCollections();
       toast({
         title: "Error",
         description: "Failed to remove FAQ. Please try again.",
@@ -421,18 +404,21 @@ export const FAQManager = ({ onNavigateToCreate }: FAQManagerProps) => {
     }
   };
 
-  if (loading) {
+  if (collectionQuery.isPending && !collectionQuery.data) {
     return (
-      <div className="flex items-center justify-center p-8">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
-        <span className="ml-2 text-gray-400">Loading FAQ collections...</span>
+      <div className="space-y-4" role="status" aria-label="Loading FAQ collections">
+        <div className="h-9 w-52 animate-pulse rounded bg-muted" />
+        {[0,1,2].map(index => <div key={index} className="h-32 animate-pulse rounded border border-border bg-muted/50" />)}
       </div>
     );
   }
+  if (collectionQuery.isError && !collectionQuery.data) return <div role="alert" className="space-y-3 p-6">
+    <p>Unable to load FAQ collections.</p><Button variant="outline" onClick={() => void collectionQuery.refetch()}>Retry</Button>
+  </div>;
 
   return (
     <div className="space-y-8">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold text-white mb-2">Manage FAQs</h1>
           <p className="text-gray-400">View, edit, and manage all your generated FAQ collections</p>
@@ -446,23 +432,34 @@ export const FAQManager = ({ onNavigateToCreate }: FAQManagerProps) => {
         </Button>
       </div>
 
+      <div className="space-y-2 max-w-xl">
+        <Label htmlFor="manage-faq-search">Search collections and FAQs</Label>
+        <div className="flex gap-2"><Input id="manage-faq-search" type="search" value={search}
+          placeholder="Search titles, questions or answers" onChange={event => { setSearch(event.target.value); setPage(1); }}
+          onKeyDown={event => { if (event.key === 'Enter') event.preventDefault(); }} />
+          <Button variant="outline" disabled={!search} onClick={() => { setSearch(''); setPage(1); }}>Clear search</Button></div>
+        {collectionQuery.isFetching && <p className="text-xs text-muted-foreground" role="status">Updating FAQs…</p>}
+        {collectionQuery.isError && <div role="alert" className="text-sm"><p>Unable to refresh FAQ collections.</p>
+          <Button variant="outline" onClick={() => void collectionQuery.refetch()}>Retry</Button></div>}
+      </div>
+
       <div className="grid grid-cols-1 gap-6">
-        {collections.length === 0 ? (
+        {filteredCollections.length === 0 ? (
           <Card className="bg-gray-900/50 border-gray-800">
             <CardContent className="p-12 text-center">
               <div className="text-gray-400 mb-4">
                 <Globe className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p className="text-lg">No FAQ collections found</p>
-                <p className="text-sm">Create your first FAQ collection to get started</p>
+                <p className="text-lg">{search.trim() ? 'No matching FAQ collections' : 'No FAQ collections found'}</p>
+                <p className="text-sm">{search.trim() ? 'Try a different title, question or answer.' : 'Create your first FAQ collection to get started.'}</p>
               </div>
             </CardContent>
           </Card>
         ) : (
-          collections.map((collection) => (
+          visibleCollections.map((collection) => (
             <Card key={collection.id} className="bg-gray-900/50 border-gray-800 hover:border-gray-700 transition-colors">
               <CardContent className="p-6">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex-1">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-4">
+                  <div className="min-w-0 flex-1">
                     <div className="flex items-center space-x-3 mb-2">
                       <Globe className="h-4 w-4 text-blue-400" />
                       <h3 className="text-lg font-semibold text-white">{collection.title}</h3>
@@ -471,7 +468,7 @@ export const FAQManager = ({ onNavigateToCreate }: FAQManagerProps) => {
                     {collection.description && (
                       <p className="text-sm text-gray-400 mb-2">{collection.description}</p>
                     )}
-                    <div className="flex items-center space-x-6 text-sm text-gray-400">
+                    <div className="flex flex-wrap items-center gap-3 text-sm text-gray-400">
                       <span className="flex items-center space-x-1">
                         <Calendar className="h-4 w-4" />
                         <span>Created {new Date(collection.created_at).toLocaleDateString()}</span>
@@ -480,7 +477,7 @@ export const FAQManager = ({ onNavigateToCreate }: FAQManagerProps) => {
                     </div>
                   </div>
 
-                  <div className="flex items-center space-x-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <Button
                       size="sm"
                       className="bg-blue-600 hover:bg-blue-700 text-white"
@@ -556,6 +553,11 @@ export const FAQManager = ({ onNavigateToCreate }: FAQManagerProps) => {
           ))
         )}
       </div>
+      {filteredCollections.length > PAGE_SIZE && <nav aria-label="FAQ collection pages" className="flex items-center justify-center gap-3">
+        <Button variant="outline" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>Previous</Button>
+        <span className="text-sm">Page {currentPage} of {pageCount}</span>
+        <Button variant="outline" disabled={currentPage === pageCount} onClick={() => setPage(currentPage + 1)}>Next</Button>
+      </nav>}
 
       {/* View Collection Dialog */}
       <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
