@@ -108,8 +108,6 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
   };
 
   // Enhanced FAQ generation checking with expiry validation
-  const [canCreateFAQ, setCanCreateFAQ] = useState(false);
-  const [faqEligibility, setFaqEligibility] = useState<any>(null);
   const remainingUsage = balance?.available ?? 0;
 
   // Global gating flags used across the Create FAQ UI
@@ -117,47 +115,9 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
   const isBlocked = !!balance?.hold || hasNoQuota;
 
 
-  // Check FAQ generation eligibility including expiry
-  useEffect(() => {
-    const checkEligibility = async () => {
-      if (!user) {
-        setCanCreateFAQ(false);
-        return;
-      }
-
-      const eligibility = await canCreateFAQFromHook(1);
-      setFaqEligibility(eligibility);
-      setCanCreateFAQ(eligibility.canGenerate);
-    };
-
-    checkEligibility();
-  }, [balance?.available, balance?.hold, user?.id, canCreateFAQFromHook]);
-
-  // Function to check if user can generate a specific number of FAQs
-  const canGenerateFAQCount = async (count: number) => {
-    if (!user) return false;
-
-    const eligibility = await canCreateFAQFromHook(count);
-    return eligibility.canGenerate;
-  };
-
-  // Check if current selected FAQ count is valid
-  const [canGenerateSelectedCount, setCanGenerateSelectedCount] = useState(false);
-
-  // Update selected count eligibility when faqCount or subscription changes
-  useEffect(() => {
-    const checkSelectedCount = async () => {
-      if (!user) {
-        setCanGenerateSelectedCount(false);
-        return;
-      }
-
-      const canGenerate = await canGenerateFAQCount(faqCount);
-      setCanGenerateSelectedCount(canGenerate);
-    };
-
-    checkSelectedCount();
-  }, [faqCount, balance?.available, balance?.hold, user?.id, canCreateFAQFromHook]);
+  // The wallet RPC is the loaded server-backed balance. Recheck eligibility in
+  // generateFAQs immediately before work begins, when concurrent use may have changed it.
+  const canGenerateSelectedCount = !!balance && !balance.hold && faqCount <= balance.available;
 
   // Get maximum FAQ count user can generate based on remaining usage
   const maxGeneratableFAQs = Math.max(0, Math.min(10, remainingUsage));
@@ -812,6 +772,8 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
     return <Card className="bg-gray-900/50 border-gray-800"><CardContent className="p-6 space-y-3">
       <p role="alert" className="text-white">Your FAQ credit balance is unavailable. Please retry before generating.</p>
       <Button variant="outline" onClick={() => { void refetchCredits(); }}>Retry balance</Button>
+      {(textInput || urlInput || uploadedFile || generatedFAQs.length > 0) &&
+        <Button variant="outline" onClick={downloadDraft}>Download unsaved draft</Button>}
     </CardContent></Card>;
   }
 
@@ -1016,7 +978,7 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
                   </SelectContent>
                 </Select>
                 {!canGenerateSelectedCount && <p className="text-xs text-red-400" role="status">
-                  {faqEligibility?.reason || 'Not enough credits for this count. Choose fewer FAQs or buy credits.'}
+                  {balance?.hold ? 'Generation is paused while billing is reviewed.' : 'Not enough credits for this count. Choose fewer FAQs or buy credits.'}
                 </p>}
               </div>
             </div>
@@ -1033,7 +995,7 @@ export const FAQCreator = ({ onNavigateToUpgrade, onNavigateToManage }: FAQCreat
 
             <Button
               onClick={generateFAQs}
-              disabled={isBlocked || isGenerating || !canCreateFAQ || !canGenerateSelectedCount}
+              disabled={isBlocked || isGenerating || !canGenerateSelectedCount}
               className="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white disabled:bg-gray-600 disabled:cursor-not-allowed"
             >
               {isGenerating ? (

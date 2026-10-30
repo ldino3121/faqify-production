@@ -25,6 +25,7 @@ const Dashboard = () => {
     return params.has('purchase') || params.get('billing') === 'processing' ? 'upgrade' : 'overview';
   });
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [usageLimitsOpen, setUsageLimitsOpen] = useState(false);
   const [creatorVisited, setCreatorVisited] = useState(false);
   const [managerVisited, setManagerVisited] = useState(() => window.location.hash === '#manage');
   useEffect(() => {
@@ -56,13 +57,6 @@ const Dashboard = () => {
     }
   }, [location.hash, location.search]);
 
-  const openHistory = (kind: 'payments' | 'activity') => {
-    const params = new URLSearchParams(location.search);
-    params.set('history', kind);
-    setActiveTab('upgrade');
-    navigate({ pathname: '/dashboard', search: `?${params}`, hash: '#upgrade' });
-  };
-
   const renderContent = () => {
     return (
       <div className="relative">
@@ -70,7 +64,6 @@ const Dashboard = () => {
         <div className={activeTab === "overview" ? "block" : "hidden"}>
           {activeTab === "overview" && <DashboardOverviewData
             onNavigateToUpgrade={() => navigateTab('upgrade')}
-            onOpenBillingHistory={openHistory}
           />}
         </div>
 
@@ -96,7 +89,8 @@ const Dashboard = () => {
 
         {/* Upgrade Tab */}
         <div className={activeTab === "upgrade" ? "block" : "hidden"}>
-          {activeTab === "upgrade" && <PlanUpgrade onNavigateToOverview={() => navigateTab('overview')} />}
+          {activeTab === "upgrade" && <PlanUpgrade onNavigateToOverview={() => navigateTab('overview')}
+            usageLimitsOpen={usageLimitsOpen} onUsageLimitsChange={setUsageLimitsOpen} />}
         </div>
       </div>
     );
