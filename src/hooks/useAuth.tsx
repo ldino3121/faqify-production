@@ -1,8 +1,9 @@
-import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
+import { useState, useEffect, useRef, createContext, useContext, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { intendedDashboard, type CreditPack } from '@/lib/purchase-intent';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface AuthContextType {
   user: User | null;
@@ -31,6 +32,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const previousUserId = useRef<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -38,15 +41,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // Subscribe first: a later getSession result must never overwrite a newer auth event.
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, next) => {
       authEventReceived = true;
+      if (_event === 'SIGNED_OUT' || (previousUserId.current && next?.user.id !== previousUserId.current)) queryClient.clear();
+      previousUserId.current = next?.user.id ?? null;
       if (mounted) { setSession(next); setUser(next?.user ?? null); setLoading(false); }
     });
     supabase.auth.getSession().then(({ data, error }) => {
       if (mounted && !authEventReceived) {
+        previousUserId.current = error ? null : data.session?.user.id ?? null;
         setSession(error ? null : data.session); setUser(error ? null : data.session?.user ?? null); setLoading(false);
       }
     }).catch(() => { if (mounted) setLoading(false); });
     return () => { mounted = false; subscription.unsubscribe(); };
-  }, []);
+  }, [queryClient]);
 
   const signUp = async (email: string, password: string, fullName?: string, captchaToken?: string, pack?: CreditPack | null) => {
 
@@ -104,6 +110,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // Immediately clear in-memory auth state to prevent auto-redirects on /login
     setSession(null);
     setUser(null);
+    queryClient.clear();
     try {
       // Best-effort cleanup of persisted auth tokens in localStorage (Supabase stores under sb-<ref>-auth-token)
       Object.keys(window.localStorage).forEach((key) => {

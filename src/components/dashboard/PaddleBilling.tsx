@@ -1,80 +1,51 @@
-import { useEffect, useState } from 'react';
-import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
-import { useCredits } from '@/hooks/useCredits';
-import { useSubscription } from '@/hooks/useSubscription';
+import { useBillingRecords, fetchLedgerPage, type HistoryPage, type LedgerEntry } from '@/hooks/useBillingRecords';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { openPaddlePortal } from '@/lib/paddle';
-import { formatPaymentAmount, legacyAllowance, legacyAllowanceMessage, localDate,
-  paymentCategory, paymentStatusText, type PaymentCategory, type PaymentSummary } from '@/lib/billing';
+import { paymentCategory, type PaymentCategory } from '@/lib/billing';
+import { ActivityRecord, PaymentRecord } from './BillingRecordCards';
 
-type LedgerEntry = { id: number; bucket: string; entry_type: string; delta: number;
-  created_at: string; source_transaction_id: string | null; source_adjustment_id: string | null };
-type HistoryPage = { transactions: PaymentSummary[]; next: string | null; hasCustomer: boolean };
 const categories: Array<[PaymentCategory, string]> = [
   ['pending', 'Pending payments'], ['completed', 'Completed payments'],
   ['failed', 'Failed or canceled payments'], ['refunded', 'Refunded payments'],
   ['disputed', 'Disputed payments'], ['review', 'Payments under review'],
 ];
 
-function activityLabel(entry: LedgerEntry, purchases: Map<string, PaymentSummary>) {
-  const amount = Math.abs(entry.delta);
-  if (entry.entry_type === 'purchase_grant') {
-    const purchase = entry.source_transaction_id ? purchases.get(entry.source_transaction_id) : null;
-    return `${purchase?.pack ?? 'Credit'} pack purchased · +${amount} credits`;
-  }
-  if (entry.entry_type === 'intro_grant') return `Free introductory credits · +${amount}`;
-  if (entry.entry_type === 'usage') {
-    const source = entry.bucket === 'legacy' ? 'temporary allowance' : entry.bucket === 'free' ? 'introductory credits' : 'purchased credits';
-    return `Saved ${amount} generated FAQ${amount === 1 ? '' : 's'} · −${amount} ${source}`;
-  }
-  if (entry.entry_type === 'refund_reversal') return `Purchase adjustment · −${amount} purchased credits`;
-  return `Account credit correction · ${entry.delta > 0 ? '+' : ''}${entry.delta} ${entry.bucket} credits`;
-}
-
 export function PaddleBilling() {
   const { user } = useAuth();
-  const { balance, loading: creditsLoading, error: creditsError } = useCredits();
-  const { subscription } = useSubscription();
-  const { toast } = useToast();
-  const client = useQueryClient();
-  const [opening, setOpening] = useState(false);
   const accountId = user?.id;
-  const history = useInfiniteQuery({ queryKey: ['paddle-history', accountId], enabled: !!accountId,
+  const { toast } = useToast();
+  const { payments, activity, completed, hasCustomer } = useBillingRecords();
+  const [opening, setOpening] = useState(false);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const selected = new URLSearchParams(location.search).get('history');
+  const mode = selected === 'payments' || selected === 'activity' ? selected : null;
+  const setMode = (next: 'payments' | 'activity' | null) => {
+    const params = new URLSearchParams(location.search);
+    if (next) params.set('history', next); else params.delete('history');
+    navigate({ pathname: '/dashboard', search: params.toString() ? `?${params}` : '', hash: '#upgrade' });
+  };
+  const history = useInfiniteQuery({ queryKey: ['paddle-history', accountId], enabled: !!accountId && mode === 'payments',
     initialPageParam: null as string | null,
     queryFn: async ({ pageParam }): Promise<HistoryPage> => {
       const { data, error } = await supabase.functions.invoke('paddle-customer-portal',
         { body: { action: 'history', ...(pageParam ? { after: pageParam } : {}) } });
       if (error || !data || !Array.isArray(data.transactions)) throw error ?? new Error(data?.error || 'Payment history unavailable');
       return data as HistoryPage;
-    }, getNextPageParam: last => last.next ?? undefined, staleTime: 15000 });
-  const activity = useInfiniteQuery({ queryKey: ['credit-activity', accountId], enabled: !!accountId,
+    }, getNextPageParam: last => last.next ?? undefined, staleTime: 30000 });
+  const allActivity = useInfiniteQuery({ queryKey: ['credit-activity', accountId], enabled: !!accountId && mode === 'activity',
     initialPageParam: 0,
-    queryFn: async ({ pageParam }): Promise<LedgerEntry[]> => {
-      const { data, error } = await supabase.from('faq_credit_ledger')
-        .select('id,bucket,entry_type,delta,created_at,source_transaction_id,source_adjustment_id')
-        .eq('user_id', accountId!).order('created_at', { ascending: false }).order('id', { ascending: false })
-        .range(pageParam * 20, pageParam * 20 + 19);
-      if (error) throw error;
-      return data ?? [];
-    }, getNextPageParam: (last, pages) => last.length === 20 ? pages.length : undefined, staleTime: 15000 });
-  useEffect(() => {
-    if (!accountId) return;
-    const refresh = () => {
-      void client.invalidateQueries({ queryKey: ['paddle-history', accountId] });
-      void client.invalidateQueries({ queryKey: ['credit-activity', accountId] });
-    };
-    window.addEventListener('faqify-billing-updated', refresh);
-    return () => window.removeEventListener('faqify-billing-updated', refresh);
-  }, [accountId, client]);
-  const legacy = legacyAllowance(balance, subscription);
+    queryFn: ({ pageParam }): Promise<LedgerEntry[]> => fetchLedgerPage(accountId!, pageParam * 20, 20),
+    getNextPageParam: (last, pages) => last.length === 20 ? pages.length : undefined, staleTime: 30000 });
   const transactions = history.data?.pages.flatMap(page => page.transactions) ?? [];
-  const byTransaction = new Map(transactions.map(transaction => [transaction.id, transaction]));
-  const entries = activity.data?.pages.flat() ?? [];
-  const hasCustomer = history.data?.pages[0]?.hasCustomer ?? false;
+  const entries = allActivity.data?.pages.flat() ?? [];
   async function portal() {
     setOpening(true);
     try { await openPaddlePortal('portal'); }
@@ -82,51 +53,54 @@ export function PaddleBilling() {
       description: error instanceof Error ? error.message : 'Please retry.', variant: 'destructive' }); }
     finally { setOpening(false); }
   }
-  return <div className="space-y-6" aria-label="Billing details">
-    <Card><CardHeader><CardTitle>Credit balance</CardTitle></CardHeader><CardContent className="space-y-2 text-sm">
-      {creditsLoading ? <p>Loading credit balance…</p> : creditsError ? <p role="alert">Unable to load your balance. Please retry.</p> : <>
-        <p className="text-2xl font-bold">{balance?.available ?? 0} credits available to use</p>
-        <p>{balance?.paid ?? 0} purchased credits remaining · Purchased credits do not expire.</p>
-        {(balance?.free ?? 0) > 0 && <p>{balance!.free} free introductory credits remaining.</p>}
-        {legacy && subscription && <p>{legacyAllowanceMessage(subscription, legacy.expiresAt)} {legacy.remaining} temporary credits remain.</p>}
-        {(balance?.reserved ?? 0) > 0 && <p>{balance!.reserved} credits temporarily reserved for unfinished generation.</p>}
-        <p className="text-muted-foreground">Saves use free introductory credits first, then temporary legacy allowance, then purchased credits. One saved generated Q&A pair costs one credit. Collections and saved FAQ totals are separate.</p>
-        {balance?.hold && <p role="alert">A billing adjustment needs review. Existing FAQs and embeds remain available; contact support before generating more.</p>}
-      </>}
-    </CardContent></Card>
-    <Card><CardHeader><CardTitle>Purchases and invoices</CardTitle></CardHeader><CardContent className="space-y-4 text-sm">
-      <p className="text-muted-foreground">Paddle sandbox payments. Amounts shown below are the actual transaction totals, including applicable checkout tax. A payment adds credits only after verified fulfillment.</p>
-      <div className="flex flex-wrap gap-2">
-        {hasCustomer && <Button disabled={opening} onClick={() => void portal()}>{opening ? 'Opening…' : 'Open billing portal'}</Button>}
-      </div>
+  const portalButton = (hasCustomer || history.data?.pages[0]?.hasCustomer) &&
+    <Button disabled={opening} onClick={() => void portal()}>{opening ? 'Opening…' : 'Open billing portal'}</Button>;
+  if (mode === 'payments') return <section className="space-y-4" aria-label="All payments">
+    <Button variant="ghost" onClick={() => setMode(null)}>← Back to Buy Credits</Button>
+    <Card><CardHeader><CardTitle>All payments and invoices</CardTitle></CardHeader><CardContent className="space-y-4">
+      <p className="text-sm text-muted-foreground">Paddle test-mode payments. Credits appear only after verified fulfillment. The portal provides available invoices.</p>
+      {portalButton}
       {history.isPending && <p>Loading payments…</p>}
-      {history.isError && <div role="alert"><p>Unable to load Paddle payment status. No payment has been marked fulfilled here.</p><Button variant="outline" onClick={() => void history.refetch()}>Retry</Button></div>}
-      {history.isSuccess && transactions.length === 0 && <p>No Paddle purchases yet. You can buy a credit pack whenever you need one.</p>}
+      {history.isError && <div role="alert"><p>Unable to load payments.</p><Button variant="outline" onClick={() => void history.refetch()}>Retry</Button></div>}
+      {history.isSuccess && transactions.length === 0 && <p>No payments yet.</p>}
       {history.isSuccess && categories.map(([category, heading]) => {
         const rows = transactions.filter(transaction => paymentCategory(transaction) === category);
-        if (!rows.length) return null;
-        return <section key={category} className="space-y-2"><h3 className="font-semibold">{heading}</h3>
-          <ul className="space-y-2">{rows.map(transaction => <li key={transaction.id} className="rounded border border-border p-3 break-words">
-            <p className="font-medium">{transaction.kind === 'credit_pack' ? `${transaction.pack} · ${transaction.credits} FAQ credits`
-              : transaction.kind === 'recurring' ? `Previous ${transaction.pack} subscription payment` : `Previous ${transaction.pack} 30-day access payment`}</p>
-            <p>{localDate(transaction.billedAt ?? transaction.createdAt)} · {formatPaymentAmount(transaction.amount, transaction.currency)}</p>
-            <p>{paymentStatusText(transaction)}</p>
-            <p className="text-xs text-muted-foreground">Payment reference: {transaction.id}</p>
-          </li>)}</ul></section>;
+        return rows.length ? <section key={category} className="space-y-2"><h3 className="font-semibold">{heading}</h3>
+          <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">{rows.map(transaction => <PaymentRecord key={transaction.id} payment={transaction} />)}</ul>
+        </section> : null;
       })}
+      {history.hasNextPage && <Button variant="outline" disabled={history.isFetchingNextPage} onClick={() => void history.fetchNextPage()}>
+        {history.isFetchingNextPage ? 'Loading…' : 'More payments'}</Button>}
       {history.isSuccess && transactions.some(transaction => paymentCategory(transaction) === 'pending') &&
-        <Button variant="outline" disabled={history.isFetching} onClick={() => void history.refetch()}>Refresh payment status</Button>}
-      {history.hasNextPage && <Button variant="outline" disabled={history.isFetchingNextPage} onClick={() => void history.fetchNextPage()}>{history.isFetchingNextPage ? 'Loading…' : 'More payments'}</Button>}
+        <Button variant="outline" disabled={history.isFetching} onClick={() => void history.refetch()}>Check payment status</Button>}
     </CardContent></Card>
-    <Card><CardHeader><CardTitle>Credit activity</CardTitle></CardHeader><CardContent className="space-y-4 text-sm">
-      <p className="text-muted-foreground">These ledger entries explain credit changes; purchase grants here are the credits from the payments above, not additional purchases. Dates use your device’s local time.</p>
+  </section>;
+  if (mode === 'activity') return <section className="space-y-4" aria-label="All credit activity">
+    <Button variant="ghost" onClick={() => setMode(null)}>← Back to Buy Credits</Button>
+    <Card><CardHeader><CardTitle>All credit activity</CardTitle></CardHeader><CardContent className="space-y-4">
+      <p className="text-sm text-muted-foreground">Purchase grants and usage are ledger entries, not additional payments. Dates use your local time.</p>
+      {allActivity.isPending && <p>Loading credit activity…</p>}
+      {allActivity.isError && <div role="alert"><p>Unable to load credit activity.</p><Button variant="outline" onClick={() => void allActivity.refetch()}>Retry</Button></div>}
+      {allActivity.isSuccess && entries.length === 0 && <p>No credit activity yet.</p>}
+      {allActivity.isSuccess && <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">{entries.map(entry => <ActivityRecord key={entry.id} entry={entry} />)}</ul>}
+      {allActivity.hasNextPage && <Button variant="outline" disabled={allActivity.isFetchingNextPage} onClick={() => void allActivity.fetchNextPage()}>
+        {allActivity.isFetchingNextPage ? 'Loading…' : 'More activity'}</Button>}
+    </CardContent></Card>
+  </section>;
+  return <div className="grid gap-4 lg:grid-cols-2" aria-label="Recent billing records">
+    <Card><CardHeader><CardTitle>Completed payments</CardTitle></CardHeader><CardContent className="space-y-3 text-sm">
+      {payments.isPending && <p>Loading payments…</p>}
+      {payments.isError && <div role="alert"><p>Unable to load payments.</p><Button variant="outline" onClick={() => void payments.refetch()}>Retry</Button></div>}
+      {payments.isSuccess && completed.length === 0 && <p>No completed purchases yet.</p>}
+      {payments.isSuccess && <ul className="space-y-2">{completed.map(payment => <PaymentRecord key={payment.id} payment={payment} />)}</ul>}
+      <div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => setMode('payments')}>View all payments</Button>{portalButton}</div>
+    </CardContent></Card>
+    <Card><CardHeader><CardTitle>Credit activity</CardTitle></CardHeader><CardContent className="space-y-3 text-sm">
       {activity.isPending && <p>Loading credit activity…</p>}
       {activity.isError && <div role="alert"><p>Unable to load credit activity.</p><Button variant="outline" onClick={() => void activity.refetch()}>Retry</Button></div>}
-      {activity.isSuccess && entries.length === 0 && <p>No credit activity yet.</p>}
-      {activity.isSuccess && <ul className="space-y-2">{entries.map(entry => <li key={entry.id} className="rounded border border-border p-3">
-        <p>{activityLabel(entry, byTransaction)}</p><p className="text-xs text-muted-foreground">{localDate(entry.created_at)}</p>
-      </li>)}</ul>}
-      {activity.hasNextPage && <Button variant="outline" disabled={activity.isFetchingNextPage} onClick={() => void activity.fetchNextPage()}>{activity.isFetchingNextPage ? 'Loading…' : 'More activity'}</Button>}
+      {activity.isSuccess && activity.data.length === 0 && <p>No credit activity yet.</p>}
+      {activity.isSuccess && <ul className="space-y-2">{activity.data.map(entry => <ActivityRecord key={entry.id} entry={entry} />)}</ul>}
+      <Button variant="outline" onClick={() => setMode('activity')}>View all credit activity</Button>
     </CardContent></Card>
   </div>;
 }

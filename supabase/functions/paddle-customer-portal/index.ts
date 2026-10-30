@@ -31,17 +31,22 @@ Deno.serve(withRolloutGuard(async req => {
     const { data: customer, error: customerError } = await db.from('paddle_customers')
       .select('customer_id').eq('user_id', user.id).eq('environment', sandbox).maybeSingle();
     if (customerError) throw customerError;
-    if (action === 'history') {
+    if (action === 'history' || action === 'recent_completed') {
+      const recent = action === 'recent_completed';
       const after = body.after;
+      if (recent && after !== undefined) return json({ error: 'Recent payments do not use a cursor.' }, 400);
       if (after !== undefined && (typeof after !== 'string' || !transactionIdPattern.test(after)))
         return json({ error: 'Invalid history cursor.' }, 400);
       const plans = [...configuredPrices(Deno.env.get), ...configuredCreditPackPrices(Deno.env.get)];
       const byPrice = new Map(plans.map(plan => [plan.priceId, plan]));
-      const pageSize = 20;
+      // A summary never fetches the full history. Ten provider rows allow for
+      // adjusted or unrelated transactions while keeping the request bounded.
+      const pageSize = recent ? 10 : 20;
       let providerRows: any[] = [];
       if (customer) {
         const params = new URLSearchParams({ customer_id: customer.customer_id,
           per_page: String(pageSize), order_by: 'created_at[DESC]', include: 'adjustments' });
+        if (recent) params.set('status', 'completed');
         if (after) params.set('after', after);
         const result = await paddleApi(`/transactions?${params}`);
         if (!Array.isArray(result)) throw new Error('Invalid Paddle transaction response');
@@ -49,7 +54,7 @@ Deno.serve(withRolloutGuard(async req => {
       }
       const providerCount = providerRows.length;
       // An open first checkout may not have a linked Paddle customer yet.
-      if (!after) {
+      if (!after && !recent) {
         const { data: open, error: openError } = await db.from('paddle_checkouts')
           .select('transaction_id').eq('user_id', user.id).eq('environment', sandbox)
           .eq('closed', false).not('transaction_id', 'is', null)
@@ -92,7 +97,7 @@ Deno.serve(withRolloutGuard(async req => {
             action: adjustment.action, status: adjustment.status, type: adjustment.type,
           })) };
       }).filter(Boolean).sort((a: any, b: any) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id));
-      return json({ transactions, next: customer && providerCount === pageSize
+      return json({ transactions, next: !recent && customer && providerCount === pageSize
         ? providerRows[pageSize - 1]?.id ?? null : null, hasCustomer: !!customer });
     }
     if (action !== 'portal' && action !== 'subscription') return json({ error: 'Unknown billing action.' }, 400);
