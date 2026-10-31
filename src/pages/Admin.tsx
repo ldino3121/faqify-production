@@ -245,6 +245,7 @@ export default function Admin() {
             <Metric title="Adjustment reviews" value={health.data.adjustmentReviews} definition="Billing adjustments requiring human reconciliation."/>
             <Metric title="Old reservations" value={health.data.oldReservations} definition="Generation tickets past their expiry that still show a reservation."/>
             <Metric title="Stale AI requests" value={health.data.staleAIRequests} definition="Telemetry requests still marked started after ten minutes; investigate before interpreting rates."/>
+            <Metric title="Delayed processed webhooks" value={health.data.delayedProcessedWebhooks} definition="Recorded Paddle events processed more than fifteen minutes after their event time. Failed deliveries without a processed record remain unknown."/>
           </div><p className="text-sm text-muted-foreground">Last processed Paddle event: {utcDate(health.data.lastProcessedWebhook as string|null)}. Webhook failures: {String(health.data.webhookFailures)}. A local intent does not prove the remote Paddle status.</p>
           <Card><CardHeader><CardTitle>Model health</CardTitle></CardHeader><CardContent className="space-y-2 text-sm">
             {(health.data.circuits as ModelData['circuits']).map(row=><p key={`${row.provider}:${row.model_id}`}>{row.provider} / {row.model_id}: {row.last_category??'Unknown'} · last check {utcDate(row.last_check_at)} {row.open_until && Date.parse(row.open_until)>Date.now()?'· circuit open':''}</p>)}

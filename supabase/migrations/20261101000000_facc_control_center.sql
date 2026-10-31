@@ -319,6 +319,7 @@ SELECT jsonb_build_object(
     AND reserved_count>0 AND expires_at<now()),
   'staleAIRequests',(SELECT count(*) FROM public.facc_ai_requests WHERE status='started'
     AND started_at<now()-interval '10 minutes'),
+  'delayedProcessedWebhooks',(SELECT count(*) FROM public.paddle_events WHERE processed_at>occurred_at+interval '15 minutes'),
   'lastProcessedWebhook',(SELECT max(processed_at) FROM public.paddle_events),
   'checkedAt',now()
 );
