@@ -154,5 +154,11 @@ verify_jwt = true
 [functions.admin-set-plan]
 verify_jwt = true
 
+[functions.admin-control-center]
+verify_jwt = true
+
+[functions.admin-model-monitor]
+verify_jwt = false
+
 [functions.probe-razorpay]
 verify_jwt = true
