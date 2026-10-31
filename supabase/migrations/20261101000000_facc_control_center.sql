@@ -114,6 +114,7 @@ CREATE TABLE public.facc_ai_circuits (
   model_id text NOT NULL,
   failure_streak smallint NOT NULL DEFAULT 0,
   open_until timestamptz,
+  recovery_lease_until timestamptz,
   last_check_at timestamptz,
   last_success_at timestamptz,
   last_failure_at timestamptz,
@@ -167,6 +168,22 @@ END $$;
 REVOKE ALL ON FUNCTION public.facc_finish_monitor_run(uuid,integer,integer) FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.facc_finish_monitor_run(uuid,integer,integer) TO service_role;
 
+CREATE FUNCTION public.facc_allow_model_attempt(p_provider text,p_model text)
+RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
+DECLARE circuit public.facc_ai_circuits%ROWTYPE;
+BEGIN
+  PERFORM pg_advisory_xact_lock(hashtextextended(p_provider||':'||p_model,119));
+  SELECT * INTO circuit FROM public.facc_ai_circuits
+    WHERE provider=p_provider AND model_id=p_model FOR UPDATE;
+  IF NOT FOUND OR circuit.open_until IS NULL THEN RETURN true; END IF;
+  IF circuit.open_until>now() OR circuit.recovery_lease_until>now() THEN RETURN false; END IF;
+  UPDATE public.facc_ai_circuits SET recovery_lease_until=now()+interval '130 seconds'
+    WHERE provider=p_provider AND model_id=p_model;
+  RETURN true;
+END $$;
+REVOKE ALL ON FUNCTION public.facc_allow_model_attempt(text,text) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.facc_allow_model_attempt(text,text) TO service_role;
+
 CREATE FUNCTION public.facc_record_ai_attempt(
   p_request uuid,p_seq smallint,p_provider text,p_model text,p_returned_model text,
   p_category text,p_latency integer,p_status smallint,p_input_tokens integer,
@@ -192,6 +209,7 @@ BEGIN
     last_check_at=now(),last_success_at=CASE WHEN p_category='success' THEN now() ELSE public.facc_ai_circuits.last_success_at END,
     last_failure_at=CASE WHEN p_category<>'success' THEN now() ELSE public.facc_ai_circuits.last_failure_at END,
     last_category=p_category,
+    recovery_lease_until=CASE WHEN p_category='success' THEN NULL ELSE public.facc_ai_circuits.recovery_lease_until END,
     open_until=CASE
       WHEN p_category IN ('authentication','model_unavailable') THEN now()+interval '10 minutes'
       WHEN p_category IN ('rate_limited','transient_overload','timeout','network') AND public.facc_ai_circuits.failure_streak>=2 THEN now()+interval '2 minutes'

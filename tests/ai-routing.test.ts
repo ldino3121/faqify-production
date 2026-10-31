@@ -63,6 +63,11 @@ describe('three-layer routing',()=>{
     const late=run([],layers,{requestStartedAt:0,now:()=>121000});
     await expect(late.result).rejects.toMatchObject({category:'timeout'});
   });
+  it('does not call a provider when shared health state is unavailable',async()=>{
+    const x=run([geminiSuccess()],layers,{circuitOpen:async()=>{throw new Error('health database unavailable');}});
+    await expect(x.result).rejects.toThrow('health database unavailable');
+    expect(x.calls).toHaveLength(0);
+  });
   it('rejects missing DeepSeek credentials and malformed DeepSeek output without a charge',async()=>{
     const onlyDeepSeek:AILayer[]=[{provider:'deepseek',model_id:'deepseek-flash',enabled:true}];
     const missing=run([],onlyDeepSeek,{deepSeekKey:undefined});

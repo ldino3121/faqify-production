@@ -679,10 +679,11 @@ ${contentToAnalyze}`
       layers, geminiKey: GEMINI_API_KEY, deepSeekKey: Deno.env.get('DEEPSEEK_API_KEY')?.trim() || undefined,
       geminiPayload: requestPayload, prompt, count: validFaqCount, requestStartedAt,
       circuitOpen: async layer => {
-        const { data, error } = await supabaseAdmin.from('facc_ai_circuits').select('open_until')
-          .eq('provider',layer.provider).eq('model_id',layer.model_id).maybeSingle();
+        const { data, error } = await supabaseAdmin.rpc('facc_allow_model_attempt', {
+          p_provider: layer.provider, p_model: layer.model_id,
+        });
         if (error) throw new Error('AI health state is unavailable.');
-        return !!data?.open_until && Date.parse(data.open_until)>Date.now();
+        return data !== true;
       },
       record: async metric => {
         const price = prices.get(`${metric.provider}:${metric.model}`);

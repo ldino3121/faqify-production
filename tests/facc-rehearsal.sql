@@ -12,6 +12,7 @@ DECLARE
 BEGIN
   IF has_table_privilege('authenticated','public.facc_ai_configs','SELECT')
      OR has_function_privilege('authenticated','public.facc_apply_ai_config(uuid,bigint,jsonb,text)','EXECUTE')
+     OR has_function_privilege('authenticated','public.facc_allow_model_attempt(text,text)','EXECUTE')
      OR has_table_privilege('authenticated','public.user_roles','UPDATE') THEN
     RAISE EXCEPTION 'Authenticated grants expose admin state';
   END IF;
@@ -38,6 +39,17 @@ BEGIN
     'transient_overload',100,503::smallint,null,null,null,false);
   IF (SELECT failure_streak FROM public.facc_ai_circuits WHERE provider='gemini'
     AND model_id='gemini-2.5-flash')<>1 THEN RAISE EXCEPTION 'Duplicate attempt changed circuit'; END IF;
+  UPDATE public.facc_ai_circuits SET open_until=now()-interval '1 second',recovery_lease_until=null
+    WHERE provider='gemini' AND model_id='gemini-2.5-flash';
+  IF NOT public.facc_allow_model_attempt('gemini','gemini-2.5-flash')
+     OR public.facc_allow_model_attempt('gemini','gemini-2.5-flash') THEN
+    RAISE EXCEPTION 'Recovery probe lease is not exclusive';
+  END IF;
+  PERFORM public.facc_record_ai_attempt(customer,2::smallint,'gemini','gemini-2.5-flash',null,
+    'success',100,200::smallint,null,null,null,false);
+  IF NOT public.facc_allow_model_attempt('gemini','gemini-2.5-flash') THEN
+    RAISE EXCEPTION 'Successful customer probe did not reopen model';
+  END IF;
   run_one:=public.facc_begin_monitor_run();
   run_two:=public.facc_begin_monitor_run();
   IF run_one IS NULL OR run_two IS NOT NULL THEN RAISE EXCEPTION 'Monitor lease not exclusive'; END IF;
