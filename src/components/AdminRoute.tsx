@@ -11,12 +11,15 @@ export const AdminRoute = ({ children }: { children: ReactNode }) => {
   const { user, loading } = useAuth();
   const [checking, setChecking] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [checkedUserId, setCheckedUserId] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
+    setChecking(true);
+    setIsAdmin(false);
     const check = async () => {
       if (!user) {
-        if (mounted) { setIsAdmin(false); setChecking(false); }
+        if (mounted) { setCheckedUserId(null); setChecking(false); }
         return;
       }
       try {
@@ -25,14 +28,14 @@ export const AdminRoute = ({ children }: { children: ReactNode }) => {
       } catch {
         if (mounted) setIsAdmin(false);
       } finally {
-        if (mounted) setChecking(false);
+        if (mounted) { setCheckedUserId(user.id); setChecking(false); }
       }
     };
     check();
     return () => { mounted = false; };
   }, [user]);
 
-  if (loading || checking) {
+  if (loading || checking || checkedUserId !== (user?.id ?? null)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background text-foreground">
         Checking access…

@@ -1,7 +1,8 @@
 import { withRolloutGuard } from '../_shared/rollout.ts';
 import { safeFetch, publicUrl, readPublicText } from '../_shared/safe-fetch.ts';
 import { requestedFaqCount } from '../_shared/faq-count.ts';
-import { GeminiFailure, configuredGeminiModels, generateWithGemini, publicGeminiMessage } from '../_shared/gemini-reliability.ts';
+import { GeminiFailure, configuredGeminiModels, publicGeminiMessage } from '../_shared/gemini-reliability.ts';
+import { generateWithRouting, validatedLayers } from '../_shared/ai-routing.ts';
 
 import { createClient } from 'npm:@supabase/supabase-js@2.50.2';
 
@@ -46,6 +47,7 @@ Deno.serve(withRolloutGuard(async (req) => {
   }
 
   let activeGeneration: { id: string; userId: string } | null = null;
+  let telemetryRequest: string | null = null;
   try {
     // Authentication, quota and generation-ticket checks precede provider work.
 
@@ -56,6 +58,7 @@ Deno.serve(withRolloutGuard(async (req) => {
     // `type` were rejected): a bare text/URL body is common, so infer the
     // missing discriminator. An explicit `type` always wins.
     const inferredType = type || (url && !text ? 'url' : (text ? 'text' : undefined));
+    if (!['url','text','file'].includes(inferredType)) throw new Error('Invalid input: provide URL, text content, or file');
     // 🔍 DETAILED DEBUGGING - Check what we're actually receiving
     // Validate FAQ count (1-10 range)
     const validFaqCount = requestedFaqCount(faqCount);
@@ -100,6 +103,14 @@ Deno.serve(withRolloutGuard(async (req) => {
       });
     }
 
+    // One database version is selected for the entire request. Provider attempts
+    // and in-flight saves never observe an admin edit halfway through generation.
+    const { data: routing, error: routingError } = await supabaseAdmin.from('facc_ai_configs')
+      .select('version,layers').order('version', { ascending: false }).limit(1).single();
+    if (routingError || !routing)
+      throw new Error('AI routing configuration is unavailable.');
+    const layers = validatedLayers(routing.layers);
+
     const { data: eligibility, error: eligibilityError } = await supabaseAdmin.rpc('can_generate_faqs', {
       user_uuid: user.id,
       faq_count: validFaqCount,
@@ -125,6 +136,14 @@ Deno.serve(withRolloutGuard(async (req) => {
     if (generationError || !generationId) throw new Error(generationError?.message || 'Unable to start generation.');
     const generation = { id: generationId };
     activeGeneration = { id: generationId, userId: user.id };
+    const telemetryId = crypto.randomUUID();
+    const { error: telemetryError } = await supabaseAdmin.from('facc_ai_requests').insert({
+      id: telemetryId, generation_id: generationId, user_id: user.id, purpose: 'customer',
+      input_type: inferredType, config_version: routing.version,
+      requested_count: validFaqCount, status: 'started', started_at: new Date(requestStartedAt).toISOString(),
+    });
+    if (telemetryError) throw new Error('AI request tracking is unavailable.');
+    telemetryRequest = telemetryId;
 
     let contentToAnalyze = '';
 
@@ -650,18 +669,44 @@ ${contentToAnalyze}`
           }
     };
 
-    const gemini = await generateWithGemini({
-      apiKey: GEMINI_API_KEY,
-      models: GEMINI_MODELS,
-      payload: requestPayload,
-      count: validFaqCount,
-      requestStartedAt,
-      record: metric => console.info('gemini_attempt', metric),
+    const prompt = requestPayload.contents[0].parts[0].text;
+    const { data: catalog, error: catalogError } = await supabaseAdmin.from('facc_model_catalog')
+      .select('provider,model_id,input_usd_per_million,output_usd_per_million');
+    if (catalogError) throw new Error('AI pricing metadata is unavailable.');
+    const prices = new Map((catalog ?? []).map(item => [`${item.provider}:${item.model_id}`, item]));
+    let attemptSeq = 0;
+    const generated = await generateWithRouting({
+      layers, geminiKey: GEMINI_API_KEY, deepSeekKey: Deno.env.get('DEEPSEEK_API_KEY')?.trim() || undefined,
+      geminiPayload: requestPayload, prompt, count: validFaqCount, requestStartedAt,
+      circuitOpen: async layer => {
+        const { data, error } = await supabaseAdmin.rpc('facc_allow_model_attempt', {
+          p_provider: layer.provider, p_model: layer.model_id,
+        });
+        if (error) throw new Error('AI health state is unavailable.');
+        return data !== true;
+      },
+      record: async metric => {
+        const price = prices.get(`${metric.provider}:${metric.model}`);
+        const cost = price && metric.input_tokens != null && metric.output_tokens != null
+          ? (metric.input_tokens * Number(price.input_usd_per_million) + metric.output_tokens * Number(price.output_usd_per_million)) / 1_000_000 : null;
+        const { error } = await supabaseAdmin.rpc('facc_record_ai_attempt', {
+          p_request: telemetryId, p_seq: ++attemptSeq, p_provider: metric.provider, p_model: metric.model,
+          p_returned_model: metric.returned_model ?? null, p_category: metric.category,
+          p_latency: metric.latency_ms, p_status: metric.status || null,
+          p_input_tokens: metric.input_tokens ?? null, p_output_tokens: metric.output_tokens ?? null,
+          p_cost: cost, p_fallback: metric.fallback,
+        });
+        if (error) console.error('ai_attempt_tracking_failed', { request_id: telemetryId });
+      },
     });
-    const generatedFAQs = gemini.faqs;
+    const generatedFAQs = generated.faqs;
     const { error: persistError } = await supabaseAdmin.from('faq_generation_requests')
       .update({ faqs: generatedFAQs, status: 'completed' }).eq('id', generation.id);
     if (persistError) throw new Error('Unable to preserve generated FAQs. Please retry; no quota was charged.');
+    const { error: finishTelemetryError } = await supabaseAdmin.from('facc_ai_requests').update({
+      status: 'success', returned_count: generatedFAQs.length, finished_at: new Date().toISOString(),
+    }).eq('id', telemetryId);
+    if (finishTelemetryError) console.error('ai_request_tracking_failed', { request_id: telemetryId });
 
     return new Response(JSON.stringify({
       generation_id: generation.id,
@@ -676,6 +721,14 @@ ${contentToAnalyze}`
     });
 
   } catch (errorCaught) {
+    if (telemetryRequest) {
+      const category = errorCaught instanceof GeminiFailure ? errorCaught.category : 'application';
+      const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+      const { error: trackingError } = await db.from('facc_ai_requests').update({
+        status: 'failed', error_category: category, finished_at: new Date().toISOString(),
+      }).eq('id', telemetryRequest);
+      if (trackingError) console.error('ai_request_tracking_failed', { request_id: telemetryRequest });
+    }
     if (activeGeneration) {
       try {
         const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);

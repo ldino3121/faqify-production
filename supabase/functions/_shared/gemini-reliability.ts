@@ -19,7 +19,7 @@ export function configuredGeminiModels(get: (name: string) => string | undefined
 type GoogleError = { error?: { status?: string; message?: string; details?: Array<Record<string, unknown>> } };
 type GeminiSuccess = { promptFeedback?: { blockReason?: string }; candidates?: Array<{
   finishReason?: string; content?: { parts?: Array<{ text?: unknown }> };
-}> };
+}>; modelVersion?: string; usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; totalTokenCount?: number } };
 function retryHintMs(response: Response, body: GoogleError | null, now: () => number) {
   const header = response.headers.get('retry-after');
   let hint = header ? Number(header) * 1000 : NaN;
@@ -54,11 +54,12 @@ export function classifyGeminiError(status: number, body: GoogleError | null): G
   return 'unknown';
 }
 const retryable = (category: GeminiCategory) => ['rate_limited', 'transient_overload', 'timeout', 'network'].includes(category);
-const fallbackAllowed = (category: GeminiCategory) => retryable(category) || category === 'model_unavailable';
+export const fallbackAllowed = (category: GeminiCategory) => retryable(category) || category === 'model_unavailable';
 const blockedReasons = new Set(['SAFETY', 'RECITATION', 'PROHIBITED_CONTENT', 'SPII', 'BLOCKLIST']);
-export type GeminiMetric = { model: string; attempt: number; latency_ms: number; category: GeminiCategory | 'success'; status: number; fallback: boolean };
+export type GeminiMetric = { model: string; attempt: number; latency_ms: number; category: GeminiCategory | 'success'; status: number; fallback: boolean;
+  returned_model?: string; input_tokens?: number; output_tokens?: number };
 export async function generateWithGemini(options: {
-  apiKey: string; models: { primary: string; fallback: string }; payload: unknown; count: number;
+  apiKey: string; models: { primary: string; fallback?: string }; payload: unknown; count: number;
   requestStartedAt: number; fetcher?: typeof fetch; now?: () => number; random?: () => number;
   sleep?: (ms: number) => Promise<void>; record?: (metric: GeminiMetric) => void;
 }) {
@@ -70,7 +71,7 @@ export async function generateWithGemini(options: {
   // reserve time for persistence and reservation cleanup.
   const deadline = Math.min(now() + 75_000, options.requestStartedAt + 120_000);
   let lastFailure = new GeminiFailure('unknown');
-  for (const [index, model] of [options.models.primary, options.models.fallback].entries()) {
+  for (const [index, model] of [options.models.primary, options.models.fallback].filter((value): value is string => !!value).entries()) {
     for (let attempt = 1; attempt <= 2; attempt++) {
       const remaining = deadline - now();
       if (remaining < 1_000) throw new GeminiFailure('timeout');
@@ -118,8 +119,14 @@ export async function generateWithGemini(options: {
           options.record?.({ model, attempt, latency_ms: now() - start, category: 'invalid_output', status: response.status, fallback: index > 0 });
           throw new GeminiFailure('invalid_output', response.status);
         }
-        options.record?.({ model, attempt, latency_ms: now() - start, category: 'success', status: response.status, fallback: index > 0 });
-        return { faqs, model, attempts: attempt, fallbackUsed: index > 0, latencyMs: now() - start };
+        const returnedModel = typeof data.modelVersion === 'string' ? data.modelVersion : undefined;
+        const inputTokens = typeof data.usageMetadata?.promptTokenCount === 'number' && Number.isSafeInteger(data.usageMetadata.promptTokenCount)
+          ? data.usageMetadata.promptTokenCount : undefined;
+        const outputTokens = typeof data.usageMetadata?.candidatesTokenCount === 'number' && Number.isSafeInteger(data.usageMetadata.candidatesTokenCount)
+          ? data.usageMetadata.candidatesTokenCount : undefined;
+        options.record?.({ model, attempt, latency_ms: now() - start, category: 'success', status: response.status, fallback: index > 0,
+          returned_model: returnedModel, input_tokens: inputTokens, output_tokens: outputTokens });
+        return { faqs, model, returnedModel, inputTokens, outputTokens, attempts: attempt, fallbackUsed: index > 0, latencyMs: now() - start };
       }
       let body: GoogleError = {};
       try { body = await response.json(); } catch { /* Never surface raw provider bodies. */ }

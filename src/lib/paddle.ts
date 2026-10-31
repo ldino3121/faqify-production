@@ -5,18 +5,24 @@ import { supabase } from '@/integrations/supabase/client';
 export const BILLING_PROVIDER = import.meta.env.VITE_BILLING_PROVIDER === 'razorpay' ? 'razorpay' : 'paddle';
 export const PADDLE_READY = !!import.meta.env.VITE_PADDLE_CLIENT_TOKEN?.trim();
 export type PendingCheckout = { pack: 'Pro' | 'Business'; status: string; transactionId?: string; canResume?: boolean; canCancel?: boolean };
-export type CheckoutStatus = { pending: PendingCheckout | null; result?: 'canceled' | 'fulfilled' | 'processing' };
+export type CheckoutStatus = { pending: PendingCheckout | null; eligible?: boolean; result?: 'canceled' | 'fulfilled' | 'processing' };
+export class CheckoutRequestError extends Error {
+  constructor(message: string, public status: number) { super(message); }
+}
 async function checkoutRequest(body: Record<string, unknown>) {
   const { data, error } = await supabase.functions.invoke('create-paddle-checkout', { body });
   if (error) {
     const detail = await error.context?.json?.().catch(() => null);
-    throw new Error(detail?.error || 'Unable to verify checkout. Please retry.');
+    const status = Number(error.context?.status ?? 0);
+    throw new CheckoutRequestError(detail?.error || (status === 401 ? 'Your session expired. Please sign in again.'
+      : status === 403 ? 'Sandbox checkout is limited to approved test accounts.'
+      : 'Unable to verify checkout. Please retry.'), status);
   }
   return data;
 }
 export async function pendingPaddleCheckout(): Promise<CheckoutStatus> {
   const data = await checkoutRequest({ action: 'pending' });
-  return { pending: data.pending ?? null, result: data.result };
+  return { pending: data.pending ?? null, result: data.result, eligible: data.eligible };
 }
 let sdk: Promise<Paddle | undefined> | undefined;
 export async function paddle() {

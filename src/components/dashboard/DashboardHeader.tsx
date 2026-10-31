@@ -26,6 +26,7 @@ export const DashboardHeader = ({ sidebarOpen, setSidebarOpen }: DashboardHeader
   // Show the Admin link only for admins (server-verified via is_admin()).
   useEffect(() => {
     let mounted = true;
+    setIsAdmin(false);
     if (!user) return;
     (supabase as any).rpc('is_admin')
       .then(({ data }: any) => { if (mounted) setIsAdmin(!!data); })
@@ -73,9 +74,9 @@ export const DashboardHeader = ({ sidebarOpen, setSidebarOpen }: DashboardHeader
         <div className="flex items-center space-x-2 sm:space-x-4">
           {isAdmin && (
             <Button asChild variant="ghost" size="sm" className="text-white hover:bg-gray-800">
-              <Link to="/admin" aria-label="Admin panel">
+              <Link to="/admin" aria-label="Admin Control Center">
                 <ShieldCheck className="h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline">Admin</span>
+                <span className="hidden sm:inline">Admin Control Center</span>
               </Link>
             </Button>
           )}
