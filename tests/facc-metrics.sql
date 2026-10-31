@@ -8,8 +8,12 @@ DECLARE
   manual_id uuid:=gen_random_uuid();
   probe_id uuid:=gen_random_uuid();
   generation_id uuid:=gen_random_uuid();
+  pack_checkout_id uuid:=gen_random_uuid();
+  mirrored_checkout_id uuid:=gen_random_uuid();
+  pro_price_id text;
   result jsonb;
 BEGIN
+  SELECT price_id INTO STRICT pro_price_id FROM public.faq_credit_prices WHERE pack='Pro' AND environment='sandbox';
   INSERT INTO auth.users(id) VALUES(live_user),(sandbox_user);
   INSERT INTO public.profiles(id,created_at) VALUES(live_user,'2098-12-31 23:59:59+00'),
     (sandbox_user,'2099-01-01 00:00:00+00') ON CONFLICT(id) DO UPDATE SET created_at=excluded.created_at;
@@ -17,7 +21,14 @@ BEGIN
   INSERT INTO public.paddle_payments(transaction_id,user_id,environment,customer_id,tier,kind,amount,currency,paid_at,period_end)
   VALUES ('txn_facc_synthetic_usd',live_user,'live','ctm_facc_synthetic','Pro','credit_pack',900,'USD','2099-01-01 00:00:00+00','2100-01-01 00:00:00+00'),
     ('txn_facc_synthetic_eur',live_user,'live','ctm_facc_synthetic','Pro','credit_pack',800,'EUR','2099-12-31 23:59:59+00','2100-01-01 00:00:00+00'),
-    ('txn_facc_synthetic_sandbox',sandbox_user,'sandbox','ctm_facc_sandbox','Business','credit_pack',2900,'USD','2099-06-01 00:00:00+00','2100-01-01 00:00:00+00');
+    ('txn_facc_synthetic_sandbox',sandbox_user,'sandbox','ctm_facc_sandbox','Business','credit_pack',2900,'USD','2099-06-01 00:00:00+00','2100-01-01 00:00:00+00'),
+    ('txn_facc_synthetic_mirrored',sandbox_user,'sandbox','ctm_facc_sandbox','Pro','credit_pack',900,'USD','2099-07-03 00:00:00+00','2100-01-01 00:00:00+00');
+  INSERT INTO public.paddle_checkouts(id,user_id,environment,tier,kind,price_id,transaction_id,closed)
+  VALUES(pack_checkout_id,sandbox_user,'sandbox','Pro','credit_pack',pro_price_id,'txn_facc_synthetic_grant',true),
+    (mirrored_checkout_id,sandbox_user,'sandbox','Pro','credit_pack',pro_price_id,'txn_facc_synthetic_mirrored',true);
+  INSERT INTO public.faq_credit_grants(user_id,transaction_id,checkout_id,environment,price_id,customer_id,credits,remaining,amount_cents,currency,granted_at)
+  VALUES(sandbox_user,'txn_facc_synthetic_grant',pack_checkout_id,'sandbox',pro_price_id,'ctm_facc_sandbox',100,100,900,'USD','2099-07-02 00:00:00+00'),
+    (sandbox_user,'txn_facc_synthetic_mirrored',mirrored_checkout_id,'sandbox',pro_price_id,'ctm_facc_sandbox',100,100,900,'USD','2099-07-03 00:00:00+00');
   INSERT INTO public.faq_credit_adjustments(adjustment_id,transaction_id,user_id,action,status,resolution,occurred_at)
     VALUES('adj_facc_synthetic','txn_facc_synthetic_usd',live_user,'refund','completed','review','2099-06-02 00:00:00+00');
   INSERT INTO public.facc_ai_requests(id,user_id,purpose,input_type,requested_count,returned_count,status,started_at,finished_at)
@@ -41,7 +52,8 @@ BEGIN
   IF (SELECT count(*) FROM jsonb_array_elements(result->'payment_totals'))<>2 THEN
     RAISE EXCEPTION 'Currencies were collapsed'; END IF;
   result:=public.facc_admin_summary('2099-01-01 00:00:00+00','2100-01-01 00:00:00+00',true,false,true);
-  IF (result->>'completed_purchases')::integer<>3 OR (result->>'ai_requests')::integer<>3 THEN
+  IF (result->>'completed_purchases')::integer<>5 OR (result->>'ai_requests')::integer<>3
+    OR (result->>'repeat_purchasers')::integer<>2 THEN
     RAISE EXCEPTION 'Sandbox or test opt-in is incorrect'; END IF;
   result:=public.facc_admin_summary('2099-01-01 00:00:00+00','2099-12-31 23:59:59+00',false,false,false);
   IF (result->>'completed_purchases')::integer<>1 THEN

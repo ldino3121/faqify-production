@@ -324,9 +324,22 @@ WITH accounts AS (
   SELECT p.id,p.created_at FROM public.profiles p
   WHERE (p_include_admin OR NOT EXISTS(SELECT 1 FROM public.user_roles r WHERE r.user_id=p.id AND r.role='admin'))
     AND (p_include_sandbox OR NOT EXISTS(SELECT 1 FROM public.faqify_sandbox_cohort c WHERE c.user_id=p.id AND c.enabled))
+), verified_payments AS (
+  -- Legacy payments are recorded here; completed credit-pack purchases are
+  -- recorded as immutable grants instead. Prefer a payment row if both exist.
+  SELECT x.user_id,x.transaction_id,x.environment,x.tier,x.kind,x.amount,x.currency,x.paid_at
+  FROM public.paddle_payments x WHERE x.status='completed'
+  UNION ALL
+  SELECT g.user_id,g.transaction_id,g.environment,c.tier,'credit_pack'::text,
+    g.amount_cents::numeric,g.currency,g.granted_at
+  FROM public.faq_credit_grants g
+  JOIN public.paddle_checkouts c ON c.id=g.checkout_id AND c.user_id=g.user_id
+    AND c.transaction_id=g.transaction_id AND c.price_id=g.price_id
+  WHERE g.amount_cents IS NOT NULL AND g.currency IS NOT NULL
+    AND NOT EXISTS(SELECT 1 FROM public.paddle_payments x WHERE x.transaction_id=g.transaction_id AND x.status='completed')
 ), pay AS (
-  SELECT x.* FROM public.paddle_payments x JOIN accounts a ON a.id=x.user_id
-  WHERE x.paid_at>=p_start AND x.paid_at<p_end AND x.status='completed'
+  SELECT x.* FROM verified_payments x JOIN accounts a ON a.id=x.user_id
+  WHERE x.paid_at>=p_start AND x.paid_at<p_end
     AND (p_include_sandbox OR x.environment='live')
 ), gen AS (
   SELECT g.* FROM public.faq_generation_requests g JOIN accounts a ON a.id=g.user_id
@@ -351,8 +364,9 @@ WITH accounts AS (
   SELECT x.action,x.resolution,count(*) AS events FROM public.faq_credit_adjustments x
   JOIN accounts a ON a.id=x.user_id
   LEFT JOIN public.paddle_payments p ON p.transaction_id=x.transaction_id AND p.user_id=x.user_id
+  LEFT JOIN public.faq_credit_grants g ON g.transaction_id=x.transaction_id AND g.user_id=x.user_id
   WHERE x.occurred_at>=p_start AND x.occurred_at<p_end
-    AND (p_include_sandbox OR p.environment='live')
+    AND (p_include_sandbox OR coalesce(p.environment,g.environment)='live')
   GROUP BY x.action,x.resolution
 ), model_stats AS (
   SELECT provider,model_id,count(*) AS attempts,count(*) FILTER(WHERE category='success') AS successes,
