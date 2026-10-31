@@ -1,7 +1,7 @@
 import { withRolloutGuard } from '../_shared/rollout.ts';
 import { adminClient, authenticated, json } from '../_shared/paddle.ts';
 import { GeminiFailure, generateWithGemini } from '../_shared/gemini-reliability.ts';
-import { generateWithDeepSeek, generateWithRouting, type AILayer } from '../_shared/ai-routing.ts';
+import { AI_ADAPTER_REVISION, AI_PROMPT_REVISION, generateWithDeepSeek, generateWithRouting, validatedLayers, type AILayer } from '../_shared/ai-routing.ts';
 
 const fixture = 'FAQify is a tool that turns supplied source material into question-and-answer pairs. A user chooses a count from one to ten, previews generated pairs, and saves eligible pairs to a collection. One credit is used only when a generated pair is saved. Existing collections and published embeds remain available when credits reach zero.';
 const prompt = `Create two distinct, source-grounded FAQ pairs from this source. Return ONLY a JSON array of objects with string keys "question" and "answer". Do not invent facts. SOURCE:\n${fixture}`;
@@ -76,7 +76,9 @@ Deno.serve(withRolloutGuard(async req => {
         const { data: config, error: configError } = await db.from('facc_ai_configs').select('layers')
           .order('version',{ascending:false}).limit(1).single();
         if (configError || !config) throw new Error('Routing configuration unavailable');
-        const layers = config.layers as AILayer[];
+        const layers = validatedLayers(body.layers ?? config.layers);
+        if (layers.some(layer=>layer.enabled && layer.provider==='deepseek' && !Deno.env.get('DEEPSEEK_API_KEY')))
+          return json({error:'DeepSeek is not configured.'},409);
         const first = layers.find(layer=>layer.enabled);
         if (!first) return json({error:'No enabled model is configured.'},409);
         const { data: testId, error: limitError } = await db.rpc('facc_begin_ai_test', {
@@ -98,15 +100,18 @@ Deno.serve(withRolloutGuard(async req => {
               return !!data?.open_until && Date.parse(data.open_until)>Date.now();
             },
           });
+          const complete=result.faqs.length===2;
           await db.from('facc_ai_tests').update({provider:result.provider,model_id:result.model,
-            successful:true,returned_count:result.faqs.length,latency_ms:Date.now()-started,
-            input_tokens:result.inputTokens,output_tokens:result.outputTokens}).eq('id',testId);
+            successful:complete,returned_count:result.faqs.length,latency_ms:Date.now()-started,
+            input_tokens:result.inputTokens,output_tokens:result.outputTokens,
+            tested_layers:layers,adapter_revision:AI_ADAPTER_REVISION,prompt_revision:AI_PROMPT_REVISION}).eq('id',testId);
           const {data:price}=await db.from('facc_model_catalog').select('input_usd_per_million,output_usd_per_million')
             .eq('provider',result.provider).eq('model_id',result.model).single();
-          return json({kind:'real-chain',provider:result.provider,model:result.model,returnedModel:result.returnedModel,
+          return json({kind:'real-chain',success:complete,provider:result.provider,model:result.model,returnedModel:result.returnedModel,
             requestedCount:2,returnedCount:result.faqs.length,sample:result.faqs,
             fallbackUsed:result.fallbackUsed,attempts:attempts.map(item=>({provider:item.provider,model:item.model,category:item.category})),
             latencyMs:Date.now()-started,inputTokens:result.inputTokens??null,outputTokens:result.outputTokens??null,
+            testedConfiguration:layers,adapterRevision:AI_ADAPTER_REVISION,promptRevision:AI_PROMPT_REVISION,
             estimatedCostUsd:estimatedUsd(result.inputTokens,result.outputTokens,
               price?.input_usd_per_million,price?.output_usd_per_million)});
         } catch(error) {
@@ -150,10 +155,12 @@ Deno.serve(withRolloutGuard(async req => {
           : await generateWithDeepSeek({apiKey:key,model,prompt,count:2,requestStartedAt:started,
               record:metric=>metrics.push(metric)});
         const latest = metrics.at(-1);
-        await db.from('facc_ai_tests').update({successful:true,returned_count:result.faqs.length,
-          latency_ms:Date.now()-started,input_tokens:latest?.input_tokens,output_tokens:latest?.output_tokens}).eq('id',testId);
-        return json({ kind, provider, model, returnedModel:result.returnedModel,
-          requestedCount:2,returnedCount:result.faqs.length,valid:true,sample:result.faqs,
+        const complete=result.faqs.length===2;
+        await db.from('facc_ai_tests').update({successful:complete,returned_count:result.faqs.length,
+          latency_ms:Date.now()-started,input_tokens:latest?.input_tokens,output_tokens:latest?.output_tokens,
+          adapter_revision:AI_ADAPTER_REVISION,prompt_revision:AI_PROMPT_REVISION}).eq('id',testId);
+        return json({ kind, success:complete, provider, model, returnedModel:result.returnedModel,
+          requestedCount:2,returnedCount:result.faqs.length,valid:complete,sample:result.faqs,
           latencyMs:Date.now()-started,inputTokens:latest?.input_tokens ?? null,outputTokens:latest?.output_tokens ?? null,
           estimatedCostUsd:estimatedUsd(latest?.input_tokens,latest?.output_tokens,
             candidate.input_usd_per_million,candidate.output_usd_per_million) });
@@ -166,7 +173,7 @@ Deno.serve(withRolloutGuard(async req => {
     if (action === 'simulate_chain') {
       // No provider call, collection, generation ticket, or customer credit.
       const { data: config } = await db.from('facc_ai_configs').select('layers').order('version',{ascending:false}).limit(1).single();
-      const layers = (config?.layers ?? []) as AILayer[];
+      const layers = validatedLayers(config?.layers);
       const sequence: string[] = [];
       const sample = [{question:'When are credits used?',answer:'When an eligible generated pair is saved.'}];
       const fake = async (url: string) => {
@@ -191,9 +198,8 @@ Deno.serve(withRolloutGuard(async req => {
         if (error || !prior) return json({error:'Previous configuration not found.'},404);
         layers = prior.layers as AILayer[];
       } else layers = body.layers;
-      if (!Array.isArray(layers) || layers.length!==3 || layers.some(layer=>
-        !layer || !['gemini','deepseek'].includes(layer.provider) || typeof layer.model_id!=='string' || typeof layer.enabled!=='boolean'))
-        return json({error:'Invalid model configuration.'},400);
+      try { layers=validatedLayers(layers); }
+      catch { return json({error:'Invalid model configuration.'},400); }
       if (layers.some(layer=>layer.enabled && layer.provider==='deepseek' && !Deno.env.get('DEEPSEEK_API_KEY')))
         return json({error:'DeepSeek is not configured.'},409);
       if (layers.some(layer=>layer.enabled && layer.provider==='gemini' &&

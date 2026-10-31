@@ -5,6 +5,39 @@ export type AILayer = { provider: 'gemini' | 'deepseek'; model_id: string; enabl
 export type AIResult = { faqs: ReturnType<typeof eligibleFaqs>; provider: AILayer['provider']; model: string;
   returnedModel?: string; inputTokens?: number; outputTokens?: number; fallbackUsed: boolean; attempts: number };
 export type AIEvent = GeminiMetric & { provider: AILayer['provider'] };
+export const AI_ADAPTER_REVISION = 'facc-adapters-20261101-a';
+export const AI_PROMPT_REVISION = 'faq-prompt-20261101-a';
+
+// Keep the runtime gate independent of the database catalog. A mistaken or
+// corrupted catalog row must never turn a stored config into an outbound call
+// to an unreviewed model. New candidates require a reviewed code change.
+export const APPROVED_AI_MODELS: Readonly<Record<AILayer['provider'], readonly string[]>> = {
+  gemini: ['gemini-2.5-flash', 'gemini-2.5-flash-lite'],
+  deepseek: ['deepseek-flash'],
+};
+
+export function validatedLayers(value: unknown): AILayer[] {
+  if (!Array.isArray(value) || value.length !== 3) throw new Error('Invalid AI routing configuration');
+  const seen = new Set<string>();
+  let enabled = 0;
+  let gemini = 0;
+  const layers = value.map((item: unknown) => {
+    if (!item || typeof item !== 'object') throw new Error('Invalid AI routing configuration');
+    const layer = item as Record<string, unknown>;
+    const provider = layer.provider;
+    const model = layer.model_id;
+    if ((provider !== 'gemini' && provider !== 'deepseek') ||
+        typeof model !== 'string' || !APPROVED_AI_MODELS[provider].includes(model) ||
+        typeof layer.enabled !== 'boolean') throw new Error('Invalid AI routing configuration');
+    const key = `${provider}:${model}`;
+    if (seen.has(key)) throw new Error('Duplicate AI routing model');
+    seen.add(key);
+    if (layer.enabled) { enabled++; if (provider === 'gemini') gemini++; }
+    return { provider: provider as AILayer['provider'], model_id: model, enabled: layer.enabled };
+  });
+  if (enabled < 2 || gemini < 1) throw new Error('No usable Gemini routing path');
+  return layers;
+}
 
 function deepSeekCategory(status: number): GeminiCategory {
   if (status === 401 || status === 403) return 'authentication';

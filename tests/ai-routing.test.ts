@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
-import { generateWithRouting, generateWithDeepSeek, type AILayer } from '../supabase/functions/_shared/ai-routing';
+import { generateWithRouting, generateWithDeepSeek, validatedLayers, type AILayer } from '../supabase/functions/_shared/ai-routing';
 import { GeminiFailure } from '../supabase/functions/_shared/gemini-reliability';
 
 const pair = [{question:'When are credits charged?',answer:'When a generated FAQ pair is successfully saved.'}];
@@ -24,6 +24,13 @@ function run(responses:Response[], selected=layers, extra:Record<string,unknown>
   return {result,calls};
 }
 describe('three-layer routing',()=>{
+  it('rejects malformed or unapproved stored configurations before provider calls',()=>{
+    expect(validatedLayers(layers)).toEqual(layers);
+    expect(()=>validatedLayers([{provider:'gemini',model_id:'unreviewed',enabled:true},...layers.slice(1)])).toThrow();
+    expect(()=>validatedLayers([layers[0],layers[0],layers[2]])).toThrow();
+    expect(()=>validatedLayers(layers.map(layer=>({...layer,enabled:false})))).toThrow();
+    expect(()=>validatedLayers([{provider:'unknown',model_id:'x',enabled:true},...layers.slice(1)])).toThrow();
+  });
   it('keeps the deployed Gemini primary when it succeeds and never calls a disabled provider',async()=>{
     const x=run([geminiSuccess()]);
     await expect(x.result).resolves.toMatchObject({provider:'gemini',model:'gemini-2.5-flash',fallbackUsed:false,faqs:pair});

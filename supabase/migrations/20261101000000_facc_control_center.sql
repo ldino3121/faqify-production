@@ -1,6 +1,12 @@
 -- FACC is a forward-only addition. Existing billing, FAQ and credit tables are untouched.
 BEGIN;
 
+DO $$ BEGIN
+  IF NOT EXISTS(SELECT 1 FROM pg_extension WHERE extname='pg_cron') THEN
+    RAISE EXCEPTION 'FACC requires pg_cron in the target database before migration';
+  END IF;
+END $$;
+
 -- The existing SELECT-only RLS policy prevented self-promotion, but old table
 -- grants still advertised DML to authenticated clients. Remove that ambiguity.
 REVOKE INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER ON public.user_roles FROM PUBLIC,anon,authenticated;
@@ -46,6 +52,9 @@ CREATE TABLE public.facc_ai_tests (
   error_category text,
   input_tokens integer,
   output_tokens integer,
+  adapter_revision text,
+  prompt_revision text,
+  tested_layers jsonb,
   created_at timestamptz NOT NULL DEFAULT now(),
   FOREIGN KEY (provider,model_id) REFERENCES public.facc_model_catalog(provider,model_id)
 );
@@ -113,9 +122,20 @@ CREATE TABLE public.facc_ai_circuits (
   FOREIGN KEY(provider,model_id) REFERENCES public.facc_model_catalog(provider,model_id)
 );
 
+CREATE TABLE public.facc_monitor_runs (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  started_at timestamptz NOT NULL DEFAULT now(),
+  lease_until timestamptz NOT NULL DEFAULT now()+interval '3 minutes',
+  finished_at timestamptz,
+  status text NOT NULL DEFAULT 'running' CHECK (status IN ('running','success','failed')),
+  checked integer NOT NULL DEFAULT 0,
+  failures integer NOT NULL DEFAULT 0
+);
+CREATE INDEX facc_monitor_runs_started ON public.facc_monitor_runs(started_at DESC);
+
 -- Every FACC table is private even when an admin calls PostgREST directly.
 DO $$ DECLARE t text; BEGIN
-  FOREACH t IN ARRAY ARRAY['facc_model_catalog','facc_ai_configs','facc_ai_tests','facc_ai_audit','facc_ai_requests','facc_ai_attempts','facc_ai_circuits'] LOOP
+  FOREACH t IN ARRAY ARRAY['facc_model_catalog','facc_ai_configs','facc_ai_tests','facc_ai_audit','facc_ai_requests','facc_ai_attempts','facc_ai_circuits','facc_monitor_runs'] LOOP
     EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY',t);
     EXECUTE format('REVOKE ALL ON public.%I FROM PUBLIC,anon,authenticated',t);
     EXECUTE format('GRANT ALL ON public.%I TO service_role',t);
@@ -123,18 +143,46 @@ DO $$ DECLARE t text; BEGIN
 END $$;
 GRANT USAGE,SELECT ON SEQUENCE public.facc_ai_configs_version_seq,public.facc_ai_audit_id_seq TO service_role;
 
+CREATE FUNCTION public.facc_begin_monitor_run() RETURNS uuid
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
+DECLARE result uuid;
+BEGIN
+  PERFORM pg_advisory_xact_lock(hashtextextended('facc_monitor',117));
+  IF EXISTS(SELECT 1 FROM public.facc_monitor_runs WHERE status='running' AND lease_until>now())
+     OR (SELECT count(*) FROM public.facc_monitor_runs WHERE started_at>now()-interval '24 hours')>=2
+    THEN RETURN NULL; END IF;
+  INSERT INTO public.facc_monitor_runs DEFAULT VALUES RETURNING id INTO result;
+  RETURN result;
+END $$;
+REVOKE ALL ON FUNCTION public.facc_begin_monitor_run() FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.facc_begin_monitor_run() TO service_role;
+
+CREATE FUNCTION public.facc_finish_monitor_run(p_id uuid,p_checked integer,p_failures integer)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
+BEGIN
+  UPDATE public.facc_monitor_runs SET finished_at=now(),
+    status=CASE WHEN p_failures=0 THEN 'success' ELSE 'failed' END,
+    checked=p_checked,failures=p_failures WHERE id=p_id AND status='running';
+END $$;
+REVOKE ALL ON FUNCTION public.facc_finish_monitor_run(uuid,integer,integer) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.facc_finish_monitor_run(uuid,integer,integer) TO service_role;
+
 CREATE FUNCTION public.facc_record_ai_attempt(
   p_request uuid,p_seq smallint,p_provider text,p_model text,p_returned_model text,
   p_category text,p_latency integer,p_status smallint,p_input_tokens integer,
   p_output_tokens integer,p_cost numeric,p_fallback boolean)
-RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
-DECLARE inserted integer;
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
+DECLARE inserted integer; request_purpose text;
 BEGIN
+  SELECT purpose INTO request_purpose FROM public.facc_ai_requests WHERE id=p_request;
+  IF request_purpose IS NULL THEN RAISE EXCEPTION 'Unknown AI request'; END IF;
   INSERT INTO public.facc_ai_attempts(request_id,attempt_seq,provider,model_id,returned_model,category,latency_ms,http_status,input_tokens,output_tokens,estimated_cost_usd,fallback)
   VALUES(p_request,p_seq,p_provider,p_model,left(p_returned_model,120),p_category,p_latency,p_status,p_input_tokens,p_output_tokens,p_cost,p_fallback)
   ON CONFLICT DO NOTHING;
   GET DIAGNOSTICS inserted=ROW_COUNT;
   IF inserted=0 THEN RETURN; END IF;
+  -- Provider probes and admin tests are evidence, never customer circuit input.
+  IF request_purpose <> 'customer' THEN RETURN; END IF;
   INSERT INTO public.facc_ai_circuits(provider,model_id,failure_streak,last_check_at,last_success_at,last_failure_at,last_category,open_until)
   VALUES(p_provider,p_model,CASE WHEN p_category IN ('rate_limited','transient_overload','timeout','network') THEN 1 ELSE 0 END,
     now(),CASE WHEN p_category='success' THEN now() END,CASE WHEN p_category<>'success' THEN now() END,p_category,
@@ -153,9 +201,11 @@ REVOKE ALL ON FUNCTION public.facc_record_ai_attempt(uuid,smallint,text,text,tex
 GRANT EXECUTE ON FUNCTION public.facc_record_ai_attempt(uuid,smallint,text,text,text,text,integer,smallint,integer,integer,numeric,boolean) TO service_role;
 
 CREATE FUNCTION public.facc_begin_ai_test(p_actor uuid,p_provider text,p_model text,p_kind text)
-RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
 DECLARE result uuid;
 BEGIN
+  IF NOT EXISTS(SELECT 1 FROM public.user_roles WHERE user_id=p_actor AND role='admin')
+    THEN RAISE EXCEPTION 'Admin authorization required'; END IF;
   PERFORM pg_advisory_xact_lock(hashtextextended(p_actor::text,117));
   IF (SELECT count(*) FROM public.facc_ai_tests WHERE actor_id=p_actor AND created_at>now()-interval '1 hour')>=10
     THEN RAISE EXCEPTION 'Admin model-test limit reached; retry later'; END IF;
@@ -167,10 +217,12 @@ REVOKE ALL ON FUNCTION public.facc_begin_ai_test(uuid,text,text,text) FROM PUBLI
 GRANT EXECUTE ON FUNCTION public.facc_begin_ai_test(uuid,text,text,text) TO service_role;
 
 CREATE FUNCTION public.facc_apply_ai_config(p_actor uuid,p_expected_version bigint,p_layers jsonb,p_action text)
-RETURNS bigint LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+RETURNS bigint LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
 DECLARE current_config public.facc_ai_configs%ROWTYPE; layer jsonb; n integer:=0; enabled_count integer:=0;
   gemini_count integer:=0; pair text; seen text[]:=ARRAY[]::text[]; next_version bigint; evidence jsonb;
 BEGIN
+  IF NOT EXISTS(SELECT 1 FROM public.user_roles WHERE user_id=p_actor AND role='admin')
+    THEN RAISE EXCEPTION 'Admin authorization required'; END IF;
   IF p_action NOT IN ('apply','restore') OR jsonb_typeof(p_layers)<>'array' OR jsonb_array_length(p_layers)<>3
     THEN RAISE EXCEPTION 'Invalid routing configuration'; END IF;
   IF p_action='restore' AND NOT EXISTS(SELECT 1 FROM public.facc_ai_configs WHERE layers=p_layers)
@@ -191,11 +243,21 @@ BEGIN
       enabled_count:=enabled_count+1;
       IF layer->>'provider'='gemini' THEN gemini_count:=gemini_count+1; END IF;
       IF p_action='apply' AND NOT EXISTS(SELECT 1 FROM public.facc_ai_tests t WHERE t.provider=layer->>'provider' AND t.model_id=layer->>'model_id'
-        AND t.kind='real' AND t.successful AND t.returned_count=t.requested_count AND t.created_at>now()-interval '24 hours')
+        AND t.kind='real' AND t.successful AND t.returned_count=t.requested_count
+        AND t.adapter_revision='facc-adapters-20261101-a' AND t.prompt_revision='faq-prompt-20261101-a'
+        AND t.created_at>now()-interval '24 hours')
         THEN RAISE EXCEPTION 'Every enabled model needs a recent successful real test'; END IF;
     END IF;
   END LOOP;
   IF enabled_count<2 OR gemini_count<1 THEN RAISE EXCEPTION 'Keep at least two usable layers including Gemini'; END IF;
+  IF p_action='apply' AND NOT EXISTS(
+    SELECT 1 FROM public.facc_ai_tests t WHERE t.actor_id=p_actor AND t.kind='chain'
+      AND t.successful AND t.returned_count=t.requested_count
+      AND t.tested_layers=p_layers
+      AND t.adapter_revision='facc-adapters-20261101-a'
+      AND t.prompt_revision='faq-prompt-20261101-a'
+      AND t.created_at>now()-interval '24 hours')
+    THEN RAISE EXCEPTION 'Exact routing configuration requires a recent successful real chain test'; END IF;
   SELECT coalesce(jsonb_agg(jsonb_build_object('provider',layer.value->>'provider','model_id',layer.value->>'model_id',
     'test_id',t.id,'tested_at',t.created_at,'successful',t.successful) ORDER BY layer.ordinality),'[]'::jsonb)
   INTO evidence
@@ -203,9 +265,21 @@ BEGIN
   LEFT JOIN LATERAL (
     SELECT id,created_at,successful FROM public.facc_ai_tests t
     WHERE t.provider=layer.value->>'provider' AND t.model_id=layer.value->>'model_id' AND t.kind='real'
+      AND t.successful AND t.returned_count=t.requested_count
+      AND t.adapter_revision='facc-adapters-20261101-a' AND t.prompt_revision='faq-prompt-20261101-a'
     ORDER BY t.created_at DESC LIMIT 1
   ) t ON true
   WHERE (layer.value->>'enabled')::boolean;
+  IF p_action='apply' THEN
+    evidence:=evidence||jsonb_build_array((SELECT jsonb_build_object(
+      'kind','chain','test_id',t.id,'tested_at',t.created_at,
+      'adapter_revision',t.adapter_revision,'prompt_revision',t.prompt_revision)
+      FROM public.facc_ai_tests t WHERE t.actor_id=p_actor AND t.kind='chain'
+        AND t.successful AND t.tested_layers=p_layers
+        AND t.adapter_revision='facc-adapters-20261101-a'
+        AND t.prompt_revision='faq-prompt-20261101-a'
+      ORDER BY t.created_at DESC LIMIT 1));
+  END IF;
   INSERT INTO public.facc_ai_configs(layers,actor_id,action) VALUES(p_layers,p_actor,p_action) RETURNING version INTO next_version;
   INSERT INTO public.facc_ai_audit(actor_id,action,old_version,new_version,old_layers,new_layers,test_evidence)
     VALUES(p_actor,p_action,current_config.version,next_version,current_config.layers,p_layers,evidence);
@@ -215,10 +289,11 @@ REVOKE ALL ON FUNCTION public.facc_apply_ai_config(uuid,bigint,jsonb,text) FROM 
 GRANT EXECUTE ON FUNCTION public.facc_apply_ai_config(uuid,bigint,jsonb,text) TO service_role;
 
 -- Attempts are retained for 90 days; immutable configuration/audit history remains.
-CREATE FUNCTION public.facc_prune_telemetry() RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+CREATE FUNCTION public.facc_prune_telemetry() RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
 BEGIN
   DELETE FROM public.facc_ai_requests WHERE started_at<now()-interval '90 days';
   DELETE FROM public.facc_ai_tests WHERE created_at<now()-interval '90 days';
+  DELETE FROM public.facc_monitor_runs WHERE started_at<now()-interval '90 days';
 END $$;
 REVOKE ALL ON FUNCTION public.facc_prune_telemetry() FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.facc_prune_telemetry() TO service_role;
@@ -226,7 +301,7 @@ SELECT cron.schedule('faqify-facc-prune-telemetry','14 3 * * *','SELECT public.f
 
 CREATE FUNCTION public.facc_admin_summary(p_start timestamptz,p_end timestamptz,
   p_include_sandbox boolean DEFAULT false,p_include_admin boolean DEFAULT false,p_include_tests boolean DEFAULT false)
-RETURNS jsonb LANGUAGE sql SECURITY DEFINER SET search_path=public AS $$
+RETURNS jsonb LANGUAGE sql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
 WITH accounts AS (
   SELECT p.id,p.created_at FROM public.profiles p
   WHERE (p_include_admin OR NOT EXISTS(SELECT 1 FROM public.user_roles r WHERE r.user_id=p.id AND r.role='admin'))
@@ -309,7 +384,7 @@ $$;
 REVOKE ALL ON FUNCTION public.facc_admin_summary(timestamptz,timestamptz,boolean,boolean,boolean) FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.facc_admin_summary(timestamptz,timestamptz,boolean,boolean,boolean) TO service_role;
 
-CREATE FUNCTION public.facc_admin_health() RETURNS jsonb LANGUAGE sql SECURITY DEFINER SET search_path=public AS $$
+CREATE FUNCTION public.facc_admin_health() RETURNS jsonb LANGUAGE sql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
 SELECT jsonb_build_object(
   'openCheckouts',(SELECT count(*) FROM public.paddle_checkouts WHERE NOT closed),
   'completedAwaitingGrant',(SELECT count(*) FROM public.paddle_payments p WHERE p.kind='credit_pack' AND p.status='completed'
@@ -321,6 +396,10 @@ SELECT jsonb_build_object(
     AND started_at<now()-interval '10 minutes'),
   'delayedProcessedWebhooks',(SELECT count(*) FROM public.paddle_events WHERE processed_at>occurred_at+interval '15 minutes'),
   'lastProcessedWebhook',(SELECT max(processed_at) FROM public.paddle_events),
+  'lastMonitorRun',(SELECT max(started_at) FROM public.facc_monitor_runs),
+  'lastSuccessfulMonitor',(SELECT max(finished_at) FROM public.facc_monitor_runs WHERE status='success'),
+  'monitorFailures24h',(SELECT count(*) FROM public.facc_monitor_runs WHERE started_at>now()-interval '24 hours'
+    AND (status='failed' OR (status='running' AND lease_until<now()))),
   'checkedAt',now()
 );
 $$;

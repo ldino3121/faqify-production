@@ -52,6 +52,9 @@ function Metric({ title, value, definition }: {title:string;value:unknown;defini
 export default function Admin() {
   const { user } = useAuth();
   const client = useQueryClient();
+  useEffect(() => () => {
+    client.removeQueries({predicate: query => typeof query.queryKey[0] === 'string' && query.queryKey[0].startsWith('facc-')});
+  }, [client]);
   const [tab,setTab] = useState('overview');
   const [range,setRange] = useState<'7'|'30'|'custom'>('7');
   const [startDate,setStartDate] = useState('');
@@ -78,7 +81,8 @@ export default function Admin() {
     queryFn:()=>facc<Record<string,unknown>>('health'),staleTime:30000});
   const audit = useQuery({queryKey:['facc-audit',user?.id,auditPage],enabled:!!user && tab==='audit',
     queryFn:()=>facc<{rows:Array<{id:number;actor_id:string;action:string;old_version:number;new_version:number;created_at:string;
-      old_layers:Layer[];new_layers:Layer[];test_evidence:Array<{provider:string;model_id:string;tested_at:string|null;successful:boolean|null}>}>;total:number}>('audit',{page:auditPage})});
+      old_layers:Layer[];new_layers:Layer[];test_evidence:Array<{kind?:string;provider?:string;model_id?:string;tested_at:string|null;
+        successful?:boolean|null;adapter_revision?:string;prompt_revision?:string}>}>;total:number}>('audit',{page:auditPage})});
   useEffect(() => {
     const current = models.data?.configs?.[0];
     if (current && current.version !== draftVersion) {
@@ -196,7 +200,7 @@ export default function Admin() {
                   <div className="flex flex-wrap gap-2"><Button size="sm" disabled={!!busy} onClick={()=>void operate('test',()=>facc('test',{provider:layer.provider,model:layer.model_id}))}>Real test</Button>
                     <Button size="sm" variant="outline" disabled={!!busy} onClick={()=>void operate('availability',()=>facc('availability',{provider:layer.provider,model:layer.model_id}))}>Check listing</Button></div>
                 </CardContent></Card>})}</div>
-            <div className="flex flex-wrap gap-2"><Button variant="outline" disabled={!!busy} onClick={()=>void operate('real chain',()=>facc('test_chain'))}>Test real routing chain</Button>
+            <div className="flex flex-wrap gap-2"><Button variant="outline" disabled={!!busy} onClick={()=>void operate('real chain',()=>facc('test_chain',{layers:draft}))}>Test draft routing chain</Button>
               <Button variant="outline" disabled={!!busy} onClick={()=>void operate('simulate',()=>facc('simulate_chain'))}>Simulate fallback</Button>
               <Button disabled={!!busy} onClick={()=>void operate('apply',async()=>{
                 const result=await facc('apply',{expectedVersion:current.version,layers:draft});
@@ -245,8 +249,10 @@ export default function Admin() {
             <Metric title="Adjustment reviews" value={health.data.adjustmentReviews} definition="Billing adjustments requiring human reconciliation."/>
             <Metric title="Old reservations" value={health.data.oldReservations} definition="Generation tickets past their expiry that still show a reservation."/>
             <Metric title="Stale AI requests" value={health.data.staleAIRequests} definition="Telemetry requests still marked started after ten minutes; investigate before interpreting rates."/>
+            <Metric title="Monitor failures (24h)" value={health.data.monitorFailures24h} definition="Failed or expired scheduled runs. Probe failures do not open customer generation circuits."/>
             <Metric title="Delayed processed webhooks" value={health.data.delayedProcessedWebhooks} definition="Recorded Paddle events processed more than fifteen minutes after their event time. Failed deliveries without a processed record remain unknown."/>
           </div><p className="text-sm text-muted-foreground">Last processed Paddle event: {utcDate(health.data.lastProcessedWebhook as string|null)}. Webhook failures: {String(health.data.webhookFailures)}. A local intent does not prove the remote Paddle status.</p>
+          <p className="text-sm text-muted-foreground">Last monitor run: {utcDate(health.data.lastMonitorRun as string|null)}. Last successful run: {utcDate(health.data.lastSuccessfulMonitor as string|null)}.</p>
           <Card><CardHeader><CardTitle>Model health</CardTitle></CardHeader><CardContent className="space-y-2 text-sm">
             {(health.data.circuits as ModelData['circuits']).map(row=><p key={`${row.provider}:${row.model_id}`}>{row.provider} / {row.model_id}: {row.last_category??'Unknown'} · last check {utcDate(row.last_check_at)} {row.open_until && Date.parse(row.open_until)>Date.now()?'· circuit open':''}</p>)}
             {!(health.data.circuits as unknown[]).length && <p>Unknown; no tracked attempts yet.</p>}
@@ -263,7 +269,9 @@ export default function Admin() {
             {audit.data.rows.map(row=><details key={row.id} className="rounded border border-border p-3"><summary className="cursor-pointer">v{row.old_version} → v{row.new_version} · {row.action} · {utcDate(row.created_at)} · actor {row.actor_id}</summary>
               <p className="mt-2">Previous: {row.old_layers.map((layer,index)=>`${index+1}. ${layer.provider}/${layer.model_id} ${layer.enabled?'enabled':'disabled'}`).join(' · ')}</p>
               <p>Applied: {row.new_layers.map((layer,index)=>`${index+1}. ${layer.provider}/${layer.model_id} ${layer.enabled?'enabled':'disabled'}`).join(' · ')}</p>
-              <p>Test evidence: {row.test_evidence.map(item=>`${item.provider}/${item.model_id}: ${item.successful===true?'passed':item.successful===false?'failed':'not recorded'} at ${utcDate(item.tested_at)}`).join(' · ') || 'None recorded'}</p>
+              <p>Test evidence: {row.test_evidence.map(item=>item.kind==='chain'
+                ? `Exact chain: ${item.adapter_revision}/${item.prompt_revision} at ${utcDate(item.tested_at)}`
+                : `${item.provider}/${item.model_id}: ${item.successful===true?'passed':item.successful===false?'failed':'not recorded'} at ${utcDate(item.tested_at)}`).join(' · ') || 'None recorded'}</p>
             </details>)}
             {!audit.data.rows.length && <p>No configuration changes yet.</p>}
           </CardContent></Card><div className="flex items-center gap-3"><Button variant="outline" disabled={auditPage===0} onClick={()=>setAuditPage(x=>x-1)}>Previous</Button>

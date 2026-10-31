@@ -1,6 +1,6 @@
 import { withRolloutGuard } from '../_shared/rollout.ts';
 import { adminClient, json } from '../_shared/paddle.ts';
-import { generateWithDeepSeek } from '../_shared/ai-routing.ts';
+import { generateWithDeepSeek, validatedLayers } from '../_shared/ai-routing.ts';
 import { GeminiFailure, generateWithGemini } from '../_shared/gemini-reliability.ts';
 
 function sameSecret(a: string, b: string) {
@@ -17,12 +17,22 @@ Deno.serve(withRolloutGuard(async req => {
   const expected = Deno.env.get('FACC_MONITOR_TOKEN') ?? '';
   if (!sameSecret(req.headers.get('x-facc-monitor-token') ?? '',expected)) return json({error:'Unauthorized'},401);
   const db = adminClient();
+  const {data:runId,error:leaseError}=await db.rpc('facc_begin_monitor_run');
+  if (leaseError) return json({error:'Monitor lease unavailable'},503);
+  if (!runId) return json({error:'Monitor already running or daily probe budget reached'},429);
+  const runStarted=Date.now();
   const {data:config,error:configError} = await db.from('facc_ai_configs').select('version,layers')
     .order('version',{ascending:false}).limit(1).single();
   if (configError || !config) return json({error:'Configuration unavailable'},503);
-  const layers = config.layers as Array<{provider:'gemini'|'deepseek';model_id:string;enabled:boolean}>;
+  let layers: ReturnType<typeof validatedLayers>;
+  try { layers=validatedLayers(config.layers); }
+  catch { return json({error:'Invalid routing configuration'},503); }
   const results: Array<{provider:string;model:string;available:boolean;probe:string}> = [];
   for (const layer of layers.filter(item=>item.enabled)) {
+    if (Date.now()-runStarted>105_000) {
+      results.push({provider:layer.provider,model:layer.model_id,available:false,probe:'monitor_timeout'});
+      continue;
+    }
     const key = layer.provider==='gemini'
       ? Deno.env.get('GEMINI_API_KEY') || Deno.env.get('GOOGLE_AI_API_KEY') || Deno.env.get('GOOGLE_GEMINI_API_KEY')
       : Deno.env.get('DEEPSEEK_API_KEY');
@@ -55,8 +65,8 @@ Deno.serve(withRolloutGuard(async req => {
       if (!available) throw new GeminiFailure('model_unavailable');
       if (layer.provider==='gemini') await generateWithGemini({apiKey:key,models:{primary:layer.model_id},
         payload:{contents:[{parts:[{text:prompt}]}],generationConfig:{maxOutputTokens:512,temperature:0.3}},
-        count:1,requestStartedAt:started,record:metric=>metrics.push(metric)});
-      else await generateWithDeepSeek({apiKey:key,model:layer.model_id,prompt,count:1,requestStartedAt:started,
+        count:1,requestStartedAt:runStarted-10_000,record:metric=>metrics.push(metric)});
+      else await generateWithDeepSeek({apiKey:key,model:layer.model_id,prompt,count:1,requestStartedAt:runStarted-10_000,
         record:metric=>metrics.push(metric)});
       status='success';category='success';
     } catch(error) { category=error instanceof GeminiFailure?error.category:'unknown'; }
@@ -66,5 +76,8 @@ Deno.serve(withRolloutGuard(async req => {
       returned_count:status==='success'?1:0,finished_at:new Date().toISOString()}).eq('id',requestId);
     results.push({provider:layer.provider,model:layer.model_id,available,probe:category});
   }
-  return json({checked:results.length,failures:results.filter(item=>item.probe!=='success').length});
+  const failures=results.filter(item=>item.probe!=='success').length;
+  const {error:finishError}=await db.rpc('facc_finish_monitor_run',{p_id:runId,p_checked:results.length,p_failures:failures});
+  if (finishError) return json({error:'Monitor result tracking unavailable'},503);
+  return json({checked:results.length,failures});
 },'admin-model-monitor',false));

@@ -2,7 +2,7 @@ import { withRolloutGuard } from '../_shared/rollout.ts';
 import { safeFetch, publicUrl, readPublicText } from '../_shared/safe-fetch.ts';
 import { requestedFaqCount } from '../_shared/faq-count.ts';
 import { GeminiFailure, configuredGeminiModels, publicGeminiMessage } from '../_shared/gemini-reliability.ts';
-import { generateWithRouting, type AILayer } from '../_shared/ai-routing.ts';
+import { generateWithRouting, validatedLayers } from '../_shared/ai-routing.ts';
 
 import { createClient } from 'npm:@supabase/supabase-js@2.50.2';
 
@@ -107,9 +107,9 @@ Deno.serve(withRolloutGuard(async (req) => {
     // and in-flight saves never observe an admin edit halfway through generation.
     const { data: routing, error: routingError } = await supabaseAdmin.from('facc_ai_configs')
       .select('version,layers').order('version', { ascending: false }).limit(1).single();
-    if (routingError || !routing || !Array.isArray(routing.layers))
+    if (routingError || !routing)
       throw new Error('AI routing configuration is unavailable.');
-    const layers = routing.layers as AILayer[];
+    const layers = validatedLayers(routing.layers);
 
     const { data: eligibility, error: eligibilityError } = await supabaseAdmin.rpc('can_generate_faqs', {
       user_uuid: user.id,
