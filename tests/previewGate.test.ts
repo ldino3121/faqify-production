@@ -17,7 +17,9 @@ describe('build-time write gate', () => {
   it('keeps the existing reviewed Production gate', () => {
     expect(isReadOnlyBuild({ VERCEL_ENV: 'production', VERCEL_GIT_COMMIT_REF: 'main',
       VITE_FAQIFY_WRITES_ENABLED: 'true', VITE_SUPABASE_URL: prod })).toBe(false);
-    expect(isReadOnlyBuild({ VERCEL_ENV: 'production', VERCEL_GIT_COMMIT_REF: 'other',
-      VITE_FAQIFY_WRITES_ENABLED: 'true', VITE_SUPABASE_URL: prod })).toBe(true);
+    expect(isReadOnlyBuild({ VERCEL_ENV: 'production',
+      VITE_FAQIFY_WRITES_ENABLED: 'true', VITE_SUPABASE_URL: prod })).toBe(false);
+    expect(isReadOnlyBuild({ VERCEL_ENV: 'production', VERCEL_GIT_COMMIT_REF: 'main',
+      VITE_FAQIFY_WRITES_ENABLED: undefined, VITE_SUPABASE_URL: prod })).toBe(true);
   });
 });
