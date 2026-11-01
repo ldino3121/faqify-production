@@ -7,6 +7,8 @@ on:
 
 jobs:
   probe:
+    # Enable only after the production handler and both repository secrets are verified.
+    if: ${{ vars.FACC_MONITOR_ENABLED == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 4
     steps:
