@@ -59,7 +59,9 @@ Rehearsal used a fresh read-only production custom-format dump saved in `/Users/
 
 Required production migration and function changes are **not** performed by this review PR. No Paddle catalog, webhook, billing configuration, credits, purchases, legacy subscription or Gemini secret is changed.
 
-## PR #14 acceptance update (31 October 2026)
+## PR #14 acceptance update (1 November 2026)
+
+The protected immutable Vercel preview was opened through a privately stored share link. Its deployed application bundles contained the isolated staging project reference and no production Supabase project reference. Synthetic admin, ordinary and ineligible accounts signed in on the deployed preview; browser requests reached only that preview host and the staging Supabase host. Neither Free account displayed the false checkout-status warning. The ordinary account was denied `/admin`; the synthetic admin reached the FACC route. This deployed-preview test uncovered an HTTP 426 on the FACC API: `admin-control-center` was missing from the browser's rollout-header allowlist, so the staging guard treated the new client as revision zero. The allowlist and regression test have been corrected. Retest the new immutable preview after this commit; the earlier admin screenshot is evidence of the bug, not a passing FACC API check. Protected screenshots are outside Git in the staging backup directory.
 
 | Check | Implemented behavior and existing evidence | Remaining verification and target |
 | --- | --- | --- |
