@@ -1,7 +1,7 @@
 type BuildEnvironment = Record<string, string | undefined>;
 
 const stagingUrl = 'https://oltufhuxeaqgyyjbvgqo.supabase.co';
-const stagingBranch = 'feature/admin-control-center';
+const stagingBranch = 'feature/facc-ux-model-registry';
 
 export function isReadOnlyBuild(env: BuildEnvironment): boolean {
   const productionWrites = env.VERCEL_ENV === 'production'

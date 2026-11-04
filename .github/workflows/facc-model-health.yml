@@ -16,6 +16,7 @@ jobs:
         env:
           FACC_MONITOR_TOKEN: ${{ secrets.FACC_MONITOR_TOKEN }}
           FAQIFY_SUPABASE_ANON_KEY: ${{ secrets.FAQIFY_SUPABASE_ANON_KEY }}
+          FACC_EVENT_NAME: ${{ github.event_name }}
         run: |
           if [ -z "$FACC_MONITOR_TOKEN" ] || [ -z "$FAQIFY_SUPABASE_ANON_KEY" ]; then
             echo 'FACC monitoring is not configured: FACC_MONITOR_TOKEN and FAQIFY_SUPABASE_ANON_KEY are required.'
@@ -26,6 +27,7 @@ jobs:
             --header "apikey: $FAQIFY_SUPABASE_ANON_KEY" \
             --header "Authorization: Bearer $FAQIFY_SUPABASE_ANON_KEY" \
             --header "x-facc-monitor-token: $FACC_MONITOR_TOKEN" \
+            --header "x-facc-monitor-source: $FACC_EVENT_NAME" \
             --header 'content-type: application/json' \
             --data '{}')
           if [ "$status" != 200 ]; then

@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { intendedDashboard, type CreditPack } from '@/lib/purchase-intent';
 import { useQueryClient } from '@tanstack/react-query';
+import { clearAdminWorkspace } from '@/lib/admin-workspace';
 
 interface AuthContextType {
   user: User | null;
@@ -41,7 +42,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // Subscribe first: a later getSession result must never overwrite a newer auth event.
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, next) => {
       authEventReceived = true;
-      if (_event === 'SIGNED_OUT' || (previousUserId.current && next?.user.id !== previousUserId.current)) queryClient.clear();
+      if (_event === 'SIGNED_OUT' || (previousUserId.current && next?.user.id !== previousUserId.current)) {
+        clearAdminWorkspace();
+        queryClient.clear();
+      }
       previousUserId.current = next?.user.id ?? null;
       if (mounted) { setSession(next); setUser(next?.user ?? null); setLoading(false); }
     });
@@ -110,6 +114,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // Immediately clear in-memory auth state to prevent auto-redirects on /login
     setSession(null);
     setUser(null);
+    clearAdminWorkspace();
     queryClient.clear();
     try {
       // Best-effort cleanup of persisted auth tokens in localStorage (Supabase stores under sb-<ref>-auth-token)

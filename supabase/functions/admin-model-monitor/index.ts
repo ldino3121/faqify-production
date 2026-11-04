@@ -17,15 +17,19 @@ Deno.serve(withRolloutGuard(async req => {
   const expected = Deno.env.get('FACC_MONITOR_TOKEN') ?? '';
   if (!sameSecret(req.headers.get('x-facc-monitor-token') ?? '',expected)) return json({error:'Unauthorized'},401);
   const db = adminClient();
-  const {data:runId,error:leaseError}=await db.rpc('facc_begin_monitor_run');
+  const source=req.headers.get('x-facc-monitor-source')==='schedule'?'scheduled':'manual';
+  const {data:runId,error:leaseError}=await db.rpc('facc_begin_monitor_run',{p_source:source});
   if (leaseError) return json({error:'Monitor lease unavailable'},503);
   if (!runId) return json({error:'Monitor already running or daily probe budget reached'},429);
   const runStarted=Date.now();
   const {data:config,error:configError} = await db.from('facc_ai_configs').select('version,layers')
     .order('version',{ascending:false}).limit(1).single();
   if (configError || !config) return json({error:'Configuration unavailable'},503);
+  const {data:approvedModels,error:registryError}=await db.from('facc_model_catalog')
+    .select('provider,model_id').eq('approval_status','approved');
+  if(registryError||!approvedModels) return json({error:'Model registry unavailable'},503);
   let layers: ReturnType<typeof validatedLayers>;
-  try { layers=validatedLayers(config.layers); }
+  try { layers=validatedLayers(config.layers,new Set(approvedModels.map(row=>`${row.provider}:${row.model_id}`))); }
   catch { return json({error:'Invalid routing configuration'},503); }
   const results: Array<{provider:string;model:string;available:boolean;probe:string}> = [];
   for (const layer of layers.filter(item=>item.enabled)) {
@@ -66,7 +70,7 @@ Deno.serve(withRolloutGuard(async req => {
       if (layer.provider==='gemini') await generateWithGemini({apiKey:key,models:{primary:layer.model_id},
         payload:{contents:[{parts:[{text:prompt}]}],generationConfig:{maxOutputTokens:512,temperature:0.3}},
         count:1,requestStartedAt:runStarted-10_000,record:metric=>metrics.push(metric)});
-      else await generateWithDeepSeek({apiKey:key,model:layer.model_id,prompt,count:1,requestStartedAt:runStarted-10_000,
+      else await generateWithDeepSeek({apiKey:key,model:layer.model_id,prompt,count:1,requestStartedAt:runStarted-10_000,maxOutputTokens:512,
         record:metric=>metrics.push(metric)});
       status='success';category='success';
     } catch(error) { category=error instanceof GeminiFailure?error.category:'unknown'; }

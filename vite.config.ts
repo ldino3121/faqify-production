@@ -16,7 +16,7 @@ export default defineConfig(({ mode }) => {
   const appUrl = (process.env.APP_URL ?? env.APP_URL ?? env.VITE_PUBLIC_APP_URL ?? '').replace(/\/+$/, '');
 
   return {
-  // Only this PR's isolated staging preview may write outside Production.
+  // Only this branch's isolated staging preview may write outside Production.
   define: {
     'import.meta.env.VITE_FAQIFY_READ_ONLY': JSON.stringify(isReadOnlyBuild(process.env)),
   },
