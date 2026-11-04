@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -84,6 +84,14 @@ export default function Admin() {
   const [outputPrice,setOutputPrice] = useState('');
   const [priceSource,setPriceSource] = useState('');
   const [unknownPriceAcknowledged,setUnknownPriceAcknowledged] = useState(false);
+  const restoredScroll = useRef(false);
+  const leavingAdmin = useRef(false);
+  useEffect(() => {
+    if (!user?.id) return;
+    const remember = () => {if(!leavingAdmin.current) writeAdminWorkspace(user.id,workspace.generation,{scrollY:window.scrollY});};
+    window.addEventListener('scroll',remember,{passive:true});
+    return () => {window.removeEventListener('scroll',remember);};
+  },[user?.id,workspace.generation]);
   useEffect(() => {
     if (!user?.id) return;
     writeAdminWorkspace(user.id,workspace.generation,{tab,range,startDate,endDate,includeSandbox,includeAdmin,
@@ -106,6 +114,17 @@ export default function Admin() {
         successful?:boolean|null;adapter_revision?:string;prompt_revision?:string}>}>;total:number;
       registryAudit:Array<{id:number;actor_id:string;action:string;provider:string;model_id:string;price_status:string;created_at:string}>;
       registryTotal:number}>('audit',{page:auditPage,registryPage})});
+  useEffect(() => {
+    if (restoredScroll.current || typeof saved.scrollY !== 'number') return;
+    const ready = tab==='models' ? !!models.data : tab==='health' ? !!health.data
+      : tab==='audit' ? !!audit.data : !!summary.data;
+    if (!ready) return;
+    const frame = requestAnimationFrame(() => {
+      window.scrollTo({top:saved.scrollY as number,behavior:'instant'});
+      restoredScroll.current = true;
+    });
+    return () => cancelAnimationFrame(frame);
+  },[saved.scrollY,tab,summary.data,models.data,health.data,audit.data]);
   useEffect(() => {
     const latest = models.data?.configs?.[0];
     if (!latest || latest.version === draftVersion) return;
@@ -161,7 +180,10 @@ export default function Admin() {
     lastMonitorStatus==='failed'?'Failed':lastMonitorStatus==='running'?'Running':lastMonitorStatus==='success'?'Healthy':'Status unavailable';
   return <div className="min-h-screen bg-background text-foreground px-3 py-6 sm:px-6">
     <div className="mx-auto max-w-7xl space-y-6">
-      <header className="flex flex-wrap items-center gap-4"><Button asChild variant="outline" size="sm"><Link to="/dashboard"><ArrowLeft className="mr-2 h-4 w-4"/>Dashboard</Link></Button>
+      <header className="flex flex-wrap items-center gap-4"><Button asChild variant="outline" size="sm"><Link to="/dashboard" onClick={()=>{
+        leavingAdmin.current=true;
+        if(user?.id) writeAdminWorkspace(user.id,workspace.generation,{scrollY:window.scrollY});
+      }}><ArrowLeft className="mr-2 h-4 w-4"/>Dashboard</Link></Button>
         <div><h1 className="text-2xl font-bold">Admin Control Center</h1><p className="text-xs text-muted-foreground">Private operations · UTC reporting</p></div></header>
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="flex h-auto flex-wrap justify-start gap-1">
@@ -236,6 +258,10 @@ export default function Admin() {
             <div className="rounded border border-border p-3 text-sm">
               <p><strong>Serving customer requests:</strong> version {current.version} · {utcDate(current.created_at)}</p>
               <p><strong>Draft:</strong> based on version {draftVersion ?? 'unknown'}{draftDirty?' · Unsaved changes':' · No changes'}</p>
+              {draftDirty && <Button size="sm" variant="outline" onClick={()=>{
+                if (!window.confirm('Discard your unsaved model draft and load the active configuration?')) return;
+                const layers=current.layers.map(layer=>({...layer}));setDraft(layers);setDraftBase(layers);setDraftVersion(current.version);
+              }}>Discard unsaved draft</Button>}
               {draftConflict && <p role="alert" className="text-amber-300">Another admin activated version {current.version}. Your draft is preserved. Review it against the active version before continuing. <Button size="sm" variant="outline" onClick={()=>{
                 if (draftDirty && !window.confirm('Discard your unsaved model draft and load the active configuration?')) return;
                 const layers=current.layers.map(layer=>({...layer}));setDraft(layers);setDraftBase(layers);setDraftVersion(current.version);
@@ -273,7 +299,7 @@ export default function Admin() {
                 return <div key={`${item.provider}:${item.model_id}`} className="flex flex-wrap items-center gap-2 rounded border border-border p-2">
                   <span>{item.provider}/{item.model_id} · candidate · price {item.input_usd_per_million==null?'unknown':'recorded'} · {passed?'compatibility test passed':'generation test required'}</span>
                   <Button size="sm" variant="outline" disabled={!!busy} onClick={()=>{
-                    if(!window.confirm(`Run a billable two-FAQ compatibility test for ${item.model_id}? ${item.input_usd_per_million==null?'Pricing is unknown.':'Provider token charges may apply.'}`))return;
+                    if(!window.confirm(`Run a billable two-FAQ compatibility test for ${item.model_id}? Output is capped at 1,024 tokens. ${item.input_usd_per_million==null?'Pricing is unknown.':`Recorded estimate: $${item.input_usd_per_million}/1M input and $${item.output_usd_per_million}/1M output tokens; actual billing may differ.`}`))return;
                     void operate('candidate generation test',async()=>{const result=await facc('test',{provider:item.provider,model:item.model_id});await models.refetch();return result;});
                   }}>Run generation test</Button>
                   <Button size="sm" disabled={!!busy||!passed} onClick={()=>void operate('candidate approval',async()=>{
@@ -307,7 +333,7 @@ export default function Admin() {
                     <p>Estimated USD per million tokens: input {info.input_usd_per_million ?? 'unknown'}, output {info.output_usd_per_million ?? 'unknown'}</p>
                     <p className="text-muted-foreground">{info.price_note} · checked {info.price_checked_at}</p></>}
                   <div className="flex flex-wrap gap-2"><Button size="sm" disabled={!!busy} onClick={()=>{
-                    if (!window.confirm('Run a billable two-FAQ generation test with fixed synthetic text? Estimated cost depends on tokens and your provider plan.')) return;
+                    if (!window.confirm(`Run a billable two-FAQ generation test with fixed synthetic text and a 1,024-token output cap? ${info?.input_usd_per_million==null?'Pricing is unknown.':`Recorded estimate: $${info.input_usd_per_million}/1M input and $${info.output_usd_per_million}/1M output tokens; actual billing may differ.`}`)) return;
                     void operate('generation test',async()=>{const result=await facc('test',{provider:layer.provider,model:layer.model_id});await models.refetch();return result;});
                   }}>Run generation test</Button>
                     <Button size="sm" variant="outline" disabled={!!busy} onClick={()=>void operate('availability',async()=>{const result=await facc('availability',{provider:layer.provider,model:layer.model_id});await models.refetch();return result;})}>Check model availability</Button></div>
@@ -322,6 +348,7 @@ export default function Admin() {
                 setDraft(null);setDraftBase(null);setDraftVersion(null);
                 await client.invalidateQueries({queryKey:['facc-models',user?.id]});return result;
               })}>Apply tested configuration</Button></div>
+            <p className="text-sm text-muted-foreground">Exact draft test evidence: {chainTested?'current and passed':'missing or expired'}.</p>
             {!canApply && <p className="text-sm text-muted-foreground">{!draftDirty?'Change the draft before applying.':draftConflict?'Resolve the newer active version first.':!draftStructureValid?'Use three distinct approved models, with at least two enabled including Gemini.':untestedLayers.length?`Run a current generation test for: ${untestedLayers.map(layer=>layer.model_id).join(', ')}.`:!chainTested?'Run a current generation test of this exact draft routing chain.':'Activation unavailable.'}</p>}
             <Card><CardHeader><CardTitle>Previous versions</CardTitle></CardHeader><CardContent className="space-y-2 text-sm">
               {models.data.configs.slice(1).map(config=><div className="flex items-center gap-3" key={config.version}>
