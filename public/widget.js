@@ -3,6 +3,15 @@
   
   // FAQify Widget Library
   window.FAQify = window.FAQify || {};
+  const scriptElement = document.currentScript;
+  const productionScript = (() => {
+    try {
+      const host = new URL(scriptElement?.src || '').hostname.toLowerCase();
+      return host === 'faqify.app' || host === 'www.faqify.app';
+    } catch {
+      return false;
+    }
+  })();
   
   // Default configuration - API URL will be determined dynamically
   const defaultConfig = {
@@ -26,16 +35,16 @@
       return 'http://localhost:54321'; // Local Supabase
     }
 
-    // Strategy 2: Use environment variable if available
-    if (window.FAQIFY_API_URL) {
+    // Explicit API URL supplied by an embed or the script tag.
+    if (window.FAQIFY_API_URL || scriptElement?.dataset.apiUrl) {
       console.log('🛡️ FAQify: Using environment API URL');
-      return window.FAQIFY_API_URL;
+      return window.FAQIFY_API_URL || scriptElement.dataset.apiUrl;
     }
 
-    // Strategy 3: BULLETPROOF Production API URL (guaranteed to work)
-    const BULLETPROOF_API_URL = 'https://dlzshcshqjdghmtzlbma.supabase.co';
-    console.log('🛡️ FAQify: Using bulletproof production API URL');
-    return BULLETPROOF_API_URL;
+    // Only the script served from FAQify's production domain may use its
+    // production default. A staging/preview script must be configured.
+    if (productionScript) return 'https://dlzshcshqjdghmtzlbma.supabase.co';
+    return null;
   }
 
   // Generate session ID for analytics
@@ -331,13 +340,12 @@
   
   // 🛡️ BULLETPROOF Fetch FAQ data from API with multiple retry strategies
   async function fetchFAQData(collectionId, config) {
+    if (!config.apiUrl) throw new Error('FAQify API URL is not configured');
     const maxRetries = 3;
     const retryDelay = 1000; // 1 second
 
-    // 🛡️ BULLETPROOF: Multiple API endpoints for redundancy
     const apiEndpoints = [
-      `${config.apiUrl}/functions/v1/get-faq-widget?collection_id=${collectionId}`,
-      `https://dlzshcshqjdghmtzlbma.supabase.co/functions/v1/get-faq-widget?collection_id=${collectionId}`
+      `${config.apiUrl}/functions/v1/get-faq-widget?collection_id=${collectionId}`
     ];
 
     for (let endpointIndex = 0; endpointIndex < apiEndpoints.length; endpointIndex++) {

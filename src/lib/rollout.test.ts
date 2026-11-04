@@ -13,7 +13,7 @@ it('fails closed on unavailable or missing configuration and accepts only an ope
 });
 it('adds the compatibility header to guarded functions and database calls without forwarding it elsewhere',async()=>{
   fetchMock.mockImplementation(async()=>new Response('{}'));
-  for(const [url,expected] of [['https://example.supabase.co/rest/v1/faqs',true],['https://example.supabase.co/functions/v1/analyze-content',true],['https://example.supabase.co/functions/v1/export-faqs',false],['https://other.invalid/rest/v1/faqs',false]] as const) {
+  for(const [url,expected] of [['https://example.supabase.co/rest/v1/faqs',true],['https://example.supabase.co/functions/v1/analyze-content',true],['https://example.supabase.co/functions/v1/admin-control-center',true],['https://example.supabase.co/functions/v1/export-faqs',false],['https://other.invalid/rest/v1/faqs',false]] as const) {
     await rolloutFetch(url,{headers:{Authorization:'test-placeholder'}});
     const headers=fetchMock.mock.calls.at(-1)![1].headers as Headers;
     expect(headers.get('x-faqify-client')).toBe(expected?String(CLIENT_REVISION):null);

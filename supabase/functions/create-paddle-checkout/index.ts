@@ -2,6 +2,7 @@ import { withRolloutGuard } from '../_shared/rollout.ts';
 import { adminClient, authenticated, environment, json, paddleApi } from '../_shared/paddle.ts';
 import { configuredCreditPackPrices } from '../_shared/paddle-core.ts';
 import { cancelVerifiedCheckout } from '../_shared/checkout-recovery.ts';
+import { checkoutStatusGate } from '../_shared/checkout-status-gate.ts';
 
 const transactionIdPattern = /^txn_[a-z0-9]{26}$/;
 Deno.serve(withRolloutGuard(async req => {
@@ -13,10 +14,14 @@ Deno.serve(withRolloutGuard(async req => {
     const user = await authenticated(req, db);
     if (!user) return json({ error: 'Please sign in.' }, 401);
     const env = environment();
-    const { error: cohortError } = await db.rpc('faqify_require_sandbox_member', { p_user: user.id, p_environment: env });
-    if (cohortError) return json({ error: 'Sandbox billing is restricted to approved test accounts.' }, 403);
     const { pack, action, transactionId } = await req.json().catch(() => ({}));
-    const plans = configuredCreditPackPrices(Deno.env.get);
+    const plans = () => configuredCreditPackPrices(Deno.env.get);
+    async function requireCohort() {
+      const { error } = await db.rpc('faqify_require_sandbox_member', { p_user: user!.id, p_environment: env });
+      if (!error) return true;
+      if (error.message?.includes('Sandbox billing is restricted to approved test accounts')) return false;
+      throw error;
+    }
     async function closeCanceled(checkout: { id: string; transaction_id: string }) {
       const { error } = await db.from('paddle_checkouts').update({ closed: true, expires_at: new Date().toISOString() })
         .eq('id', checkout.id).eq('transaction_id', checkout.transaction_id).eq('user_id', user!.id).eq('closed', false);
@@ -34,7 +39,7 @@ Deno.serve(withRolloutGuard(async req => {
       if (!checkout.transaction_id) return { status: 'preparing', transaction: null };
       if (!transactionIdPattern.test(checkout.transaction_id)) throw new Error('Invalid transaction reference');
       const transaction = await paddleApi(`/transactions/${checkout.transaction_id}`);
-      const plan = plans.find(item => item.priceId === checkout.price_id && item.tier === checkout.tier && item.kind === 'credit_pack');
+      const plan = plans().find(item => item.priceId === checkout.price_id && item.tier === checkout.tier && item.kind === 'credit_pack');
       if (!plan || checkout.kind !== 'credit_pack' || transaction.id !== checkout.transaction_id ||
           transaction.custom_data?.faqify_checkout_id !== checkout.id ||
           transaction.custom_data?.faqify_user_id !== user!.id || transaction.subscription_id ||
@@ -61,7 +66,7 @@ Deno.serve(withRolloutGuard(async req => {
           data.items?.length !== 1 || (data.items[0].price?.id ?? data.items[0].price_id) !== checkout.price_id ||
           data.items[0].quantity !== 1 || data.subscription_id || data.currency_code !== 'USD')
         throw new Error('Completed payment identity mismatch');
-      const plan = plans.find(item => item.priceId === checkout.price_id && item.tier === checkout.tier);
+      const plan = plans().find(item => item.priceId === checkout.price_id && item.tier === checkout.tier);
       if (!plan) throw new Error('Credit pack configuration mismatch');
       const { error } = await db.rpc('apply_paddle_credit_event', {
         p_event_id: event.event_id, p_occurred_at: event.occurred_at, p_environment: env,
@@ -85,22 +90,24 @@ Deno.serve(withRolloutGuard(async req => {
         .select('id,transaction_id,price_id,tier,kind').eq('user_id', user.id).eq('environment', env)
         .eq('closed', false).order('created_at', { ascending: false }).limit(1).maybeSingle();
       if (error) throw error;
-      if (!pending) return json({ pending: null });
+      const gate = await checkoutStatusGate(action,!!pending,requireCohort);
+      if (gate) return json(gate.body,gate.status);
+      if (!pending) throw new Error('Checkout intent unavailable after status gate');
       if (action !== 'pending' && pending.transaction_id !== transactionId)
         return json({ error: 'Checkout changed in another tab. Refresh and try again.' }, 409);
       const { status, transaction } = await inspect(pending);
-      if (status === 'canceled') return json({ pending: null, result: 'canceled' });
+      if (status === 'canceled') return json({ pending: null, result: 'canceled', eligible: true });
       if (status === 'completed') {
         try {
           if (await reconcile(pending as typeof pending & { transaction_id: string }, transaction))
-            return json({ pending: null, result: 'fulfilled' });
+            return json({ pending: null, result: 'fulfilled', eligible: true });
         } catch (error) { console.error('Checkout reconciliation failed', error instanceof Error ? error.message : 'unknown'); }
-        return json({ pending: { pack: pending.tier, status: 'processing' } });
+        return json({ pending: { pack: pending.tier, status: 'processing' }, eligible: true });
       }
-      if (status === 'paid') return json({ pending: { pack: pending.tier, status: 'processing' } });
+      if (status === 'paid') return json({ pending: { pack: pending.tier, status: 'processing' }, eligible: true });
       if (action === 'pending') return json({ pending: { pack: pending.tier, status,
         transactionId: pending.transaction_id, canResume: status === 'draft' || status === 'ready',
-        canCancel: status === 'draft' || status === 'ready' } });
+        canCancel: status === 'draft' || status === 'ready' }, eligible: true });
       if (action === 'resume') {
         if (status !== 'draft' && status !== 'ready') return json({ error: 'This checkout cannot be resumed. Refresh its status.' }, 409);
         return json({ transactionId: pending.transaction_id });
@@ -111,10 +118,12 @@ Deno.serve(withRolloutGuard(async req => {
         () => closeCanceled(pending as typeof pending & { transaction_id: string }));
       if (result !== 'canceled')
         return json({ error: 'This checkout is processing or cannot be canceled. Refresh its status.' }, 409);
-      return json({ pending: null, result: 'canceled' });
+      return json({ pending: null, result: 'canceled', eligible: true });
     }
+    if (!await requireCohort())
+      return json({ error: 'Sandbox billing is restricted to approved test accounts.' }, 403);
     if (pack !== 'Pro' && pack !== 'Business') return json({ error: 'Refresh FAQify to buy a credit pack.' }, 400);
-    const plan = plans.find(item => item.tier === pack);
+    const plan = plans().find(item => item.tier === pack);
     if (!plan) return json({ error: 'This credit pack has not been configured.' }, 503);
     const { data: intent, error } = await db.rpc('begin_paddle_credit_checkout', { p_user: user.id, p_pack: pack, p_environment: env });
     if (error) return json({ error: error.message }, 409);

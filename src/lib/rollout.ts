@@ -29,7 +29,8 @@ export async function requireRolloutOpen() {
 }
 const guardedFunctions = new Set(['assign-pro-plan','send-contact','log-error','admin-set-plan','analyze-content','create-checkout-session','create-razorpay-order',
   'create-razorpay-subscription','fix-database-plans','manage-subscription','manage-razorpay-subscription',
-  'process-document','verify-razorpay-payment','track-analytics','create-paddle-checkout','paddle-customer-portal']);
+  'process-document','verify-razorpay-payment','track-analytics','create-paddle-checkout','paddle-customer-portal',
+  'admin-control-center']);
 // Only the configured Supabase origin receives this compatibility header. It is not
 // authorization; all existing JWT/ownership/quota checks remain mandatory.
 export const rolloutFetch: typeof fetch = async (input, init) => {
