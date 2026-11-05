@@ -16,10 +16,11 @@ export function configuredPrices(env: (name: string) => string | undefined): Pri
   if (new Set(plans.map(p => p.priceId)).size !== plans.length) throw new Error('Paddle prices must be distinct');
   return plans;
 }
-export function configuredCreditPackPrices(env: (name: string) => string | undefined): PricePlan[] {
-  const legacy = configuredPrices(env);
+export function configuredCreditPackPrices(env: (name: string) => string | undefined,
+  mode: 'sandbox' | 'live' = 'sandbox'): PricePlan[] {
+  const legacy = mode === 'sandbox' ? configuredPrices(env) : [];
   const plans = ([['Pro', 100], ['Business', 500]] as const).map(([tier, limit]) => {
-    const priceId = env(`PADDLE_${tier.toUpperCase()}_CREDIT_PACK_PRICE_ID`)?.trim();
+    const priceId = env(`PADDLE_${mode === 'live' ? 'LIVE_' : ''}${tier.toUpperCase()}_CREDIT_PACK_PRICE_ID`)?.trim();
     if (!priceId || !/^pri_[a-z0-9]{26}$/.test(priceId)) throw new Error('Credit pack price is missing or invalid');
     return { priceId, tier, kind: 'credit_pack' as const, limit };
   });

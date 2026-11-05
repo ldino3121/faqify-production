@@ -8,6 +8,7 @@ export function PaymentRecord({ payment }: { payment: PaymentSummary }) {
       : `Previous ${payment.pack} 30-day access payment`;
   return <li className="rounded border border-border p-3 min-w-0 break-words">
     <p className="font-medium">{description}</p>
+    {payment.environment === 'sandbox' && <p className="text-xs text-muted-foreground">Sandbox test payment</p>}
     <p className="text-sm">{localDate(payment.billedAt ?? payment.createdAt)} · {formatPaymentAmount(payment.amount, payment.currency)}</p>
     <p className="text-sm text-muted-foreground">{paymentStatusText(payment)}</p>
     <p className="text-xs text-muted-foreground">Payment reference: {payment.id}</p>

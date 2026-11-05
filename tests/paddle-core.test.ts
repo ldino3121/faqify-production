@@ -42,6 +42,21 @@ describe('price trust boundary',()=>{
     expect(()=>configuredCreditPackPrices(name=>name==='PADDLE_PRO_CREDIT_PACK_PRICE_ID'?id:env(name))).toThrow('distinct');
     expect(()=>configuredCreditPackPrices(name=>name==='PADDLE_BUSINESS_CREDIT_PACK_PRICE_ID'?undefined:env(name))).toThrow('missing');
   });
+  it('keeps live pack mappings separate from sandbox packs and legacy prices',()=>{
+    const livePro='pri_'+'d'.repeat(26),liveBusiness='pri_'+'e'.repeat(26);
+    const sandboxPro='pri_'+'b'.repeat(26),sandboxBusiness='pri_'+'c'.repeat(26);
+    const values:Record<string,string>={PADDLE_PRO_MONTHLY_PRICE_ID:id,
+      PADDLE_PRO_CREDIT_PACK_PRICE_ID:sandboxPro,PADDLE_BUSINESS_CREDIT_PACK_PRICE_ID:sandboxBusiness,
+      PADDLE_LIVE_PRO_CREDIT_PACK_PRICE_ID:livePro,PADDLE_LIVE_BUSINESS_CREDIT_PACK_PRICE_ID:liveBusiness};
+    const live=configuredCreditPackPrices(name=>values[name],'live');
+    expect(live).toEqual([
+      {priceId:livePro,tier:'Pro',kind:'credit_pack',limit:100},
+      {priceId:liveBusiness,tier:'Business',kind:'credit_pack',limit:500},
+    ]);
+    expect(()=>resolvePrice([{price:{id:sandboxPro},quantity:1}],live)).toThrow('Unrecognized');
+    expect(()=>resolvePrice([{price:{id},quantity:1}],live)).toThrow('Unrecognized');
+    expect(()=>configuredCreditPackPrices(name=>name==='PADDLE_LIVE_PRO_CREDIT_PACK_PRICE_ID'?undefined:values[name],'live')).toThrow('missing');
+  });
 });
 describe('website fetch boundary',()=>{
   it.each(['127.0.0.1','10.2.3.4','169.254.169.254','172.16.0.1','192.168.0.1','100.64.0.1','::1','::ffff:127.0.0.1','fd00::1','fe80::1','2002:7f00:1::'])('rejects internal address %s',address=>expect(isPublicAddress(address)).toBe(false));

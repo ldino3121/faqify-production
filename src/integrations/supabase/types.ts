@@ -70,9 +70,21 @@ export type Database = {
         Relationships: []
       }
       faq_credit_adjustments: {
-        Row: { adjustment_id: string; transaction_id: string; user_id: string; action: string; adjustment_type: string | null; status: string; resolution: string; occurred_at: string; created_at: string }
-        Insert: { adjustment_id: string; transaction_id: string; user_id: string; action: string; adjustment_type?: string | null; status: string; resolution: string; occurred_at: string; created_at?: string }
-        Update: { adjustment_id?: string; transaction_id?: string; user_id?: string; action?: string; adjustment_type?: string | null; status?: string; resolution?: string; occurred_at?: string; created_at?: string }
+        Row: { adjustment_id: string; environment: string; transaction_id: string; user_id: string; action: string; adjustment_type: string | null; status: string; resolution: string; occurred_at: string; created_at: string }
+        Insert: { adjustment_id: string; environment?: string; transaction_id: string; user_id: string; action: string; adjustment_type?: string | null; status: string; resolution: string; occurred_at: string; created_at?: string }
+        Update: { adjustment_id?: string; environment?: string; transaction_id?: string; user_id?: string; action?: string; adjustment_type?: string | null; status?: string; resolution?: string; occurred_at?: string; created_at?: string }
+        Relationships: []
+      }
+      faqify_live_billing_control: {
+        Row: { singleton: boolean; public_enabled: boolean; updated_at: string }
+        Insert: { singleton?: boolean; public_enabled?: boolean; updated_at?: string }
+        Update: { singleton?: boolean; public_enabled?: boolean; updated_at?: string }
+        Relationships: []
+      }
+      faqify_live_billing_cohort: {
+        Row: { user_id: string; enabled: boolean; created_at: string }
+        Insert: { user_id: string; enabled?: boolean; created_at?: string }
+        Update: { user_id?: string; enabled?: boolean; created_at?: string }
         Relationships: []
       }
       faq_collections: {

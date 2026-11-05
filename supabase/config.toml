@@ -99,6 +99,9 @@ verify_jwt = true
 [functions.paddle-webhook]
 verify_jwt = false
 
+[functions.paddle-live-webhook]
+verify_jwt = false
+
 [functions.razorpay-webhook]
 verify_jwt = false
 

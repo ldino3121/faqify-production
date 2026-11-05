@@ -3,6 +3,7 @@ import type { Subscription } from '@/lib/subscription';
 
 export interface PaymentSummary {
   id: string;
+  environment?: 'sandbox' | 'live';
   status: string;
   pack: 'Pro' | 'Business';
   kind: 'credit_pack' | 'recurring' | 'one_time';

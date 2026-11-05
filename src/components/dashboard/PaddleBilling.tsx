@@ -21,22 +21,25 @@ export function PaddleBilling() {
   const { user } = useAuth();
   const accountId = user?.id;
   const { toast } = useToast();
-  const { payments, activity, completed, hasCustomer } = useBillingRecords();
+  const { payments, activity, completed, hasCustomer, hasPreviousSandboxCustomer } = useBillingRecords();
   const [opening, setOpening] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const selected = new URLSearchParams(location.search).get('history');
-  const mode = selected === 'payments' || selected === 'activity' ? selected : null;
-  const setMode = (next: 'payments' | 'activity' | null) => {
+  const mode = selected === 'payments' || selected === 'activity' || selected === 'previous-payments' ? selected : null;
+  const setMode = (next: 'payments' | 'activity' | 'previous-payments' | null) => {
     const params = new URLSearchParams(location.search);
     if (next) params.set('history', next); else params.delete('history');
     navigate({ pathname: '/dashboard', search: params.toString() ? `?${params}` : '', hash: '#upgrade' });
   };
-  const history = useInfiniteQuery({ queryKey: ['paddle-history', accountId], enabled: !!accountId && mode === 'payments',
+  const previousPayments = mode === 'previous-payments';
+  const history = useInfiniteQuery({ queryKey: ['paddle-history', accountId, previousPayments ? 'sandbox' : 'current'],
+    enabled: !!accountId && (mode === 'payments' || previousPayments),
     initialPageParam: null as string | null,
     queryFn: async ({ pageParam }): Promise<HistoryPage> => {
       const { data, error } = await supabase.functions.invoke('paddle-customer-portal',
-        { body: { action: 'history', ...(pageParam ? { after: pageParam } : {}) } });
+        { body: { action: 'history', ...(previousPayments ? { environment: 'sandbox' } : {}),
+          ...(pageParam ? { after: pageParam } : {}) } });
       if (error || !data || !Array.isArray(data.transactions)) throw error ?? new Error(data?.error || 'Payment history unavailable');
       return data as HistoryPage;
     }, getNextPageParam: last => last.next ?? undefined, staleTime: 30000 });
@@ -46,20 +49,24 @@ export function PaddleBilling() {
     getNextPageParam: (last, pages) => last.length === 20 ? pages.length : undefined, staleTime: 30000 });
   const transactions = history.data?.pages.flatMap(page => page.transactions) ?? [];
   const entries = allActivity.data?.pages.flat() ?? [];
-  async function portal() {
+  async function portal(previous = false) {
     setOpening(true);
-    try { await openPaddlePortal('portal'); }
+    try { await openPaddlePortal('portal', previous ? 'sandbox' : undefined); }
     catch (error) { toast({ title: 'Billing unavailable',
       description: error instanceof Error ? error.message : 'Please retry.', variant: 'destructive' }); }
     finally { setOpening(false); }
   }
-  const portalButton = (hasCustomer || history.data?.pages[0]?.hasCustomer) &&
-    <Button disabled={opening} onClick={() => void portal()}>{opening ? 'Opening…' : 'Open billing portal'}</Button>;
-  if (mode === 'payments') return <section className="space-y-4" aria-label="All payments">
+  const portalButton = (hasCustomer || hasPreviousSandboxCustomer || history.data?.pages[0]?.hasCustomer) &&
+    <Button disabled={opening} onClick={() => void portal(previousPayments)}>{opening ? 'Opening…' :
+      previousPayments || (!hasCustomer && hasPreviousSandboxCustomer) ? 'Open previous sandbox portal' : 'Open billing portal'}</Button>;
+  if (mode === 'payments' || previousPayments) return <section className="space-y-4" aria-label="All payments">
     <Button variant="ghost" onClick={() => setMode(null)}>← Back to Buy Credits</Button>
-    <Card><CardHeader><CardTitle>All payments and invoices</CardTitle></CardHeader><CardContent className="space-y-4">
-      <p className="text-sm text-muted-foreground">Paddle test-mode payments. Credits appear only after verified fulfillment. The portal provides available invoices.</p>
+    <Card><CardHeader><CardTitle>{previousPayments ? 'Previous sandbox payments' : 'All payments and invoices'}</CardTitle></CardHeader><CardContent className="space-y-4">
+      <p className="text-sm text-muted-foreground">{previousPayments ? 'Previous test-mode payments remain available for reference.' :
+        'Credits appear only after verified fulfillment. The portal provides available invoices.'}</p>
       {portalButton}
+      {!previousPayments && hasPreviousSandboxCustomer && import.meta.env.VITE_PADDLE_ENVIRONMENT === 'live' &&
+        <Button variant="outline" onClick={() => setMode('previous-payments')}>View previous sandbox payments</Button>}
       {history.isPending && <p>Loading payments…</p>}
       {history.isError && <div role="alert"><p>Unable to load payments.</p><Button variant="outline" onClick={() => void history.refetch()}>Retry</Button></div>}
       {history.isSuccess && transactions.length === 0 && <p>No payments yet.</p>}
@@ -93,7 +100,10 @@ export function PaddleBilling() {
       {payments.isError && <div role="alert"><p>Unable to load payments.</p><Button variant="outline" onClick={() => void payments.refetch()}>Retry</Button></div>}
       {payments.isSuccess && completed.length === 0 && <p>No completed purchases yet.</p>}
       {payments.isSuccess && <ul className="space-y-2">{completed.map(payment => <PaymentRecord key={payment.id} payment={payment} />)}</ul>}
-      <div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => setMode('payments')}>View all payments</Button>{portalButton}</div>
+      <div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => setMode('payments')}>View all payments</Button>
+        {hasPreviousSandboxCustomer && import.meta.env.VITE_PADDLE_ENVIRONMENT === 'live' &&
+          <Button variant="outline" onClick={() => setMode('previous-payments')}>Previous sandbox payments</Button>}
+        {portalButton}</div>
     </CardContent></Card>
     <Card><CardHeader><CardTitle>Credit activity</CardTitle></CardHeader><CardContent className="space-y-3 text-sm">
       {activity.isPending && <p>Loading credit activity…</p>}
