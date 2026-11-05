@@ -236,7 +236,7 @@ export default function Admin() {
               <Metric title="Credits consumed" value={summaryData.saved_pairs} definition="Ledger usage deductions; one per saved generated FAQ pair."/>
             </div>
             <Card><CardHeader><CardTitle>Recorded purchase amounts by currency and basis</CardTitle></CardHeader><CardContent className="space-y-1 text-sm">
-              {items(summaryData.payment_totals).map(row=><p key={`${String(row.currency)}:${String(row.basis)}`}>{String(row.currency)}: {paymentTotal(row.amount_minor,row.currency)} · {row.basis==='catalog_price'?'Pack catalog price before checkout tax':'Paddle transaction total'} · {count(row.purchases)} payments</p>)}
+              {items(summaryData.payment_totals).map(row=><p key={`${String(row.currency)}:${String(row.basis)}`}>{String(row.currency)}: {paymentTotal(row.amount_minor,row.currency)} · {row.basis==='catalog_price'?'Pack catalog price before checkout tax':row.basis==='paddle_grand_total'?'Paddle total due after discounts and tax':'Paddle transaction total'} · {count(row.purchases)} payments</p>)}
               {!items(summaryData.payment_totals).length && <p>No completed payments for these filters.</p>}
               <p className="text-muted-foreground">Pack tax, refund amounts, fees, settlements and net proceeds are not in these records.</p>
             </CardContent></Card>
