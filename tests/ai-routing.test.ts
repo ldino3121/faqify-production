@@ -31,6 +31,15 @@ describe('three-layer routing',()=>{
     expect(()=>validatedLayers(layers.map(layer=>({...layer,enabled:false})))).toThrow();
     expect(()=>validatedLayers([{provider:'unknown',model_id:'x',enabled:true},...layers.slice(1)])).toThrow();
   });
+  it('accepts a newly approved exact model ID only when the server registry includes it',()=>{
+    const replacement=layers.map((layer,index)=>index===1?{...layer,model_id:'gemini-new-reviewed-model'}:layer);
+    expect(()=>validatedLayers(replacement)).toThrow();
+    const registry=new Set(replacement.map(layer=>`${layer.provider}:${layer.model_id}`));
+    expect(validatedLayers(replacement,registry)).toEqual(replacement);
+    registry.delete('gemini:gemini-new-reviewed-model');
+    expect(()=>validatedLayers(replacement,registry)).toThrow();
+    expect(()=>validatedLayers([{...replacement[0],model_id:'https://attacker.invalid'},...replacement.slice(1)],registry)).toThrow();
+  });
   it('keeps the deployed Gemini primary when it succeeds and never calls a disabled provider',async()=>{
     const x=run([geminiSuccess()]);
     await expect(x.result).resolves.toMatchObject({provider:'gemini',model:'gemini-2.5-flash',fallbackUsed:false,faqs:pair});

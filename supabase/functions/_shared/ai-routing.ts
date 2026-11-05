@@ -8,15 +8,14 @@ export type AIEvent = GeminiMetric & { provider: AILayer['provider'] };
 export const AI_ADAPTER_REVISION = 'facc-adapters-20261101-a';
 export const AI_PROMPT_REVISION = 'faq-prompt-20261101-a';
 
-// Keep the runtime gate independent of the database catalog. A mistaken or
-// corrupted catalog row must never turn a stored config into an outbound call
-// to an unreviewed model. New candidates require a reviewed code change.
+// Safe defaults for old callers and explicit fallback tests. Production
+// routing supplies the approved, server-owned registry from Postgres.
 export const APPROVED_AI_MODELS: Readonly<Record<AILayer['provider'], readonly string[]>> = {
   gemini: ['gemini-2.5-flash', 'gemini-2.5-flash-lite'],
   deepseek: ['deepseek-flash'],
 };
 
-export function validatedLayers(value: unknown): AILayer[] {
+export function validatedLayers(value: unknown, approved?: ReadonlySet<string>): AILayer[] {
   if (!Array.isArray(value) || value.length !== 3) throw new Error('Invalid AI routing configuration');
   const seen = new Set<string>();
   let enabled = 0;
@@ -27,7 +26,8 @@ export function validatedLayers(value: unknown): AILayer[] {
     const provider = layer.provider;
     const model = layer.model_id;
     if ((provider !== 'gemini' && provider !== 'deepseek') ||
-        typeof model !== 'string' || !APPROVED_AI_MODELS[provider].includes(model) ||
+        typeof model !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._-]{2,99}$/.test(model) ||
+        !(approved ? approved.has(`${provider}:${model}`) : APPROVED_AI_MODELS[provider].includes(model)) ||
         typeof layer.enabled !== 'boolean') throw new Error('Invalid AI routing configuration');
     const key = `${provider}:${model}`;
     if (seen.has(key)) throw new Error('Duplicate AI routing model');
@@ -56,6 +56,7 @@ function retryAfterMs(response: Response) {
 }
 export async function generateWithDeepSeek(options: {
   apiKey: string; model: string; prompt: string; count: number; requestStartedAt: number;
+  maxOutputTokens?: number;
   fetcher?: typeof fetch; now?: () => number; sleep?: (ms: number) => Promise<void>;
   random?: () => number;
   record?: (metric: GeminiMetric) => void;
@@ -76,7 +77,7 @@ export async function generateWithDeepSeek(options: {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${options.apiKey}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ model: options.model, thinking: { type: 'disabled' }, stream: false,
-          response_format: { type: 'json_object' }, max_tokens: 4096,
+          response_format: { type: 'json_object' }, max_tokens: options.maxOutputTokens ?? 4096,
           messages: [{ role: 'system', content: 'Return a JSON object with a faqs array of question and answer objects. Use only facts in the supplied source; return fewer pairs when needed.' },
             { role: 'user', content: options.prompt.replace('Return ONLY a JSON array of objects with string keys "question" and "answer".',
               'Return a JSON object with a "faqs" array of objects with string keys "question" and "answer".') }] }),
@@ -125,6 +126,7 @@ export async function generateWithDeepSeek(options: {
 
 export async function generateWithRouting(options: {
   layers: AILayer[]; geminiKey: string; deepSeekKey?: string; geminiPayload: unknown; prompt: string; count: number;
+  testOutputCap?: number;
   requestStartedAt: number; fetcher?: typeof fetch; now?: () => number;
   circuitOpen?: (layer: AILayer) => Promise<boolean>; record?: (event: AIEvent) => Promise<void>;
 }) : Promise<AIResult> {
@@ -145,7 +147,8 @@ export async function generateWithRouting(options: {
           payload: options.geminiPayload, count: options.count, requestStartedAt: options.requestStartedAt,
           fetcher: options.fetcher, now: options.now, record: metric => recorded.push({ ...metric, provider: 'gemini', fallback: index > 0 }) })
         : await generateWithDeepSeek({ apiKey: options.deepSeekKey!, model: layer.model_id, prompt: options.prompt,
-          count: options.count, requestStartedAt: options.requestStartedAt, fetcher: options.fetcher, now: options.now,
+          count: options.count, requestStartedAt: options.requestStartedAt, maxOutputTokens:options.testOutputCap,
+          fetcher: options.fetcher, now: options.now,
           record: metric => recorded.push({ ...metric, provider: 'deepseek', fallback: index > 0 }) });
       attempts += recorded.length;
       for (const event of recorded) await options.record?.(event);

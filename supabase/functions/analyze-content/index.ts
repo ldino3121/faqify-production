@@ -109,7 +109,11 @@ Deno.serve(withRolloutGuard(async (req) => {
       .select('version,layers').order('version', { ascending: false }).limit(1).single();
     if (routingError || !routing)
       throw new Error('AI routing configuration is unavailable.');
-    const layers = validatedLayers(routing.layers);
+    const { data: approvedModels, error: registryError } = await supabaseAdmin.from('facc_model_catalog')
+      .select('provider,model_id').eq('approval_status','approved');
+    if (registryError || !approvedModels) throw new Error('AI model registry is unavailable.');
+    const layers = validatedLayers(routing.layers,
+      new Set(approvedModels.map(row=>`${row.provider}:${row.model_id}`)));
 
     const { data: eligibility, error: eligibilityError } = await supabaseAdmin.rpc('can_generate_faqs', {
       user_uuid: user.id,

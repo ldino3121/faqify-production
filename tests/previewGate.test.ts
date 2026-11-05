@@ -5,7 +5,7 @@ const stage = 'https://oltufhuxeaqgyyjbvgqo.supabase.co';
 const prod = 'https://dlzshcshqjdghmtzlbma.supabase.co';
 
 describe('build-time write gate', () => {
-  const allowed = { VERCEL_ENV: 'preview', VERCEL_GIT_COMMIT_REF: 'feature/admin-control-center',
+  const allowed = { VERCEL_ENV: 'preview', VERCEL_GIT_COMMIT_REF: 'feature/facc-ux-model-registry',
     VITE_SUPABASE_URL: stage, VITE_FAQIFY_STAGING_WRITES_ENABLED: 'true' };
   it('allows only the isolated PR preview', () => {
     expect(isReadOnlyBuild(allowed)).toBe(false);
