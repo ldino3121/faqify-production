@@ -77,7 +77,8 @@ Deno.serve(withRolloutGuard(async req => {
           customer_id: data.customer_id, checkout_id: checkout.id, user_id: user!.id,
           price_id: plan.priceId, tier: plan.tier, kind: plan.kind, limit: plan.limit,
           period_end: null, period_start: event.occurred_at,
-          amount: data.details?.totals?.total, currency: data.currency_code },
+          amount: data.details?.totals?.grand_total, discount_id: data.discount_id ?? null,
+          currency: data.currency_code },
       });
       if (error) throw error;
       return await closeFulfilled(checkout);
@@ -139,11 +140,19 @@ Deno.serve(withRolloutGuard(async req => {
     }
     if (!intent.is_new) return json({ error: 'A checkout is being prepared. Please try again shortly.' }, 409);
     const { data: customer } = await db.from('paddle_customers').select('customer_id').eq('user_id', user.id).eq('environment', env).maybeSingle();
+    // A temporary launch discount is attached only to a server-authenticated,
+    // operator-approved account. The browser cannot supply a discount ID.
+    const testDiscount = env === 'live' && pack === 'Pro' &&
+      Deno.env.get('PADDLE_LIVE_TEST_ACCOUNT_ID') === user.id
+      ? Deno.env.get('PADDLE_LIVE_TEST_DISCOUNT_ID') : undefined;
+    if (testDiscount && !/^dsc_[a-z0-9]{26}$/.test(testDiscount)) throw new Error('Invalid test discount configuration');
     const transaction = await paddleApi('/transactions', {
       items: [{ price_id: plan.priceId, quantity: 1 }], collection_mode: 'automatic',
       ...(customer ? { customer_id: customer.customer_id } : {}),
+      ...(testDiscount ? { discount_id: testDiscount } : {}),
       custom_data: { faqify_checkout_id: intent.id, faqify_user_id: user.id },
     });
+    if (testDiscount && transaction.discount_id !== testDiscount) throw new Error('Test discount was not attached');
     const { error: storeError } = await db.from('paddle_checkouts').update({ transaction_id: transaction.id }).eq('id', intent.id);
     if (storeError) throw storeError;
     return json({ transactionId: transaction.id });

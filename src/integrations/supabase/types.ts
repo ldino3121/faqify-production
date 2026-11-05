@@ -58,9 +58,9 @@ export type Database = {
         Relationships: []
       }
       faq_credit_grants: {
-        Row: { id: number; user_id: string; transaction_id: string; checkout_id: string | null; environment: string; price_id: string | null; customer_id: string | null; credits: number; remaining: number; amount_cents: number | null; currency: string | null; granted_at: string; reversed_at: string | null }
-        Insert: { id?: number; user_id: string; transaction_id: string; checkout_id?: string | null; environment: string; price_id?: string | null; customer_id?: string | null; credits: number; remaining: number; amount_cents?: number | null; currency?: string | null; granted_at: string; reversed_at?: string | null }
-        Update: { id?: number; user_id?: string; transaction_id?: string; checkout_id?: string | null; environment?: string; price_id?: string | null; customer_id?: string | null; credits?: number; remaining?: number; amount_cents?: number | null; currency?: string | null; granted_at?: string; reversed_at?: string | null }
+        Row: { id: number; user_id: string; transaction_id: string; checkout_id: string | null; environment: string; price_id: string | null; customer_id: string | null; credits: number; remaining: number; amount_cents: number | null; collected_amount_cents: number | null; paddle_discount_id: string | null; currency: string | null; granted_at: string; reversed_at: string | null }
+        Insert: { id?: number; user_id: string; transaction_id: string; checkout_id?: string | null; environment: string; price_id?: string | null; customer_id?: string | null; credits: number; remaining: number; amount_cents?: number | null; collected_amount_cents?: number | null; paddle_discount_id?: string | null; currency?: string | null; granted_at: string; reversed_at?: string | null }
+        Update: { id?: number; user_id?: string; transaction_id?: string; checkout_id?: string | null; environment?: string; price_id?: string | null; customer_id?: string | null; credits?: number; remaining?: number; amount_cents?: number | null; collected_amount_cents?: number | null; paddle_discount_id?: string | null; currency?: string | null; granted_at?: string; reversed_at?: string | null }
         Relationships: []
       }
       faq_credit_ledger: {

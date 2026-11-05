@@ -30,7 +30,8 @@ export async function handlePaddleWebhook(req: Request, mode: PaddleEnvironment)
         user_id: data.custom_data?.faqify_user_id ?? null,
         price_id: plan.priceId, tier: plan.tier, kind: plan.kind, limit: plan.limit, period_end: end,
         period_start: data.billing_period?.starts_at ?? event.occurred_at,
-        amount: data.details?.totals?.total, currency: data.currency_code };
+        amount: data.details?.totals?.grand_total, discount_id: data.discount_id ?? null,
+        currency: data.currency_code };
     } else if (event.event_type.startsWith('subscription.')) {
       // Lifecycle notifications never grant quota or extend paid access. Only a completed payment does.
       payload = { operation: 'subscription', subscription_id: data.id, customer_id: data.customer_id,
