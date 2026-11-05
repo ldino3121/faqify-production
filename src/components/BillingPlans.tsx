@@ -161,7 +161,7 @@ export function BillingPlans({ dashboard = false, onNavigateToOverview, usageLim
       toast({ title: 'Checkout was not replaced', description: error instanceof Error ? error.message : 'Refresh checkout status.', variant: 'destructive' });
     } finally { requestInFlight.current = false; setBusy(null); }
   }
-  if (dashboard && ['payments', 'activity'].includes(new URLSearchParams(location.search).get('history') ?? ''))
+  if (dashboard && ['payments', 'previous-payments', 'activity'].includes(new URLSearchParams(location.search).get('history') ?? ''))
     return <section className="space-y-6"><PaddleBilling /></section>;
   return <section id={dashboard ? undefined : 'pricing'} className={dashboard ? 'space-y-6' : 'py-20 px-4 space-y-8 max-w-7xl mx-auto'}>
     <div className="text-center space-y-3"><h2 className="text-3xl font-bold">FAQ credits, whenever you need them</h2>
@@ -189,8 +189,9 @@ export function BillingPlans({ dashboard = false, onNavigateToOverview, usageLim
             : <Button className="w-full" disabled={!!busy || !PADDLE_READY || sandboxEligible === false} onClick={() => buy(pack)}>{busy === pack ? 'Opening checkout…' : `Buy ${credits} credits`}</Button>}
         </CardContent></Card>)}
     </div>
-    <p className="text-center text-sm text-muted-foreground"><span className="font-medium">Test mode</span> · Secure checkout by Paddle.{!PADDLE_READY ? ' Payments are being set up.' : ''}</p>
-    {dashboard && user && sandboxEligible === false && <p role="status" className="text-sm text-amber-300 text-center">Sandbox purchases are limited to approved test accounts. Your existing credits and FAQs remain available.</p>}
+    <p className="text-center text-sm text-muted-foreground">{import.meta.env.VITE_PADDLE_ENVIRONMENT === 'sandbox' && <><span className="font-medium">Test mode</span> · </>}Secure checkout by Paddle.{!PADDLE_READY ? ' Payments are being set up.' : ''}</p>
+    {dashboard && user && sandboxEligible === false && <p role="status" className="text-sm text-amber-300 text-center">{import.meta.env.VITE_PADDLE_ENVIRONMENT === 'sandbox'
+      ? 'Sandbox purchases are limited to approved test accounts.' : 'Purchases are temporarily limited to approved launch accounts.'} Your existing credits and FAQs remain available.</p>}
     <details open={dashboard ? usageLimitsOpen : undefined} onToggle={dashboard ? event => onUsageLimitsChange?.(event.currentTarget.open) : undefined} className="rounded border border-border p-4 text-sm"><summary className="cursor-pointer font-medium">Usage limits</summary>
       <p className="mt-2 text-muted-foreground">Free accounts can create one collection. After buying a credit pack, you can create up to 100 collections. You can store up to 10,000 FAQ pairs. Each successfully saved AI-generated pair uses one credit. Existing FAQs and embeds remain available when credits run out.</p>
     </details>

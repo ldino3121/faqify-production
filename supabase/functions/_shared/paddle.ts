@@ -6,15 +6,16 @@ export const cors = {
 };
 export const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } });
 export const adminClient = () => createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
-export function environment(): 'sandbox' {
+export type PaddleEnvironment = 'sandbox' | 'live';
+export function environment(): PaddleEnvironment {
   const env = Deno.env.get('PADDLE_ENVIRONMENT');
-  if (env !== 'sandbox') throw new Error('This release supports Paddle sandbox only');
+  if (env !== 'sandbox' && env !== 'live') throw new Error('Paddle environment is not configured');
   return env;
 }
-export async function paddleApi(path: string, body?: unknown, method?: string) {
-  environment();
-  const base = 'https://sandbox-api.paddle.com';
-  const key = Deno.env.get('PADDLE_API_KEY');
+export async function paddleApi(path: string, body?: unknown, method?: string,
+  mode: PaddleEnvironment = environment()) {
+  const base = mode === 'sandbox' ? 'https://sandbox-api.paddle.com' : 'https://api.paddle.com';
+  const key = Deno.env.get(mode === 'sandbox' ? 'PADDLE_API_KEY' : 'PADDLE_LIVE_API_KEY');
   if (!key) throw new Error('Paddle API is not configured');
   const response = await fetch(base + path, {
     method: method ?? (body === undefined ? 'GET' : 'POST'),

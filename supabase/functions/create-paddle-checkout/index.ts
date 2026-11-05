@@ -15,11 +15,14 @@ Deno.serve(withRolloutGuard(async req => {
     if (!user) return json({ error: 'Please sign in.' }, 401);
     const env = environment();
     const { pack, action, transactionId } = await req.json().catch(() => ({}));
-    const plans = () => configuredCreditPackPrices(Deno.env.get);
+    const plans = () => configuredCreditPackPrices(Deno.env.get, env);
+    const denialMessage = env === 'sandbox' ? 'Sandbox billing is restricted to approved test accounts.'
+      : 'Live checkout is temporarily limited to approved launch accounts.';
     async function requireCohort() {
-      const { error } = await db.rpc('faqify_require_sandbox_member', { p_user: user!.id, p_environment: env });
+      const { error } = await db.rpc('faqify_require_billing_member', { p_user: user!.id, p_environment: env });
       if (!error) return true;
-      if (error.message?.includes('Sandbox billing is restricted to approved test accounts')) return false;
+      if (error.message?.includes('restricted to approved test accounts') ||
+          error.message?.includes('limited to approved launch accounts')) return false;
       throw error;
     }
     async function closeCanceled(checkout: { id: string; transaction_id: string }) {
@@ -29,7 +32,7 @@ Deno.serve(withRolloutGuard(async req => {
     }
     async function closeFulfilled(checkout: { id: string; transaction_id: string }) {
       const { data: grant, error: grantError } = await db.from('faq_credit_grants').select('id')
-        .eq('user_id', user!.id).eq('transaction_id', checkout.transaction_id).maybeSingle();
+        .eq('user_id', user!.id).eq('environment', env).eq('transaction_id', checkout.transaction_id).maybeSingle();
       if (grantError) throw grantError;
       if (!grant) return false;
       await closeCanceled(checkout);
@@ -52,7 +55,7 @@ Deno.serve(withRolloutGuard(async req => {
     async function reconcile(checkout: { id: string; transaction_id: string; price_id: string; tier: string }, transaction: any) {
       if (transaction.status !== 'completed') return false;
       const { data: grant, error: grantError } = await db.from('faq_credit_grants').select('id')
-        .eq('user_id', user!.id).eq('transaction_id', checkout.transaction_id).maybeSingle();
+        .eq('user_id', user!.id).eq('environment', env).eq('transaction_id', checkout.transaction_id).maybeSingle();
       if (grantError) throw grantError;
       if (grant) return await closeFulfilled(checkout);
       // Reuse Paddle's real completed event and the webhook's idempotent SQL path.
@@ -90,7 +93,7 @@ Deno.serve(withRolloutGuard(async req => {
         .select('id,transaction_id,price_id,tier,kind').eq('user_id', user.id).eq('environment', env)
         .eq('closed', false).order('created_at', { ascending: false }).limit(1).maybeSingle();
       if (error) throw error;
-      const gate = await checkoutStatusGate(action,!!pending,requireCohort);
+      const gate = await checkoutStatusGate(action,!!pending,requireCohort,denialMessage);
       if (gate) return json(gate.body,gate.status);
       if (!pending) throw new Error('Checkout intent unavailable after status gate');
       if (action !== 'pending' && pending.transaction_id !== transactionId)
@@ -120,8 +123,7 @@ Deno.serve(withRolloutGuard(async req => {
         return json({ error: 'This checkout is processing or cannot be canceled. Refresh its status.' }, 409);
       return json({ pending: null, result: 'canceled', eligible: true });
     }
-    if (!await requireCohort())
-      return json({ error: 'Sandbox billing is restricted to approved test accounts.' }, 403);
+    if (!await requireCohort()) return json({ error: denialMessage }, 403);
     if (pack !== 'Pro' && pack !== 'Business') return json({ error: 'Refresh FAQify to buy a credit pack.' }, 400);
     const plan = plans().find(item => item.tier === pack);
     if (!plan) return json({ error: 'This credit pack has not been configured.' }, 503);

@@ -3,7 +3,10 @@ import { initializePaddle, type Paddle } from '@paddle/paddle-js';
 import { supabase } from '@/integrations/supabase/client';
 
 export const BILLING_PROVIDER = import.meta.env.VITE_BILLING_PROVIDER === 'razorpay' ? 'razorpay' : 'paddle';
-export const PADDLE_READY = !!import.meta.env.VITE_PADDLE_CLIENT_TOKEN?.trim();
+const PADDLE_MODE = import.meta.env.VITE_PADDLE_ENVIRONMENT;
+const PADDLE_TOKEN = import.meta.env.VITE_PADDLE_CLIENT_TOKEN?.trim() ?? '';
+export const PADDLE_READY = (PADDLE_MODE === 'sandbox' && PADDLE_TOKEN.startsWith('test_')) ||
+  (PADDLE_MODE === 'live' && PADDLE_TOKEN.startsWith('live_'));
 export type PendingCheckout = { pack: 'Pro' | 'Business'; status: string; transactionId?: string; canResume?: boolean; canCancel?: boolean };
 export type CheckoutStatus = { pending: PendingCheckout | null; eligible?: boolean; result?: 'canceled' | 'fulfilled' | 'processing' };
 export class CheckoutRequestError extends Error {
@@ -15,7 +18,7 @@ async function checkoutRequest(body: Record<string, unknown>) {
     const detail = await error.context?.json?.().catch(() => null);
     const status = Number(error.context?.status ?? 0);
     throw new CheckoutRequestError(detail?.error || (status === 401 ? 'Your session expired. Please sign in again.'
-      : status === 403 ? 'Sandbox checkout is limited to approved test accounts.'
+      : status === 403 ? 'Checkout is limited to approved launch accounts right now.'
       : 'Unable to verify checkout. Please retry.'), status);
   }
   return data;
@@ -27,11 +30,11 @@ export async function pendingPaddleCheckout(): Promise<CheckoutStatus> {
 let sdk: Promise<Paddle | undefined> | undefined;
 export async function paddle() {
   await requireRolloutOpen();
-  if (import.meta.env.VITE_PADDLE_ENVIRONMENT !== 'sandbox') throw new Error('Paddle sandbox is not configured.');
+  if (PADDLE_MODE !== 'sandbox' && PADDLE_MODE !== 'live') throw new Error('Payments are not configured.');
   if (!PADDLE_READY) throw new Error('Payments are being set up. Please contact support.');
   sdk ??= initializePaddle({
-    token: import.meta.env.VITE_PADDLE_CLIENT_TOKEN,
-    environment: 'sandbox',
+    token: PADDLE_TOKEN,
+    environment: PADDLE_MODE === 'sandbox' ? 'sandbox' : 'production',
     checkout: { settings: { displayMode: 'overlay', theme: 'dark', successUrl: `${window.location.origin}/dashboard?billing=processing` } },
     eventCallback: event => {
       if (event.name === 'checkout.completed') window.dispatchEvent(new Event('faqify-billing-updated'));
@@ -59,8 +62,9 @@ export async function resumePaddleCheckout(transactionId: string, email: string)
   if (!data?.transactionId) throw new Error(data?.error || 'Checkout is no longer resumable.');
   await showPaddleCheckout(instance, data.transactionId, email);
 }
-export async function openPaddlePortal(action: 'portal' | 'subscription' = 'portal') {
-  const { data, error } = await supabase.functions.invoke('paddle-customer-portal', { body: { action } });
+export async function openPaddlePortal(action: 'portal' | 'subscription' = 'portal',
+  environment?: 'sandbox' | 'live') {
+  const { data, error } = await supabase.functions.invoke('paddle-customer-portal', { body: { action, environment } });
   if (error || !data?.url) throw new Error(data?.error || 'Unable to open billing. Please retry.');
   // Never persist or cache this short-lived authenticated link.
   window.location.assign(data.url);

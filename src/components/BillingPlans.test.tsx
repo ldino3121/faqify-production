@@ -25,12 +25,13 @@ describe('Buy Credits account-scoped status',()=>{
   let node:HTMLDivElement;
   let root:ReturnType<typeof createRoot>;
   beforeEach(()=>{
+    vi.stubEnv('VITE_PADDLE_ENVIRONMENT','sandbox');
     globalThis.IS_REACT_ACT_ENVIRONMENT=true;
     state.userId=null;state.authLoading=false;pending.mockReset();toast.mockReset();
     node=document.createElement('div');document.body.appendChild(node);root=createRoot(node);
     Object.defineProperty(document,'visibilityState',{configurable:true,value:'visible'});
   });
-  afterEach(async()=>{await act(async()=>root.unmount());node.remove();});
+  afterEach(async()=>{await act(async()=>root.unmount());node.remove();vi.unstubAllEnvs();});
   const render=async()=>act(async()=>root.render(<MemoryRouter><BillingPlans dashboard onNavigateToOverview={()=>{}} usageLimitsOpen={false} onUsageLimitsChange={()=>{}}/></MemoryRouter>));
   it('waits for auth readiness and treats a new account without an intent as empty',async()=>{
     state.authLoading=true;
@@ -48,6 +49,14 @@ describe('Buy Credits account-scoped status',()=>{
     expect(node.textContent).toContain('Sandbox purchases are limited to approved test accounts');
     expect(node.textContent).not.toContain('Retry status check');
     expect([...node.querySelectorAll('button')].filter(button=>button.textContent?.startsWith('Buy ') && button.disabled)).toHaveLength(2);
+  });
+  it('labels the live controlled cohort without calling it sandbox test mode',async()=>{
+    vi.stubEnv('VITE_PADDLE_ENVIRONMENT','live');
+    state.userId='account-a';pending.mockResolvedValue({pending:null,eligible:false});
+    await render();await flush();
+    expect(node.textContent).toContain('Purchases are temporarily limited to approved launch accounts');
+    expect(node.textContent).not.toContain('Test mode');
+    expect(node.textContent).not.toContain('Sandbox purchases');
   });
   it('ignores a stale pending checkout response after switching accounts',async()=>{
     let resolveA:(value:unknown)=>void=()=>{};

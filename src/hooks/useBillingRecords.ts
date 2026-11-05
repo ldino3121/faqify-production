@@ -6,7 +6,8 @@ import { paymentCategory, type PaymentSummary } from '@/lib/billing';
 export type LedgerEntry = { id: number; bucket: string; entry_type: string; delta: number;
   created_at: string; source_transaction_id: string | null; source_adjustment_id: string | null;
   grant_id: number | null; grantCredits?: number | null };
-export type HistoryPage = { transactions: PaymentSummary[]; next: string | null; hasCustomer: boolean };
+export type HistoryPage = { transactions: PaymentSummary[]; next: string | null;
+  hasCustomer: boolean; hasPreviousSandboxCustomer?: boolean; environment?: 'sandbox' | 'live' };
 
 export async function fetchLedgerPage(accountId: string, offset: number, limit: number): Promise<LedgerEntry[]> {
   const { data, error } = await supabase.from('faq_credit_ledger')
@@ -37,5 +38,6 @@ export function useBillingRecords() {
   const activity = useQuery({ queryKey: ['credit-recent-activity', accountId], enabled: !!accountId,
     queryFn: () => fetchLedgerPage(accountId!, 0, 3), staleTime: 30000 });
   const completed = (payments.data?.transactions ?? []).filter(payment => paymentCategory(payment) === 'completed').slice(0, 3);
-  return { payments, activity, completed, hasCustomer: payments.data?.hasCustomer ?? false };
+  return { payments, activity, completed, hasCustomer: payments.data?.hasCustomer ?? false,
+    hasPreviousSandboxCustomer: payments.data?.hasPreviousSandboxCustomer ?? false };
 }
