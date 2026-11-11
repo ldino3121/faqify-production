@@ -115,6 +115,16 @@ Deno.serve(withRolloutGuard(async req => {
         credentials: { gemini: !!(Deno.env.get('GEMINI_API_KEY') || Deno.env.get('GOOGLE_AI_API_KEY') || Deno.env.get('GOOGLE_GEMINI_API_KEY')),
           deepseek: !!Deno.env.get('DEEPSEEK_API_KEY') } });
     }
+    if (action === 'deepseek_balance') {
+      const key = Deno.env.get('DEEPSEEK_API_KEY');
+      if (!key) return json({ error: 'DeepSeek is not configured.' }, 409);
+      const response = await fetch('https://api.deepseek.com/user/balance', {
+        headers: { Authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(8000),
+      });
+      if (!response.ok) return json({ available: false, providerStatus: response.status });
+      const balance = await response.json();
+      return json({ available: balance.is_available === true });
+    }
     if (action === 'audit') {
       const page = Number.isInteger(body.page) && body.page >= 0 && body.page < 1000 ? body.page : 0;
       const registryPage = Number.isInteger(body.registryPage) && body.registryPage >= 0 && body.registryPage < 1000 ? body.registryPage : 0;
@@ -172,6 +182,7 @@ Deno.serve(withRolloutGuard(async req => {
     }
     if (action === 'test' || action === 'availability' || action === 'test_chain') {
       if (action === 'test_chain') {
+        const controlledGeminiFailure = body.controlledGeminiFailure === true;
         const { data: config, error: configError } = await db.from('facc_ai_configs').select('layers')
           .order('version',{ascending:false}).limit(1).single();
         if (configError || !config) throw new Error('Routing configuration unavailable');
@@ -190,6 +201,11 @@ Deno.serve(withRolloutGuard(async req => {
             geminiKey:Deno.env.get('GEMINI_API_KEY') || Deno.env.get('GOOGLE_AI_API_KEY') || Deno.env.get('GOOGLE_GEMINI_API_KEY') || '',
             deepSeekKey:Deno.env.get('DEEPSEEK_API_KEY') || undefined,
             geminiPayload:payload,prompt,count:2,requestStartedAt:started,
+            fetcher: controlledGeminiFailure ? ((input, init) => {
+              if (String(input).startsWith('https://generativelanguage.googleapis.com/'))
+                return Promise.resolve(new Response('{"error":{"status":"UNAVAILABLE"}}', { status: 503 }));
+              return fetch(input, init);
+            }) as typeof fetch : undefined,
             record:async event=>{attempts.push({provider:event.provider,model:event.model,category:event.category,
               input_tokens:event.input_tokens,output_tokens:event.output_tokens});},
             circuitOpen:async layer=>{
@@ -207,6 +223,7 @@ Deno.serve(withRolloutGuard(async req => {
           const {data:price}=await db.from('facc_model_catalog').select('input_usd_per_million,output_usd_per_million')
             .eq('provider',result.provider).eq('model_id',result.model).single();
           return json({kind:'real-chain',success:complete,provider:result.provider,model:result.model,returnedModel:result.returnedModel,
+            controlledGeminiFailure,
             requestedCount:2,returnedCount:result.faqs.length,sample:result.faqs,
             fallbackUsed:result.fallbackUsed,attempts:attempts.map(item=>({provider:item.provider,model:item.model,category:item.category})),
             latencyMs:Date.now()-started,inputTokens:result.inputTokens??null,outputTokens:result.outputTokens??null,
